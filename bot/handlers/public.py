@@ -76,9 +76,13 @@ async def cmd_rp_commands(message: types.Message):
     return True
 
 async def cmd_about(message: types.Message):
+    bot_user = await message.bot.get_me()
+    bot_name = bot_user.full_name
+    bot_username = bot_user.username
+
     about_text = (
-        "<b>┌─ 🤖 О БОТЕ</b>\n"
-            "<b>├─ 📝 Название:</b> <a href='https://t.me/Lonewolf239_informantBOT'>Lonewolf239 Informant</a> (<a href='https://github.com/Lonewolf239/InformantTGBot'>GitHub</a>)\n"
+        f"<b>┌─ 🤖 О БОТЕ</b>\n"
+        f"<b>├─ 📝 Название:</b> <a href='https://t.me/{bot_username}'>{bot_name}</a> (<a href='https://github.com/Lonewolf239/InformantTGBot'>GitHub</a>)\n"
         "<b>├─ 🛠️ Функции:</b>\n"
         "<b>├─  •</b> Автоответчик при режиме «отошёл»\n"
         "<b>├─  •</b> RP команды (обнять, поцеловать и др.)\n"
@@ -95,7 +99,6 @@ async def cmd_about(message: types.Message):
     db.increment_commands()
     db.log_command("!о_боте", message.from_user.id)
     return True
-
 
 async def cmd_donut(message: types.Message):
     donut_text = (
