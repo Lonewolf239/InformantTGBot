@@ -39,6 +39,8 @@ class Database:
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS user_stats (
                     user_id INTEGER PRIMARY KEY,
+                    username TEXT,
+                    user_link TEXT,
                     first_seen TEXT NOT NULL,
                     last_message TEXT NOT NULL,
                     messages_count INTEGER DEFAULT 0,
@@ -189,19 +191,22 @@ class Database:
                 return (datetime.now() - start).total_seconds()
             return 0
 
-    def update_user_message(self, user_id: int):
+    def update_user_message(self, user_id: int, username: str = None, user_link: str = None):
         now = datetime.now().isoformat()
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO user_stats (user_id, first_seen, last_message, messages_count)
-                VALUES (?, ?, ?, 1)
+                INSERT INTO user_stats (user_id, username, user_link, first_seen, last_message, messages_count)
+                VALUES (?, ?, ?, ?, ?, 1)
                 ON CONFLICT(user_id) DO UPDATE SET
+                    username = COALESCE(?, username),
+                    user_link = COALESCE(?, user_link),
                     last_message = ?,
                     messages_count = messages_count + 1
-            ''', (user_id, now, now, now))
+            ''', (user_id, username, user_link, now, now, 
+                  username, user_link, now))
             conn.commit()
-    
+
     def mark_auto_reply_sent(self, user_id: int, reply_text: str):
         now = datetime.now().isoformat()
         with self._get_connection() as conn:
@@ -240,13 +245,19 @@ class Database:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT user_id, messages_count, received_auto_reply
+                SELECT user_id, username, user_link, messages_count, received_auto_reply
                 FROM user_stats
                 ORDER BY messages_count DESC
                 LIMIT ?
             ''', (limit,))
             rows = cursor.fetchall()
-            return [{"user_id": row[0], "messages": row[1], "auto_replies": row[2]} for row in rows]
+            return [{
+                "user_id": row[0], 
+                "username": row[1] or f"user_{row[0]}",
+                "user_link": row[2] or f"tg://user?id={row[0]}",
+                "messages": row[3], 
+                "auto_replies": row[4]
+            } for row in rows]
 
     def log_command(self, command: str, user_id: int):
         with self._get_connection() as conn:

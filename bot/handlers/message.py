@@ -22,9 +22,12 @@ async def handle_all_messages(message: types.Message):
     if not message.from_user:
         return
 
+    user = message.from_user
     user_id = message.from_user.id
+    username = user.username or f"{user.first_name}_{user.id}"
+    user_link = f"tg://user?id={user.id}"
     db.increment_total_messages()
-    db.update_user_message(user_id)
+    db.update_user_message(user.id, username, user_link)
 
     try:
         if message.text:

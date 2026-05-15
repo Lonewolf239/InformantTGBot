@@ -164,41 +164,59 @@ async def cmd_owner_help(message: types.Message):
 
 async def cmd_stats(message: types.Message):
     full_stats = db.get_full_stats()
+    state_info = await state.get_stats()
 
     uptime_seconds = full_stats.get("uptime_seconds", 0)
     hours = uptime_seconds // 3600
     minutes = (uptime_seconds % 3600) // 60
 
-    top_users_text = ""
-    for i, user in enumerate(full_stats.get("top_users", []), 1):
-        top_users_text += f"<b>├─ {i}.</b> ID {user['user_id']}: {user['messages']} сообщений\n"
+    top_users_lines = []
+    for index, user in enumerate(full_stats.get("top_users", []), 1):
+        if user['username'] and not user['username'].startswith('user_'):
+            name = f"@{user['username']}"
+        else:
+            name = f"<a href='{user['user_link']}'>{user['username']}</a>"
 
-    top_commands_text = ""
-    for cmd in full_stats.get("top_commands", []):
-        top_commands_text += f"<b>├─</b> {cmd['command']}: {cmd['count']}\n"
+        top_users_lines.append(f"├─ {index}. {name}: {user['messages']} сообщений")
+    top_users_text = "\n".join(top_users_lines)
 
-    state_info = await state.get_stats()
+    top_commands_lines = [f"<b>├─</b> {cmd['command']}: {cmd['count']}" 
+                          for cmd in full_stats.get("top_commands", [])]
+    top_commands_text = "\n".join(top_commands_lines)
 
-    await message.reply(
+    metrics = {
+        "total_messages": full_stats.get('total_messages', 0),
+        "auto_replies_total": full_stats.get('auto_replies_sent', 0),
+        "auto_replies_session": state_info['auto_replied_count'],
+        "rp_actions": full_stats.get('rp_actions_used', 0),
+        "jokes": full_stats.get('jokes_sent', 0),
+        "memes": full_stats.get('memes_sent', 0),
+        "commands": full_stats.get('commands_used', 0),
+        "away_toggles": full_stats.get('away_mode_toggled', 0),
+        "users": full_stats.get('users_count', 0),
+    }
+
+    reply_text = (
         "<b>┌─ 📊 СТАТИСТИКА БОТА</b>\n"
-        f"<b>├─ Сообщений:</b> {full_stats.get('total_messages', 0)}\n"
-        f"<b>├─ Автоответов (всего):</b> {full_stats.get('auto_replies_sent', 0)}\n"
-        f"<b>├─ Автоответов (текущая сессия):</b> {state_info['auto_replied_count']}\n"
-        f"<b>├─ RP действий:</b> {full_stats.get('rp_actions_used', 0)}\n"
-        f"<b>├─ Анекдотов:</b> {full_stats.get('jokes_sent', 0)}\n"
-        f"<b>├─ Мемов:</b> {full_stats.get('memes_sent', 0)}\n"
-        f"<b>├─ Команд:</b> {full_stats.get('commands_used', 0)}\n"
-        f"<b>├─ Переключений режима:</b> {full_stats.get('away_mode_toggled', 0)}\n"
-        f"<b>├─ Аптайм:</b> {int(hours)}ч {int(minutes)}мин\n"
-        f"<b>├─ Уникальных собеседников:</b> {full_stats.get('users_count', 0)}\n"
+        f"<b>├─ Сообщений:</b> {metrics['total_messages']}\n"
+        f"<b>├─ Автоответов (всего):</b> {metrics['auto_replies_total']}\n"
+        f"<b>├─ Автоответов (текущая сессия):</b> {metrics['auto_replies_session']}\n"
+        f"<b>├─ RP действий:</b> {metrics['rp_actions']}\n"
+        f"<b>├─ Анекдотов:</b> {metrics['jokes']}\n"
+        f"<b>├─ Мемов:</b> {metrics['memes']}\n"
+        f"<b>├─ Команд:</b> {metrics['commands']}\n"
+        f"<b>├─ Переключений режима:</b> {metrics['away_toggles']}\n"
+        f"<b>├─ Аптайм:</b> {hours}ч {minutes}мин\n"
+        f"<b>├─ Уникальных собеседников:</b> {metrics['users']}\n"
         f"<b>│</b>\n"
-        f"<b>├─ 🏆 Топ пользователей:</b>\n{top_users_text}"
+        f"<b>├─ 🏆 Топ пользователей:</b>\n{top_users_text}\n"
         f"<b>│</b>\n"
-        f"<b>├─ 📋 Популярные команды:</b>\n{top_commands_text}"
+        f"<b>├─ 📋 Популярные команды:</b>\n{top_commands_text}\n"
         f"<b>│</b>\n"
         f"<b>└─ 📍 Режим:</b> {'Отошёл' if await state.is_away_mode else 'Онлайн'}"
     )
 
+    await message.reply(reply_text)
     db.increment_commands()
     return True
 
