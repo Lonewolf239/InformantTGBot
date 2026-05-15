@@ -92,4 +92,4 @@ BACKUP_JOKES = [
     "— Алло, это скорая?\n— Да.\n— У меня друг упал с 10 этажа!\n— Вызовите полицию!\n— Не надо, он ещё жив!\n— Тогда положите его в холодильник!"
 ]
 
-NSFW_ENABLED_BY_DEFAULT = os.getenv("NSFW_ENABLED_BY_DEFAULT", "True").lower() == "true"
+NSFW_ENABLED_BY_DEFAULT = 0

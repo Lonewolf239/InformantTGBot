@@ -1,5 +1,6 @@
 import sqlite3
 import os
+from config import NSFW_ENABLED_BY_DEFAULT
 from typing import Dict, Optional
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'user_settings.db')
@@ -15,10 +16,10 @@ class UserSettingsDB:
     def _init_db(self):
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('''
+            cursor.execute(f'''
                 CREATE TABLE IF NOT EXISTS user_nsfw_settings (
                     user_id INTEGER PRIMARY KEY,
-                    nsfw_enabled INTEGER DEFAULT 0,
+                    nsfw_enabled INTEGER DEFAULT {NSFW_ENABLED_BY_DEFAULT},
                     updated_at TEXT NOT NULL
                 )
             ''')
