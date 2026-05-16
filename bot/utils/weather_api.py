@@ -190,15 +190,14 @@ async def cmd_weather(message: types.Message):
         await message.reply(
             "<b>┌─ 🌤️ ПОГОДА</b>\n"
             "├─ ❌ Не указан город!\n"
-            "└─ 📝 Использование: <code>!погода Москва</code>"
+            "└─ 📝 Использование: <code>!погода</code> [город]"
         )
         return True
 
     city_name = args[1].strip()
 
     try:
-        from main import bot
-        await bot.send_chat_action(chat_id=message.chat.id, action="typing")
+        await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
     except:
         pass
 

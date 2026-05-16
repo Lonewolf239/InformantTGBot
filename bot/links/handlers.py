@@ -1,16 +1,12 @@
 import re
 from aiogram import types
 from bot.links.database import (
-    init_links_db, save_link, detect_link_type, get_unviewed_links_grouped,
-    get_unviewed_links_by_type, mark_as_viewed, delete_link, get_stats,
-    get_all_links, format_date
+    save_link, get_link, detect_link_type, get_unviewed_links_grouped,
+    get_unviewed_links_by_type, delete_link, get_stats
 )
 from bot.links.keyboard import create_submenu_keyboard, create_unviewed_list_keyboard
 from config import OWNER_ID
-from bot.utils.database import db
 import logging
-import sqlite3
-from bot.links.database import DB_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +56,9 @@ async def cmd_links(message: types.Message):
     text, reply_markup = create_submenu_keyboard(grouped)
 
     if reply_markup:
-        await message.reply(text, reply_markup=reply_markup, parse_mode='HTML')
+        await message.reply(text, reply_markup=reply_markup)
     else:
-        await message.reply(text, parse_mode='HTML')
+        await message.reply(text)
     return True
 
 async def cmd_links_stats(message: types.Message):
@@ -93,8 +89,7 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
 
         await callback_query.message.edit_text(
             text,
-            reply_markup=reply_markup,
-            parse_mode='HTML'
+            reply_markup=reply_markup
         )
 
     elif data == "links_back":
@@ -103,8 +98,7 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
 
         await callback_query.message.edit_text(
             text,
-            reply_markup=reply_markup,
-            parse_mode='HTML'
+            reply_markup=reply_markup
         )
 
     elif data.startswith("links_typepage|"):
@@ -116,25 +110,18 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
 
         await callback_query.message.edit_text(
             text,
-            reply_markup=reply_markup,
-            parse_mode='HTML'
+            reply_markup=reply_markup
         )
 
     elif data.startswith("links_open|"):
         link_id = int(data.split("|")[1])
 
         try:
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute("SELECT url FROM saved_links WHERE id = ?", (link_id,))
-            result = cursor.fetchone()
-            conn.close()
+            url = get_link(link_id)
 
-            if result:
-                url = result[0]
-                mark_as_viewed(link_id)
-
+            if url:
                 await callback_query.message.reply(url)
+                delete_link(link_id)
 
                 await callback_query.answer("✅ Ссылка отмечена как просмотренная")
                 grouped = get_unviewed_links_grouped()
@@ -142,8 +129,7 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
                     text, reply_markup = create_submenu_keyboard(grouped)
                     await callback_query.message.edit_text(
                         text,
-                        reply_markup=reply_markup,
-                        parse_mode='HTML'
+                        reply_markup=reply_markup
                     )
                 else:
                     await callback_query.message.edit_text(
@@ -161,16 +147,17 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
         links = get_unviewed_links_by_type(link_type)
         marked_count = len(links)
 
+        deleted_count = 0
         for link in links:
-            mark_as_viewed(link[0])
+            if delete_link(link[0]):
+                deleted_count += 1
 
         grouped = get_unviewed_links_grouped()
         if grouped:
             text, reply_markup = create_submenu_keyboard(grouped)
             await callback_query.message.edit_text(
                 text,
-                reply_markup=reply_markup,
-                parse_mode='HTML'
+                reply_markup=reply_markup
             )
         else:
             await callback_query.message.edit_text(
@@ -186,10 +173,9 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
         if reply_markup:
             await callback_query.message.edit_text(
                 text,
-                reply_markup=reply_markup,
-                parse_mode='HTML'
+                reply_markup=reply_markup
             )
         else:
-            await callback_query.message.edit_text(text, parse_mode='HTML')
+            await callback_query.message.edit_text(text)
 
     await callback_query.answer()

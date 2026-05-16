@@ -63,8 +63,6 @@ async def on_shutdown():
     logger.info("🛑 БОТ ОСТАНАВЛИВАЕТСЯ...")
 
 async def main():
-    await on_startup()
-
     print("═" * 50)
     print("📊 НАСТРОЙКИ АВТООТВЕТЧИКА")
     print("   ├─ Режим: МГНОВЕННЫЙ (включи !отошёл)")

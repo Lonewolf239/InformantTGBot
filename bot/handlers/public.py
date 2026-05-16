@@ -7,6 +7,7 @@ from bot.utils.helpers import its_me
 from bot.utils.joke_api import cmd_joke
 from bot.utils.meme_api import cmd_meme
 from bot.utils.weather_api import cmd_weather
+from bot.utils.ai_api import cmd_ai
 from bot.utils.database import db
 from bot.handlers.nsfw_settings import cmd_nsfw_settings
 from functools import lru_cache
@@ -19,12 +20,12 @@ def get_public_help_text(is_away_mode: bool = False):
     status_emoji = "🚶‍♂️" if is_away_mode else "🟢"
     status_text = "режим ОТОШЁЛ активен" if is_away_mode else "режим ОНЛАЙН"
 
-
     return (
         "<b>┌─ 🤖 ДОСТУПНЫЕ КОМАНДЫ</b>\n"
         "<b>├─ 🎭</b> <code>!анекдот</code>\n"
         "<b>├─ 🖼️</b> <code>!мем</code>\n"
         "<b>├─ 🌤️</b> <code>!погода</code> [город]\n"
+        "<b>├─ 🧠</b> <code>!ии [текст]</code>\n"
         "<b>├─ ℹ️</b> <code>!помощь</code>\n"
         "<b>├─ 🎭</b> <code>!рп</code>\n"
         "<b>├─ ⚙️</b> <code>!настройки</code>\n"
@@ -59,6 +60,24 @@ def get_rp_commands(user_id: int = None):
     result += "\n<b>│</b>\n<b>└─</b> Ответь на сообщение и напиши: [команда] &lt;слова&gt;\n"
     return result
 
+async def cmd_start(message: types.Message):
+    await message.reply(
+        "<b>┌─ 🤖 ДОБРО ПОЖАЛОВАТЬ</b>\n"
+        "├─ Я многофункциональный бот для этого чата.\n"
+        "├─ Доступно:\n"
+        "├─ 🎭 Мемы: <code>!мем</code>\n"
+        "├─ 🎭 Анекдоты: <code>!анекдот</code>\n"
+        "├─ 🌤️ Погода: <code>!погода</code> [город]\n"
+        "├─ 🧠 ИИ: <code>!ии</code> [запрос]\n"
+        "├─ 🎮 RP-команды\n"
+        "├─ 📎 Ссылки владельцу\n"
+        "└─ 📘 Полный список: <code>!помощь</code>"
+    )
+
+    db.increment_commands()
+    db.log_command("!старт", message.from_user.id)
+    return True
+
 async def cmd_help(message: types.Message):
     is_away = await state.is_away_mode
     help_text = get_public_help_text(is_away)
@@ -89,6 +108,7 @@ async def cmd_about(message: types.Message):
         "<b>├─  •</b> Анекдоты из API\n"
         "<b>├─  •</b> Мемы с описанием (API: <a href='https://apileague.com/'>API League</a>)\n"
         "<b>├─  •</b> Погода в любом городе\n"
+        "<b>├─  •</b> Локальный ИИ через Ollama\n"
         "<b>├─  •</b> Простые ответы на вопросы\n"
         "<b>├─  •</b> Реакции на ключевые слова\n"
         "<b>├─ 💻 Разработчик:</b> <a href='https://t.me/an1onime'>Lonewolf239</a> (<a href='https://github.com/Lonewolf239'>GitHub</a>)\n"
@@ -154,7 +174,11 @@ async def process_public_commands(message: types.Message):
     if text.startswith("!погода"):
         return await cmd_weather(message)
 
+    if text.startswith("!ии"):
+        return await cmd_ai(message)
+
     commands = {
+        "!старт": cmd_start,
         "!помощь": cmd_help,
         "!анекдот": cmd_joke,
         "!мем": cmd_meme,

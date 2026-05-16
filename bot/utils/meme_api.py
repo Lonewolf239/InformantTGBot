@@ -10,7 +10,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-FAVORITES_FILE = "favorite_memes.json"
+FAVORITES_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'favorite_memes.json')
 
 def load_favorites():
     if os.path.exists(FAVORITES_FILE):

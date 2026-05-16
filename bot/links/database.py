@@ -71,6 +71,14 @@ def save_link(url: str, link_type: str, from_user_id: int, from_username: str, f
         conn.close()
         return False
 
+def get_link(link_id: int) -> str | None:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT url FROM saved_links WHERE id = ?", (link_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0]
+
 def get_all_links(only_unviewed: bool = False) -> List:
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
