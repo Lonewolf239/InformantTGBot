@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 FAVORITES_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'favorite_memes.json')
 
+
 def load_favorites():
     if os.path.exists(FAVORITES_FILE):
         try:
@@ -21,9 +22,11 @@ def load_favorites():
             return []
     return []
 
+
 def save_favorites(favorites):
     with open(FAVORITES_FILE, 'w', encoding='utf-8') as f:
         json.dump(favorites, f, ensure_ascii=False, indent=2)
+
 
 def add_to_favorites(meme_data):
     favorites = load_favorites()
@@ -33,9 +36,11 @@ def add_to_favorites(meme_data):
         return True
     return False
 
+
 def is_meme_favorite(meme_url):
     favorites = load_favorites()
     return any(meme.get('url') == meme_url for meme in favorites)
+
 
 def get_random_favorite_meme():
     favorites = load_favorites()
@@ -43,6 +48,7 @@ def get_random_favorite_meme():
         import random
         return random.choice(favorites)
     return None
+
 
 async def get_random_meme():
     url = "https://api.apileague.com/retrieve-random-meme"
@@ -70,6 +76,7 @@ async def get_random_meme():
             logger.error(f"Неожиданная ошибка в get_random_meme: {e}")
             return None
 
+
 def get_media_type(url: str) -> str:
     path = urlparse(url).path
     ext = os.path.splitext(path)[1].lower()
@@ -82,6 +89,7 @@ def get_media_type(url: str) -> str:
     else:
         return 'photo'
 
+
 def get_meme_keyboard(meme_url, is_favorite=False):
     buttons = []
 
@@ -91,6 +99,7 @@ def get_meme_keyboard(meme_url, is_favorite=False):
     buttons.append(InlineKeyboardButton(text="🎭 Ещё мем", callback_data="more_meme"))
 
     return InlineKeyboardMarkup(inline_keyboard=[buttons])
+
 
 async def send_meme(target, is_callback=False, use_fallback=False):
     meme_data = None
@@ -154,6 +163,7 @@ async def send_meme(target, is_callback=False, use_fallback=False):
         logger.error(f"Ошибка при отправке медиа: {e}")
         return False
 
+
 async def cmd_meme(message: types.Message):
     try:
         success = await send_meme(message, is_callback=False, use_fallback=False)
@@ -178,9 +188,11 @@ async def cmd_meme(message: types.Message):
         )
         return True
 
+
 async def more_meme_callback(callback_query: types.CallbackQuery):
     await callback_query.answer("🔄 Загружаю новый мем...")
     await send_meme(callback_query, is_callback=True, use_fallback=False)
+
 
 async def add_favorite_callback(callback_query: types.CallbackQuery):
     data = callback_query.data

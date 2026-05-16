@@ -5,6 +5,7 @@ from typing import Dict, Optional
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'user_settings.db')
 
+
 class UserSettingsDB:
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path

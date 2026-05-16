@@ -5,6 +5,7 @@ from bot.utils.user_settings import user_settings_db
 from bot.utils.database import db
 from aiogram.exceptions import TelegramBadRequest
 
+
 def get_nsfw_settings_keyboard(user_id: int) -> InlineKeyboardMarkup:
     current = user_settings_db.get_nsfw_setting(user_id)
 
@@ -22,6 +23,7 @@ def get_nsfw_settings_keyboard(user_id: int) -> InlineKeyboardMarkup:
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=button)
     return keyboard
+
 
 def get_nsfw_status_text(user_id: int, username: str) -> str:
     enabled = user_settings_db.get_nsfw_setting(user_id)
@@ -45,6 +47,7 @@ def get_nsfw_status_text(user_id: int, username: str) -> str:
         "<b>└─ 🔘 Используй кнопки ниже для изменения</b>"
     )
 
+
 async def cmd_nsfw_settings(message: types.Message):
     user_id = message.from_user.id
     status_text = get_nsfw_status_text(user_id, message.from_user.username)
@@ -54,6 +57,7 @@ async def cmd_nsfw_settings(message: types.Message):
     db.increment_commands()
     db.log_command("!настройки", user_id)
     return True
+
 
 async def nsfw_callback_handler(callback_query: types.CallbackQuery):
     data = callback_query.data

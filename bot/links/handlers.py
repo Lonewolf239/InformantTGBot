@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 URL_PATTERN = re.compile(r'https?://[^\s]+')
 
+
 async def process_incoming_link(message: types.Message):
     if not message.text:
         return False
@@ -47,6 +48,7 @@ async def process_incoming_link(message: types.Message):
 
     return False
 
+
 async def cmd_links(message: types.Message):
     if message.from_user.id != OWNER_ID:
         await message.reply("<b>┌─ ❌ Ошибка</b>\n└─ Эта команда только для владельца бота.")
@@ -61,6 +63,7 @@ async def cmd_links(message: types.Message):
         await message.reply(text)
     return True
 
+
 async def cmd_links_stats(message: types.Message):
     if message.from_user.id != OWNER_ID:
         return False
@@ -74,6 +77,7 @@ async def cmd_links_stats(message: types.Message):
         f"<b>└─ 👥 Отправителей:</b> {stats['senders_count']}"
     )
     return True
+
 
 async def links_callback_handler(callback_query: types.CallbackQuery):
     if callback_query.from_user.id != OWNER_ID:

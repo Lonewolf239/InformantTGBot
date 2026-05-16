@@ -1,5 +1,6 @@
 from bot.utils.database import db
 
+
 class BotStats:
     @property
     def total_messages(self):
@@ -62,5 +63,6 @@ class BotStats:
         uptime = db.get_uptime_seconds()
         from datetime import datetime, timedelta
         return datetime.now() - timedelta(seconds=uptime)
+
 
 stats = BotStats()

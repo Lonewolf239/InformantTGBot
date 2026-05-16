@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'bot_stats.db')
 
+
 class Database:
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path

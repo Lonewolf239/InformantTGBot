@@ -1,6 +1,5 @@
 from aiogram import types
-from config import KEYWORD_REACTIONS, SIMPLE_ANSWERS
-from config import SFW_RP_ACTIONS, NSFW_RP_ACTIONS
+from config import WELCOME_TEXT, KEYWORD_REACTIONS, SIMPLE_ANSWERS, SFW_RP_ACTIONS, NSFW_RP_ACTIONS
 from bot.utils.user_settings import user_settings_db
 from bot.state import state
 from bot.utils.helpers import its_me
@@ -10,10 +9,12 @@ from bot.utils.weather_api import cmd_weather
 from bot.utils.ai_api import cmd_ai
 from bot.utils.database import db
 from bot.handlers.nsfw_settings import cmd_nsfw_settings
+from bot.utils.whisper_stt import cmd_transcribe
 from functools import lru_cache
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 @lru_cache(maxsize=1)
 def get_public_help_text(is_away_mode: bool = False):
@@ -25,19 +26,22 @@ def get_public_help_text(is_away_mode: bool = False):
         "<b>├─ 🎭</b> <code>!анекдот</code>\n"
         "<b>├─ 🖼️</b> <code>!мем</code>\n"
         "<b>├─ 🌤️</b> <code>!погода</code> [город]\n"
-        "<b>├─ 🧠</b> <code>!ии [текст]</code>\n"
-        "<b>├─ ℹ️</b> <code>!помощь</code>\n"
+        "<b>├─ 🧠</b> <code>!ии</code> [текст]\n"
+        "<b>├─ 🎙️</b> <code>!расшифровка</code>\n"
         "<b>├─ 🎭</b> <code>!рп</code>\n"
         "<b>├─ ⚙️</b> <code>!настройки</code>\n"
         "<b>├─ 🤖</b> <code>!о_боте</code>\n"
         "<b>├─ 🍩</b> <code>!donut</code>\n"
+        "<b>├─ ℹ️</b> <code>!помощь</code>\n"
+        "<b>├─ 🚀</b> <code>!старт</code>\n"
         "<b>│</b>\n"
         "<b>├─ 🔗 <i>Отправь ссылку на музыку/видео</i></b>\n"
         "<b>├─   Она сохранится и появится у владельца в !ссылки</b>\n"
         "<b>│</b>\n"
         f"<b>├─ {status_emoji} Статус:</b> {status_text}\n"
-        f"<b>└─ 🤖 Автоответ:</b> Мгновенный при включённом режиме"
+        "<b>└─ 🤖 Автоответ:</b> Мгновенный при включённом режиме"
     )
+
 
 def get_rp_commands(user_id: int = None):
     sfw_list = []
@@ -60,23 +64,14 @@ def get_rp_commands(user_id: int = None):
     result += "\n<b>│</b>\n<b>└─</b> Ответь на сообщение и напиши: [команда] &lt;слова&gt;\n"
     return result
 
+
 async def cmd_start(message: types.Message):
-    await message.reply(
-        "<b>┌─ 🤖 ДОБРО ПОЖАЛОВАТЬ</b>\n"
-        "├─ Я многофункциональный бот для этого чата.\n"
-        "├─ Доступно:\n"
-        "├─ 🎭 Мемы: <code>!мем</code>\n"
-        "├─ 🎭 Анекдоты: <code>!анекдот</code>\n"
-        "├─ 🌤️ Погода: <code>!погода</code> [город]\n"
-        "├─ 🧠 ИИ: <code>!ии</code> [запрос]\n"
-        "├─ 🎮 RP-команды\n"
-        "├─ 📎 Ссылки владельцу\n"
-        "└─ 📘 Полный список: <code>!помощь</code>"
-    )
+    await message.reply(WELCOME_TEXT)
 
     db.increment_commands()
     db.log_command("!старт", message.from_user.id)
     return True
+
 
 async def cmd_help(message: types.Message):
     is_away = await state.is_away_mode
@@ -87,12 +82,14 @@ async def cmd_help(message: types.Message):
     db.log_command("!помощь", message.from_user.id)
     return True
 
+
 async def cmd_rp_commands(message: types.Message):
     user_id = message.from_user.id
     await message.reply(get_rp_commands(user_id))
     db.increment_commands()
     db.log_command("!рп", message.from_user.id)
     return True
+
 
 async def cmd_about(message: types.Message):
     bot_user = await message.bot.get_me()
@@ -109,9 +106,10 @@ async def cmd_about(message: types.Message):
         "<b>├─  •</b> Мемы с описанием (API: <a href='https://apileague.com/'>API League</a>)\n"
         "<b>├─  •</b> Погода в любом городе\n"
         "<b>├─  •</b> Локальный ИИ через Ollama\n"
+        "<b>├─  •</b> Расшифровка голосовых и видео\n"
         "<b>├─  •</b> Простые ответы на вопросы\n"
         "<b>├─  •</b> Реакции на ключевые слова\n"
-        "<b>├─ 💻 Разработчик:</b> <a href='https://t.me/an1onime'>Lonewolf239</a> (<a href='https://github.com/Lonewolf239'>GitHub</a>)\n"
+        "<b>├─ 💻 Разработчик:</b> <a href='https://t.me/an1onime'>Lonewolf239</a>\n"
         "<b>├─ 📊 Статистика:</b> <code>!статистика</code> (только для владельца)\n"
         "<b>└─ 🎭 Для RP команд:</b> ответь на сообщение и напиши <code>!обнять</code>"
     )
@@ -119,6 +117,7 @@ async def cmd_about(message: types.Message):
     db.increment_commands()
     db.log_command("!о_боте", message.from_user.id)
     return True
+
 
 async def cmd_donut(message: types.Message):
     donut_text = (
@@ -138,6 +137,7 @@ async def cmd_donut(message: types.Message):
     db.log_command("!donut", message.from_user.id)
     return True
 
+
 async def handle_keywords(message: types.Message):
     text = message.text.strip().lower()
 
@@ -150,6 +150,7 @@ async def handle_keywords(message: types.Message):
             return True
 
     return False
+
 
 async def handle_simple_answers(message: types.Message):
     text = message.text.strip().lower()
@@ -164,6 +165,7 @@ async def handle_simple_answers(message: types.Message):
         return True
 
     return False
+
 
 async def process_public_commands(message: types.Message):
     if not message.text:
@@ -186,6 +188,7 @@ async def process_public_commands(message: types.Message):
         "!donut": cmd_donut,
         "!рп": cmd_rp_commands,
         "!настройки": cmd_nsfw_settings,
+        "!расшифровка": cmd_transcribe,
     }
 
     if text in commands:

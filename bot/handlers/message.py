@@ -12,12 +12,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 async def safe_reply(message: types.Message, text: str, **kwargs):
     try:
         return await message.reply(text, **kwargs)
     except Exception as e:
         logger.error(f"Ошибка при отправке сообщения пользователю {message.from_user.id}: {e}")
         return None
+
 
 async def handle_all_messages(message: types.Message):
     if not message.from_user:

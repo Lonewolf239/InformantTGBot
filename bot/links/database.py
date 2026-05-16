@@ -5,6 +5,7 @@ from typing import List, Dict, Optional
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'bot_links.db')
 
+
 def init_links_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -34,6 +35,7 @@ def init_links_db():
     conn.commit()
     conn.close()
 
+
 def detect_link_type(url: str) -> str:
     url_lower = url.lower()
     if any(domain in url_lower for domain in [
@@ -55,6 +57,7 @@ def detect_link_type(url: str) -> str:
     else:
         return "other"
 
+
 def save_link(url: str, link_type: str, from_user_id: int, from_username: str, from_first_name: str, chat_id: int) -> bool:
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -71,6 +74,7 @@ def save_link(url: str, link_type: str, from_user_id: int, from_username: str, f
         conn.close()
         return False
 
+
 def get_link(link_id: int) -> str | None:
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -78,6 +82,7 @@ def get_link(link_id: int) -> str | None:
     result = cursor.fetchone()
     conn.close()
     return result[0]
+
 
 def get_all_links(only_unviewed: bool = False) -> List:
     conn = sqlite3.connect(DB_PATH)
@@ -100,6 +105,7 @@ def get_all_links(only_unviewed: bool = False) -> List:
     conn.close()
     return links
 
+
 def mark_as_viewed(link_id: int):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -110,6 +116,7 @@ def mark_as_viewed(link_id: int):
     conn.commit()
     conn.close()
 
+
 def delete_link(link_id: int) -> bool:
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -118,6 +125,7 @@ def delete_link(link_id: int) -> bool:
     conn.commit()
     conn.close()
     return deleted
+
 
 def get_unviewed_links_grouped() -> Dict[str, int]:
     conn = sqlite3.connect(DB_PATH)
@@ -137,6 +145,7 @@ def get_unviewed_links_grouped() -> Dict[str, int]:
     conn.close()
     return grouped
 
+
 def get_unviewed_links_by_type(link_type: str) -> List:
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -151,6 +160,7 @@ def get_unviewed_links_by_type(link_type: str) -> List:
     results = cursor.fetchall()
     conn.close()
     return results
+
 
 def get_stats() -> dict:
     conn = sqlite3.connect(DB_PATH)
@@ -173,6 +183,7 @@ def get_stats() -> dict:
         'types_count': result[2] or 0,
         'senders_count': result[3] or 0
     }
+
 
 def format_date(date_str: str) -> str:
     try:
@@ -199,6 +210,7 @@ def format_date(date_str: str) -> str:
         return f"{diff.days} дн. назад"
     else:
         return dt.strftime("%d.%m.%Y")
+
 
 def get_type_emoji_and_name(link_type: str) -> tuple:
     type_info = {

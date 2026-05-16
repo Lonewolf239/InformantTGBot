@@ -8,6 +8,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 async def get_joke_from_api():
     try:
         import asyncio
@@ -35,14 +36,17 @@ async def get_joke_from_api():
         logger.error(f"Ошибка при получении анекдота: {e}")
         return None
 
+
 def get_backup_joke():
     return random.choice(BACKUP_JOKES)
+
 
 def get_joke_keyboard():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎭 Ещё анекдот", callback_data="more_joke")]
     ])
     return keyboard
+
 
 async def cmd_joke(message: types.Message):
     try:
@@ -66,6 +70,7 @@ async def cmd_joke(message: types.Message):
         logger.error(f"Ошибка в !анекдот: {e}")
         await message.reply("<b>┌─ ❌ Ошибка</b>\n└─ Не удалось получить анекдот. Попробуй позже!")
         return True
+
 
 async def more_joke_callback(callback_query: types.CallbackQuery):
     await callback_query.answer("🔄 Загружаю новый анекдот...")

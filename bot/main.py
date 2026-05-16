@@ -12,6 +12,7 @@ from bot.links.handlers import links_callback_handler
 from bot.utils.joke_api import more_joke_callback
 from bot.utils.meme_api import more_meme_callback, add_favorite_callback
 from bot.handlers.nsfw_settings import nsfw_callback_handler
+from bot.utils.ai_queue import get_queue
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,17 +25,21 @@ dp = Dispatcher()
 
 dp.message.middleware(LoggingMiddleware())
 
+
 @dp.message()
 async def message_handler(message: types.Message):
     await handle_all_messages(message)
+
 
 @dp.business_message()
 async def business_message_handler(message: types.Message):
     await handle_all_messages(message)
 
+
 @dp.business_connection()
 async def business_connect(connection: types.BusinessConnection):
     logger.info(f"🔗 Бизнес подключение: {connection.id} от {connection.user.first_name}")
+
 
 @dp.callback_query()
 async def callback_handler(callback_query: types.CallbackQuery):
@@ -51,6 +56,7 @@ async def callback_handler(callback_query: types.CallbackQuery):
         await nsfw_callback_handler(callback_query)
     await callback_query.answer()
 
+
 @dp.startup()
 async def on_startup():
     init_links_db()
@@ -58,10 +64,16 @@ async def on_startup():
     logger.info(f"👑 Владелец ID: {OWNER_ID}")
     logger.info(f"🤖 Автоответ: мгновенный при включённом режиме")
     await state.set_away_mode(False)
+    queue = get_queue()
+    queue.start()
+
 
 @dp.shutdown()
 async def on_shutdown():
+    queue = get_queue()
+    queue.stop()
     logger.info("🛑 БОТ ОСТАНАВЛИВАЕТСЯ...")
+
 
 async def main():
     print("═" * 50)
@@ -81,6 +93,7 @@ async def main():
         await dp.start_polling(bot)
     finally:
         await bot.session.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -1,6 +1,7 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot.links.database import get_type_emoji_and_name, format_date
 
+
 def create_submenu_keyboard(grouped_links: dict):
     if not grouped_links:
         return "<b>┌─ 🎉 НОВЫХ ССЫЛОК НЕТ</b>\n└─ Кто-нибудь пришлёт вам музыку.", None
@@ -26,6 +27,7 @@ def create_submenu_keyboard(grouped_links: dict):
     keyboard.append([InlineKeyboardButton(text="🔄 Обновить", callback_data="links_refresh")])
 
     return text, InlineKeyboardMarkup(inline_keyboard=keyboard)
+
 
 def create_unviewed_list_keyboard(links: list, link_type: str, page: int = 0) -> tuple:
     ITEMS_PER_PAGE = 10

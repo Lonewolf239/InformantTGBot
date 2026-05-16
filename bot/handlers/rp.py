@@ -3,6 +3,7 @@ from bot.utils.database import db
 from bot.utils.user_settings import user_settings_db
 from config import SFW_RP_ACTIONS, NSFW_RP_ACTIONS
 
+
 async def process_rp_command(message: types.Message):
     if not message.reply_to_message:
         return False
@@ -42,6 +43,7 @@ async def process_rp_command(message: types.Message):
         return await execute_rp_action(message, command, NSFW_RP_ACTIONS[command], parts, is_nsfw=True)
 
     return False
+
 
 async def execute_rp_action(message: types.Message, command: str, action: str, parts: list, is_nsfw: bool = False):
     target = message.reply_to_message.from_user

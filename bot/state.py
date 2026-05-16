@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Set
 import asyncio
 
+
 class BotState:
     def __init__(self):
         self._is_away_mode = False
@@ -77,5 +78,6 @@ class BotState:
                 "auto_replied_count": len(self._users_received_auto_reply),
                 "awaiting_count": len(self._awaiting_users)
             }
+
 
 state = BotState()

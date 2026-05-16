@@ -8,6 +8,7 @@ from bot.utils.database import db
 
 logger = logging.getLogger(__name__)
 
+
 async def translate_to_english(text: str) -> str:
     url = "https://translate.googleapis.com/translate_a/single"
     params = {
@@ -29,6 +30,7 @@ async def translate_to_english(text: str) -> str:
         except Exception as e:
             logger.error(f"Ошибка при переводе: {e}")
             return text
+
 
 async def get_coordinates(city_name: str):
     url = "http://api.openweathermap.org/geo/1.0/direct"
@@ -70,6 +72,7 @@ async def get_coordinates(city_name: str):
             logger.error(f"Ошибка при получении координат: {e}")
             return None
 
+
 async def get_weather_by_coords(lat: float, lon: float):
     url = "https://api.openweathermap.org/data/2.5/weather"
     params = {
@@ -91,6 +94,7 @@ async def get_weather_by_coords(lat: float, lon: float):
         except Exception as e:
             logger.error(f"Ошибка при получении погоды: {e}")
             return None
+
 
 async def get_forecast_by_coords(lat: float, lon: float):
     url = "https://api.openweathermap.org/data/2.5/forecast"
@@ -115,6 +119,7 @@ async def get_forecast_by_coords(lat: float, lon: float):
             logger.error(f"Ошибка при получении прогноза: {e}")
             return None
 
+
 def get_weather_emoji(weather_id: int):
     if 200 <= weather_id < 300:
         return "⛈️"
@@ -135,11 +140,13 @@ def get_weather_emoji(weather_id: int):
     else:
         return "🌡️"
 
+
 def get_wind_direction(degrees: int):
     directions = ["северный", "северо-восточный", "восточный", "юго-восточный", 
                   "южный", "юго-западный", "западный", "северо-западный"]
     idx = round(degrees / 45) % 8
     return directions[idx]
+
 
 def format_weather_message(weather_data: dict, city_name: str, country: str):
     main_data = weather_data.get("main", {})
@@ -182,6 +189,7 @@ def format_weather_message(weather_data: dict, city_name: str, country: str):
     )
 
     return message
+
 
 async def cmd_weather(message: types.Message):
     args = message.text.split(maxsplit=1)
@@ -288,4 +296,3 @@ async def cmd_weather(message: types.Message):
         else:
             await message.reply(error_msg)
         return True
-

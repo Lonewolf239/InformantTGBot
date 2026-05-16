@@ -4,6 +4,7 @@ from bot.utils.helpers import its_me
 from config import AWAY_MESSAGES
 from bot.utils.database import db
 
+
 async def check_auto_reply(message):
     user_id = message.from_user.id
 

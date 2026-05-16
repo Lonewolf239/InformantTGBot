@@ -1,21 +1,18 @@
 import logging
-import asyncio
 from typing import Optional
 import aiohttp
 from aiogram import types
 from config import OLLAMA_BASE_URL, OLLAMA_MODEL, AI_SYSTEM_PROMPT
 from bot.utils.database import db
+from bot.utils.ai_queue import get_queue, TaskType, ensure_queue_started
 
 logger = logging.getLogger(__name__)
 
 MAX_REPLY_LEN = 3800
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=90)
 
-AI_QUEUE = asyncio.Queue()
-AI_SEMAPHORE = asyncio.Semaphore(1)
-QUEUE_STARTED = False
-
 DISCLAIMER = "\n\n*⚠️ ИИ может ошибаться. Проверяй важную информацию.*"
+
 
 def split_text(text: str, limit: int = MAX_REPLY_LEN) -> list[str]:
     text = (text or "").strip()
@@ -65,58 +62,35 @@ async def ask_local_ai(user_prompt: str, system_prompt: Optional[str] = None) ->
         }
     }
 
-    async with AI_SEMAPHORE:
-        async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
-            try:
-                async with session.post(url, json=payload) as response:
-                    if response.status != 200:
-                        body = await response.text()
-                        logger.error(f"Ошибка Ollama API: {response.status} - {body}")
-                        return None
-
-                    data = await response.json()
-
-                    if data.get("message", {}).get("content"):
-                        return data["message"]["content"].strip()
-
-                    if data.get("response"):
-                        return str(data["response"]).strip()
-
-                    logger.error(f"Пустой ответ Ollama: {data}")
+    async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
+        try:
+            async with session.post(url, json=payload) as response:
+                if response.status != 200:
+                    body = await response.text()
+                    logger.error(f"Ошибка Ollama API: {response.status} - {body}")
                     return None
 
-            except asyncio.TimeoutError:
-                logger.error("Таймаут запроса к Ollama")
+                data = await response.json()
+
+                if data.get("message", {}).get("content"):
+                    return data["message"]["content"].strip()
+
+                if data.get("response"):
+                    return str(data["response"]).strip()
+
+                logger.error(f"Пустой ответ Ollama: {data}")
                 return None
 
-            except Exception as e:
-                logger.error(f"Ошибка при запросе к Ollama: {e}")
-                return None
-
-
-async def ai_worker():
-    while True:
-        message, prompt, future = await AI_QUEUE.get()
-
-        try:
-            result = await ask_local_ai(prompt)
-            future.set_result(result)
+        except aiohttp.ClientTimeout:
+            logger.error("Таймаут запроса к Ollama")
+            return None
         except Exception as e:
-            logger.exception("Ошибка AI worker")
-            future.set_result(None)
-        finally:
-            AI_QUEUE.task_done()
-
-
-def ensure_ai_worker():
-    global QUEUE_STARTED
-    if not QUEUE_STARTED:
-        asyncio.create_task(ai_worker())
-        QUEUE_STARTED = True
+            logger.error(f"Ошибка при запросе к Ollama: {e}")
+            return None
 
 
 async def cmd_ai(message: types.Message):
-    ensure_ai_worker()
+    ensure_queue_started()
 
     parts = message.text.split(maxsplit=1) if message.text else []
 
@@ -137,7 +111,8 @@ async def cmd_ai(message: types.Message):
             f"Запрос:\n{user_prompt}"
         )
 
-    queue_position = AI_QUEUE.qsize() + 1
+    queue = get_queue()
+    queue_position = queue.queue.qsize() + 1
 
     wait_msg = await message.reply(
         "<b>┌─ 🧠 ИИ</b>\n"
@@ -151,12 +126,14 @@ async def cmd_ai(message: types.Message):
             "└─ Высокая нагрузка, ответ может занять больше времени."
         )
 
-    future = asyncio.get_event_loop().create_future()
-    await AI_QUEUE.put((message, user_prompt, future))
-
     try:
-        answer = await future
-    except Exception:
+        answer, _ = await queue.add_task(
+            task_type=TaskType.AI,
+            data={"prompt": user_prompt, "system_prompt": AI_SYSTEM_PROMPT},
+            user_id=message.from_user.id
+        )
+    except Exception as e:
+        logger.exception("Ошибка при выполнении AI задачи")
         answer = None
 
     if not answer:
@@ -172,7 +149,6 @@ async def cmd_ai(message: types.Message):
                 "├─ ❌ Локальная нейросеть не ответила.\n"
                 f"└─ Проверь, что Ollama запущена и модель <code>{OLLAMA_MODEL}</code> скачана."
             )
-
         return True
 
     chunks = split_text(answer)
