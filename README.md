@@ -55,8 +55,6 @@ API_PID=xxx
 API_KEY=xxx
 MEME_API_KEY=xxx
 OPENWEATHER_API_KEY=xxx
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=qwen2.5:3b
 ```
 
 ---
