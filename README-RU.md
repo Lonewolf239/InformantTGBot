@@ -2,6 +2,10 @@
 [![Aiogram](https://img.shields.io/badge/Aiogram-3.x-2D2D2D?style=for-the-badge&logo=telegram)](https://docs.aiogram.dev)
 [![Ollama](https://img.shields.io/badge/Ollama-Локальный%20ИИ-2D2D2D?style=for-the-badge)](https://ollama.ai)
 
+### Languages
+[![EN](https://img.shields.io/badge/README-EN-2D2D2D?style=for-the-badge&logo=github&logoColor=FFFFFF)](./README.md)
+[![RU](https://img.shields.io/badge/README-RU-2D2D2D?style=for-the-badge&logo=google-translate&logoColor=FFFFFF)](./README-RU.md)
+
 # InformantTGBot — Бизнес‑ассистент для Telegram
 
 Асинхронный Telegram‑бот с локальным ИИ, мемами, RP действиями, режимом «отошёл» и сохранением ссылок.
