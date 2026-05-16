@@ -79,7 +79,6 @@ async def main():
     try:
         await dp.start_polling(bot)
     finally:
-        await on_shutdown()
         await bot.session.close()
 
 if __name__ == "__main__":
