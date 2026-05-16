@@ -49,6 +49,7 @@ async def callback_handler(callback_query: types.CallbackQuery):
         await add_favorite_callback(callback_query)
     elif data and data.startswith("nsfw_"):
         await nsfw_callback_handler(callback_query)
+    await callback_query.answer()
 
 @dp.startup()
 async def on_startup():
