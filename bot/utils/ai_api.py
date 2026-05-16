@@ -15,7 +15,7 @@ AI_QUEUE = asyncio.Queue()
 AI_SEMAPHORE = asyncio.Semaphore(1)
 QUEUE_STARTED = False
 
-DISCLAIMER = "\n\n<i>⚠️ ИИ может ошибаться. Проверяй важную информацию.</i>"
+DISCLAIMER = "\n\n*⚠️ ИИ может ошибаться. Проверяй важную информацию.*"
 
 def split_text(text: str, limit: int = MAX_REPLY_LEN) -> list[str]:
     text = (text or "").strip()
@@ -57,11 +57,11 @@ async def ask_local_ai(user_prompt: str, system_prompt: Optional[str] = None) ->
         ],
         # Optimized for qwen2.5:3b (CPU-friendly, short Telegram replies)
         "options": {
-            "temperature": 0.3,
+            "temperature": 0.4,
             "top_p": 0.75,
-            "repeat_penalty": 1.15,
-            "num_ctx": 512,
-            "num_predict": 120
+            "repeat_penalty": 1.1,
+            "num_ctx": 1024,
+            "num_predict": 256
         }
     }
 
@@ -175,6 +175,7 @@ async def cmd_ai(message: types.Message):
 
         return True
 
+    chunks = split_text(answer)
     first_chunk = f"**┌─ 🧠 ИИ**\n└─ {chunks[0]}{DISCLAIMER}"
 
     try:
