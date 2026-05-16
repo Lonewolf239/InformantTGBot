@@ -54,7 +54,9 @@ class NeuralNetworkQueue:
         await self.queue.put(task)
 
         position = self.queue.qsize()
-        return await future, position
+        result = await future
+
+        return result, position
 
     async def _worker(self):
         while self.is_running:

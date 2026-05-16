@@ -71,7 +71,7 @@ async def on_startup():
 @dp.shutdown()
 async def on_shutdown():
     queue = get_queue()
-    queue.stop()
+    await queue.stop()
     logger.info("🛑 БОТ ОСТАНАВЛИВАЕТСЯ...")
 
 
