@@ -141,13 +141,20 @@ async def cmd_donut(message: types.Message):
 async def handle_keywords(message: types.Message):
     text = message.text.strip().lower()
 
-    import string
-    text_clean = text.translate(str.maketrans('', '', string.punctuation))
+    import re
+    words = re.findall(r'\b\w+\b', text)
 
     for keyword, reply in KEYWORD_REACTIONS.items():
-        if keyword in text or keyword in text_clean:
-            await message.reply(reply)
-            return True
+        keyword_lower = keyword.lower()
+
+        if ' ' in keyword_lower:
+            if keyword_lower in text:
+                await message.reply(reply)
+                return True
+        else:
+            if keyword_lower in words:
+                await message.reply(reply)
+                return True
 
     return False
 
