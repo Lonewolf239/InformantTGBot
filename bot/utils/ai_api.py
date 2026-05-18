@@ -99,7 +99,17 @@ async def cmd_ai(message: types.Message):
         )
 
     queue = get_queue()
-    queue_position = queue.queue.qsize() + 1
+
+    try:
+        task_future, queue_position = await queue.add_task(
+            task_type=TaskType.AI,
+            data={"prompt": user_prompt, "system_prompt": AI_SYSTEM_PROMPT},
+            user_id=message.from_user.id
+        )
+    except Exception as e:
+        logger.exception("Ошибка при добавлении AI задачи в очередь")
+        await message.reply("❌ Не удалось поставить задачу в очередь.")
+        return True
 
     wait_msg = await message.reply(
         "<b>┌─ 🧠 ИИ</b>\n"
@@ -108,13 +118,9 @@ async def cmd_ai(message: types.Message):
     )
 
     try:
-        answer, _ = await queue.add_task(
-            task_type=TaskType.AI,
-            data={"prompt": user_prompt, "system_prompt": AI_SYSTEM_PROMPT},
-            user_id=message.from_user.id
-        )
+        answer = await task_future
     except Exception as e:
-        logger.exception("Ошибка при выполнении AI задачи")
+        logger.exception("Ошибка при выполнении AI задачи воркером")
         answer = None
 
     if not answer:

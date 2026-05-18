@@ -23,7 +23,8 @@ class QueueTask:
 class NeuralNetworkQueue:
     def __init__(self):
         self.queue: asyncio.Queue[QueueTask] = asyncio.Queue()
-        self.semaphore = asyncio.Semaphore(1)
+        self.ai_semaphore = asyncio.Semaphore(1)
+        self.whisper_semaphore = asyncio.Semaphore(1)
         self.worker_task: Optional[asyncio.Task] = None
         self.is_running = False
 
@@ -43,7 +44,7 @@ class NeuralNetworkQueue:
                 pass
             logger.info("🛑 Единый воркер нейросетей остановлен")
 
-    async def add_task(self, task_type: TaskType, data: Any, user_id: int) -> Any:
+    async def add_task(self, task_type: TaskType, data: Any, user_id: int) -> Tuple[asyncio.Future, int]:
         future = asyncio.get_event_loop().create_future()
         task = QueueTask(
             task_type=task_type,
@@ -53,49 +54,53 @@ class NeuralNetworkQueue:
         )
         await self.queue.put(task)
 
-        position = self.queue.qsize()
-        result = await future
+        position = self.queue.qsize() 
 
-        return result, position
+        return future, position
 
     async def _worker(self):
         while self.is_running:
             try:
                 task = await self.queue.get()
-
-                async with self.semaphore:
-                    logger.info(f"🔄 Обработка задачи: {task.task_type.value} от user {task.user_id}")
-
-                    try:
-                        if task.task_type == TaskType.AI:
-                            from bot.utils.ai_api import ask_local_ai
-                            result = await ask_local_ai(task.data["prompt"], task.data.get("system_prompt"))
-                        elif task.task_type == TaskType.WHISPER:
-                            from bot.utils.whisper_stt import transcribe_audio
-                            result = await transcribe_audio(
-                                task.data["file_path"],
-                                task.data.get("language", "ru")
-                            )
-                        else:
-                            result = None
-                            logger.error(f"Неизвестный тип задачи: {task.task_type}")
-
-                        task.future.set_result(result)
-
-                    except Exception as e:
-                        logger.exception(f"Ошибка при выполнении задачи {task.task_type.value}")
-                        task.future.set_exception(e)
-
-                    finally:
-                        self.queue.task_done()
-                        logger.info(f"✅ Задача {task.task_type.value} завершена, в очереди: {self.queue.qsize()}")
-
+                asyncio.create_task(self._process_task(task))
             except asyncio.CancelledError:
                 logger.info("Воркер очереди отменен")
                 break
             except Exception as e:
-                logger.exception("Критическая ошибка в воркере очереди")
+                logger.exception("Критическая ошибка в главном цикле воркера")
                 await asyncio.sleep(1)
+
+    async def _process_task(self, task: QueueTask):
+        try:
+            logger.info(f"🔄 Обработка задачи: {task.task_type.value} от user {task.user_id}")
+
+            if task.task_type == TaskType.AI:
+                async with self.ai_semaphore:
+                    from bot.utils.ai_api import ask_local_ai
+                    result = await ask_local_ai(task.data["prompt"], task.data.get("system_prompt"))
+
+            elif task.task_type == TaskType.WHISPER:
+                async with self.whisper_semaphore:
+                    from bot.utils.whisper_stt import transcribe_audio
+                    result = await transcribe_audio(
+                        task.data["file_path"],
+                        task.data.get("language", "auto"),
+                        task.data.get("task", "transcribe")
+                    )
+            else:
+                result = None
+                logger.error(f"Неизвестный тип задачи: {task.task_type}")
+
+            if not task.future.done():
+                task.future.set_result(result)
+
+        except Exception as e:
+            logger.exception(f"Ошибка при выполнении задачи {task.task_type.value}")
+            if not task.future.done():
+                task.future.set_exception(e)
+        finally:
+            self.queue.task_done()
+            logger.info(f"✅ Задача {task.task_type.value} завершена")
 
 
 _neural_queue = NeuralNetworkQueue()

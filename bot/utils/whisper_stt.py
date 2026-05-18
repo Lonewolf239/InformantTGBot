@@ -5,7 +5,7 @@ import os
 from typing import Optional, Tuple
 from aiogram import types
 from aiogram.types import FSInputFile
-from config import WHISPER_MODEL, WHISPER_MAX_DURATION_SECONDS, WHISPER_MAX_FILE_SIZE_MB
+from config import WHISPER_MODEL, WHISPER_MAX_DURATION_SECONDS, WHISPER_MAX_FILE_SIZE_MB, WHISPER_TIMEOUT
 import whisper
 from bot.utils.database import db
 from bot.utils.ai_queue import get_queue, TaskType, ensure_queue_started
@@ -52,21 +52,22 @@ async def get_whisper_model():
         return _model_instance
 
 
-async def transcribe_audio(file_path: str, language: str = "auto") -> Optional[str]:
+async def transcribe_audio(file_path: str, language: str = "auto", task: str = "transcribe") -> Optional[str]:
     try:
         model = await get_whisper_model()
 
         options = {
             "language": language if language != "auto" else None,
-            "task": "transcribe",
+            "task": task,
             "fp16": False,
             "verbose": False,
         }
 
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None,
-            lambda: model.transcribe(file_path, **options)
+
+        result = await asyncio.wait_for(
+            loop.run_in_executor(None, lambda: model.transcribe(file_path, **options)),
+            timeout=WHISPER_TIMEOUT
         )
 
         transcribed_text = result.get("text", "").strip()
@@ -78,6 +79,9 @@ async def transcribe_audio(file_path: str, language: str = "auto") -> Optional[s
             logger.warning("⚠️ Распознавание не дало результатов")
             return None
 
+    except asyncio.TimeoutError:
+        logger.error("❌ Whisper завис и был остановлен по таймауту")
+        return None
     except Exception as e:
         logger.error(f"❌ Ошибка при распознавании речи: {e}", exc_info=True)
         return None
@@ -224,7 +228,12 @@ async def cmd_transcribe(message: types.Message):
             return True
 
         queue = get_queue()
-        queue_position = queue.queue.qsize() + 1
+
+        task_future, queue_position = await queue.add_task(
+            task_type=TaskType.WHISPER,
+            data={"file_path": file_path, "language": "auto"},
+            user_id=message.from_user.id
+        )
 
         await status_msg.edit_text(
             "<b>┌─ 🎙️ РАСШИФРОВКА РЕЧИ</b>\n"
@@ -233,11 +242,7 @@ async def cmd_transcribe(message: types.Message):
             f"└─ 📍 Позиция в очереди: {queue_position}"
         )
 
-        transcribed_text, _ = await queue.add_task(
-            task_type=TaskType.WHISPER,
-            data={"file_path": file_path, "language": "auto"},
-            user_id=message.from_user.id
-        )
+        transcribed_text = await task_future
 
         try:
             if file_path and os.path.exists(file_path):
@@ -257,11 +262,6 @@ async def cmd_transcribe(message: types.Message):
                 "└─ • Неподдерживаемый язык\n"
             )
             return True
-
-        result_text = (
-            f"<b>┌─ 🎙️ РАСШИФРОВКА</b> <i>({media_type_text})</i>\n"
-            f"<b>└─ 📝 ТЕКСТ:</b> <code>{transcribed_text}</code>"
-        )
 
         text_chunks = split_text_to_chunks(transcribed_text, max_size=3700)
 
@@ -447,17 +447,22 @@ async def cmd_translate(message: types.Message):
             )
             return True
 
-        await status_msg.edit_text("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n└─ ⏳ <b>Распознаю и перевожу оригинальную речь...</b>")
+        queue = get_queue()
 
-        model = await get_whisper_model()
-        loop = asyncio.get_event_loop()
-
-        result = await loop.run_in_executor(
-            None, 
-            lambda: model.transcribe(file_path, task="translate", fp16=False, verbose=False)
+        task_future, queue_position = await queue.add_task(
+            task_type=TaskType.WHISPER,
+            data={"file_path": file_path, "language": "auto", "task": "translate"},
+            user_id=message.from_user.id
         )
 
-        original_text = result.get("text", "").strip()
+        await status_msg.edit_text(
+            "<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n"
+            f"├─ ⏳ <b>Очередь: {queue_position}. Распознаю и перевожу...</b>\n"
+            "└─ Ожидайте ответа модели."
+        )
+
+        original_text = await task_future
+
         if not original_text:
             await status_msg.edit_text("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n└─ ❌ <b>Не удалось распознать текст в медиа.</b>")
             return True

@@ -64,6 +64,7 @@ AI_SYSTEM_PROMPT = (
 WHISPER_MODEL = "base"
 WHISPER_MAX_DURATION_SECONDS = 360
 WHISPER_MAX_FILE_SIZE_MB = 20
+WHISPER_TIMEOUT=300.0
 
 # ==========================================
 # НАСТРОЙКИ ЗАГРУЗОК (YouTube)
