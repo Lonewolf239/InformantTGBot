@@ -4,7 +4,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = int(os.getenv("OWNER_ID"))
+OWNER_ID = int(os.getenv("OWNER_ID", "0"))
+
+if OWNER_ID == 0:
+    raise ValueError("OWNER_ID не задан в .env!")
 
 # ==========================================
 # НАСТРОЙКИ СТОРОННИХ API
