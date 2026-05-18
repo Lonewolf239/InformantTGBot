@@ -5,6 +5,7 @@ __pycache__/
 
 *.db
 *.json
+downloads/
 
 # C extensions
 *.so

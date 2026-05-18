@@ -10,6 +10,7 @@ from bot.utils.ai_api import cmd_ai
 from bot.utils.database import db
 from bot.handlers.nsfw_settings import cmd_nsfw_settings
 from bot.utils.whisper_stt import cmd_transcribe
+from bot.utils.youtube_api import cmd_download_yt
 from functools import lru_cache
 import logging
 
@@ -185,6 +186,9 @@ async def process_public_commands(message: types.Message):
 
     if text.startswith("!ии"):
         return await cmd_ai(message)
+
+    if text.startswith("!скачать"):
+        return await cmd_download_yt(message)
 
     commands = {
         "!старт": cmd_start,

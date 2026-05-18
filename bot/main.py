@@ -13,6 +13,7 @@ from bot.utils.joke_api import more_joke_callback
 from bot.utils.meme_api import more_meme_callback, add_favorite_callback
 from bot.handlers.nsfw_settings import nsfw_callback_handler
 from bot.utils.ai_queue import get_queue
+from bot.utils.youtube_api import download_worker, process_yt_callback
 
 logging.basicConfig(
     level=logging.INFO,
@@ -54,6 +55,9 @@ async def callback_handler(callback_query: types.CallbackQuery):
         await add_favorite_callback(callback_query)
     elif data and data.startswith("nsfw_"):
         await nsfw_callback_handler(callback_query)
+    elif data and data.startswith("yt_dl|"):
+        await process_yt_callback(callback_query)
+
     await callback_query.answer()
 
 
@@ -64,8 +68,12 @@ async def on_startup():
     logger.info(f"👑 Владелец ID: {OWNER_ID}")
     logger.info(f"🤖 Автоответ: мгновенный при включённом режиме")
     await state.set_away_mode(False)
+
     queue = get_queue()
     queue.start()
+
+    asyncio.create_task(download_worker())
+    logger.info("📥 Воркер очереди YouTube успешно запущен в фоне.")
 
 
 @dp.shutdown()
@@ -86,6 +94,7 @@ async def main():
     print("├─ 🔘 Выключить автоответ: !вернулся")
     print("├─ 📖 Публичная справка: !помощь")
     print("├─ 🔗 Команда ссылок: !ссылки (только для владельца)")
+    print("├─ 🎬 Загрузка медиа: !скачать [ссылка]")
     print("└─ 👑 Приватная справка: !ownerhelp")
     print("═" * 50)
 
