@@ -2,19 +2,18 @@ import logging
 from typing import Optional
 import aiohttp
 from aiogram import types
-from config import OLLAMA_BASE_URL, OLLAMA_MODEL, AI_SYSTEM_PROMPT
+from config import (
+    OLLAMA_BASE_URL, OLLAMA_MODEL, AI_SYSTEM_PROMPT, 
+    AI_MAX_REPLY_LEN, AI_REQUEST_TIMEOUT, AI_DISCLAIMER,
+    AI_TEMPERATURE, AI_TOP_P, AI_REPEAT_PENALTY, AI_NUM_CTX, AI_NUM_PREDICT
+)
 from bot.utils.database import db
 from bot.utils.ai_queue import get_queue, TaskType, ensure_queue_started
 
 logger = logging.getLogger(__name__)
 
-MAX_REPLY_LEN = 3800
-REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=90)
 
-DISCLAIMER = "\n\n*⚠️ ИИ может ошибаться. Проверяй важную информацию.*"
-
-
-def split_text(text: str, limit: int = MAX_REPLY_LEN) -> list[str]:
+def split_text(text: str, limit: int = AI_MAX_REPLY_LEN) -> list[str]:
     text = (text or "").strip()
     if not text:
         return [""]
@@ -52,38 +51,28 @@ async def ask_local_ai(user_prompt: str, system_prompt: Optional[str] = None) ->
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        # Optimized for qwen2.5:3b (CPU-friendly, short Telegram replies)
         "options": {
-            "temperature": 0.4,
-            "top_p": 0.75,
-            "repeat_penalty": 1.1,
-            "num_ctx": 1024,
-            "num_predict": 256
+            "temperature": AI_TEMPERATURE,
+            "top_p": AI_TOP_P,
+            "repeat_penalty": AI_REPEAT_PENALTY,
+            "num_ctx": AI_NUM_CTX,
+            "num_predict": AI_NUM_PREDICT
         }
     }
 
-    async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=AI_REQUEST_TIMEOUT)) as session:
         try:
             async with session.post(url, json=payload) as response:
                 if response.status != 200:
                     body = await response.text()
                     logger.error(f"Ошибка Ollama API: {response.status} - {body}")
                     return None
-
                 data = await response.json()
-
                 if data.get("message", {}).get("content"):
                     return data["message"]["content"].strip()
-
                 if data.get("response"):
                     return str(data["response"]).strip()
-
-                logger.error(f"Пустой ответ Ollama: {data}")
                 return None
-
-        except aiohttp.ClientTimeout:
-            logger.error("Таймаут запроса к Ollama")
-            return None
         except Exception as e:
             logger.error(f"Ошибка при запросе к Ollama: {e}")
             return None
@@ -91,19 +80,17 @@ async def ask_local_ai(user_prompt: str, system_prompt: Optional[str] = None) ->
 
 async def cmd_ai(message: types.Message):
     ensure_queue_started()
-
     parts = message.text.split(maxsplit=1) if message.text else []
 
     if len(parts) < 2:
         await message.reply(
             "<b>┌─ 🧠 ИИ</b>\n"
             "├─ ❌ Не указан запрос.\n"
-            "└─ 📝 Использование: <code>!ии</code> [текст]"
+            "└─ 📝 Использование: <code>!ии [текст]</code>"
         )
         return True
 
     user_prompt = parts[1].strip()
-
     if message.reply_to_message and message.reply_to_message.text:
         user_prompt = (
             "Ответь на сообщение ниже и учти запрос пользователя.\n\n"
@@ -120,12 +107,6 @@ async def cmd_ai(message: types.Message):
         f"└─ 📍 Позиция: {queue_position}"
     )
 
-    if queue_position > 2:
-        await message.reply(
-            "<b>┌─ ⏳ ОЖИДАНИЕ</b>\n"
-            "└─ Высокая нагрузка, ответ может занять больше времени."
-        )
-
     try:
         answer, _ = await queue.add_task(
             task_type=TaskType.AI,
@@ -137,22 +118,19 @@ async def cmd_ai(message: types.Message):
         answer = None
 
     if not answer:
+        error_msg = (
+            "<b>┌─ 🧠 ИИ</b>\n"
+            "├─ ❌ Локальная нейросеть не ответила.\n"
+            f"└─ Проверь, что Ollama запущена и модель <code>{OLLAMA_MODEL}</code> скачана."
+        )
         try:
-            await wait_msg.edit_text(
-                "<b>┌─ 🧠 ИИ</b>\n"
-                "├─ ❌ Локальная нейросеть не ответила.\n"
-                f"└─ Проверь, что Ollama запущена и модель <code>{OLLAMA_MODEL}</code> скачана."
-            )
+            await wait_msg.edit_text(error_msg)
         except Exception:
-            await message.reply(
-                "<b>┌─ 🧠 ИИ</b>\n"
-                "├─ ❌ Локальная нейросеть не ответила.\n"
-                f"└─ Проверь, что Ollama запущена и модель <code>{OLLAMA_MODEL}</code> скачана."
-            )
+            await message.reply(error_msg)
         return True
 
     chunks = split_text(answer)
-    first_chunk = f"**┌─ 🧠 ИИ**\n└─ {chunks[0]}{DISCLAIMER}"
+    first_chunk = f"**┌─ 🧠 ИИ**\n└─ {chunks[0]}{AI_DISCLAIMER}"
 
     try:
         await wait_msg.edit_text(first_chunk, parse_mode="Markdown")
@@ -164,5 +142,4 @@ async def cmd_ai(message: types.Message):
 
     db.increment_commands()
     db.log_command("!ии", message.from_user.id)
-
     return True

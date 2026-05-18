@@ -8,12 +8,11 @@ import yt_dlp
 from aiogram import types, F
 from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramAPIError
+from config import YT_DOWNLOAD_DIR, YT_MAX_FILE_SIZE_MB
 
 logger = logging.getLogger(__name__)
 
-DOWNLOAD_DIR = "downloads"
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
+os.makedirs(YT_DOWNLOAD_DIR, exist_ok=True)
 pending_requests = {}
 download_queue = asyncio.Queue()
 
@@ -34,7 +33,7 @@ def _sync_get_info(url: str) -> Optional[dict]:
 
 def _sync_download(url: str, format_str: str, media_type: str) -> Optional[Dict[str, Any]]:
     ydl_opts = {
-        'outtmpl': f'{DOWNLOAD_DIR}/%(id)s.%(ext)s',
+        'outtmpl': f'{YT_DOWNLOAD_DIR}/%(id)s.%(ext)s',
         'noplaylist': True,
         'quiet': True,
         'no_warnings': True,
@@ -90,75 +89,64 @@ async def process_download_task(task_data: dict):
 
     try:
         try:
-            if os.path.exists(DOWNLOAD_DIR):
-                shutil.rmtree(DOWNLOAD_DIR)
-            os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-        except Exception as cleanup_e:
-            logger.warning(f"Не удалось очистить папку загрузок: {cleanup_e}")
+            if os.path.exists(YT_DOWNLOAD_DIR):
+                shutil.rmtree(YT_DOWNLOAD_DIR)
+            os.makedirs(YT_DOWNLOAD_DIR, exist_ok=True)
+        except Exception: pass
 
         await message.edit_text(f"<b>┌─ ⏳ Статус:</b>\n└─ Скачивание файла...")
-
         loop = asyncio.get_running_loop()
         media_data = await loop.run_in_executor(None, _sync_download, url, format_choice, media_type)
 
         if not media_data or not os.path.exists(media_data["file_path"]):
-            await message.edit_text("<b>┌─ ❌ Ошибка скачивания.</b>\n└─ Не удалось получить доступ к медиа (возможно, заблокировано).")
+            await message.edit_text("<b>┌─ ❌ ОШИБКА YOUTUBE</b>\n└─ Не удалось получить доступ к медиа (возможно, заблокировано).")
             return
 
         file_size_bytes = os.path.getsize(media_data["file_path"])
-        limit_bytes = 50 * 1024 * 1024
+        limit_bytes = YT_MAX_FILE_SIZE_MB * 1024 * 1024
 
         if file_size_bytes > limit_bytes:
-            size_mb = file_size_bytes / (1024 * 1024)
             await message.edit_text(
-                f"<b>┌─ ❌ Ошибка лимита.</b>\n└─ Итоговый файл весит <b>{size_mb:.1f} MB</b>.\n"
-                f"Telegram запрещает ботам отправлять файлы тяжелее 50 MB."
+                f"<b>┌─ ❌ ОШИБКА ЛИМИТА</b>\n"
+                f"├─ Итоговый файл весит <b>{file_size_bytes / (1024 * 1024):.1f} MB</b>.\n"
+                f"└─ Telegram запрещает ботам отправлять файлы тяжелее {YT_MAX_FILE_SIZE_MB} MB."
             )
-            if os.path.exists(media_data["file_path"]):
-                os.remove(media_data["file_path"])
+            if os.path.exists(media_data["file_path"]): os.remove(media_data["file_path"])
             return
 
         await message.edit_text(f"<b>┌─ ⏳ Статус:</b>\n└─ Отправка в Telegram...")
 
-        file = FSInputFile(media_data["file_path"])
+        original_title = "".join([c for c in media_data['title'] if c not in ['/', '\\', '?', '%', '*', ':', '|', '"', '<', '>']])
+        file_ext = os.path.splitext(media_data["file_path"])[1]
+        telegram_filename = f"{original_title}{file_ext}"
+
+        file = FSInputFile(media_data["file_path"], filename=telegram_filename)
         caption = f"<b>┌─ 🎬 {media_data['title']}</b>\n└─ Скачано ботом"
 
         try:
-            if media_data["type"] == "audio":
-                await original_message.reply_audio(audio=file, caption=caption)
-            else:
-                await original_message.reply_video(video=file, caption=caption)
+            if media_data["type"] == "audio": await original_message.reply_audio(audio=file, caption=caption)
+            else: await original_message.reply_video(video=file, caption=caption)
         except TelegramAPIError as e:
             if "reply" in str(e) or "not found" in str(e):
-                if media_data["type"] == "audio":
-                    await message.chat.send_audio(audio=file, caption=caption)
-                else:
-                    await message.chat.send_video(video=file, caption=caption)
+                if media_data["type"] == "audio": await message.chat.send_audio(audio=file, caption=caption)
+                else: await message.chat.send_video(video=file, caption=caption)
             else:
-                logger.warning(f"Не удалось отправить как медиа, пробуем документом: {e}")
-                try:
-                    await original_message.reply_document(
-                        document=file, 
-                        caption=caption + "\n<i>(Отправлено файлом из-за лимитов/ошибки формата)</i>"
-                    )
-                except Exception as doc_e:
-                    try:
-                        await message.chat.send_document(document=file, caption=caption)
-                    except Exception as final_e:
-                        logger.error(f"Не удалось отправить даже напрямую в чат: {final_e}")
-                        await message.edit_text("<b>┌─ ❌ Ошибка отправки.</b>\n└─ Не удалось передать файл через API Telegram.")
-                        if os.path.exists(media_data["file_path"]):
-                            os.remove(media_data["file_path"])
+                try: await original_message.reply_document(document=file, caption=caption + "\n<i>(Отправлено файлом из-за лимитов)</i>")
+                except Exception:
+                    try: await message.chat.send_document(document=file, caption=caption)
+                    except Exception:
+                        await message.edit_text("<b>┌─ ❌ ОШИБКА YOUTUBE</b>\n└─ Не удалось передать файл через API Telegram.")
+                        if os.path.exists(media_data["file_path"]): os.remove(media_data["file_path"])
                         return
 
-        await message.edit_text(f"<b>┌─ ✅ Успешно!</b>\n└─ Файл отправлен ниже.")
+        await message.edit_text(f"<b>┌─ 🎬 {original_title}</b>\n└─ ✅ <b>Успешно! Файл отправлен ниже.</b>")
 
         if os.path.exists(media_data["file_path"]):
             os.remove(media_data["file_path"])
 
     except Exception as e:
         logger.error(f"Внутренняя ошибка обработки: {e}")
-        await message.edit_text("<b>┌─ ❌ Ошибка.</b>\n└─ Произошла внутренняя ошибка сервера.")
+        await message.edit_text("<b>┌─ ❌ ОШИБКА YOUTUBE</b>\n└─ Произошла внутренняя ошибка сервера.")
 
 
 async def download_worker():
@@ -237,7 +225,7 @@ async def cmd_download_yt(message: types.Message):
         }
 
         size_str = format_size(total_size)
-        warn = " ⚠️ >50MB" if total_size > 50 * 1024 * 1024 else ""
+        warn = f" ⚠️ >{YT_MAX_FILE_SIZE_MB}MB" if total_size > YT_MAX_FILE_SIZE_MB * 1024 * 1024 else ""
         btn_text = f"🎬 {h}p ({size_str}){warn}"
         inline_keyboard.append([InlineKeyboardButton(text=btn_text, callback_data=f"yt_dl|{choice_key}|{request_id}")])
 
@@ -249,7 +237,7 @@ async def cmd_download_yt(message: types.Message):
             "type": "audio"
         }
         size_str = format_size(audio_size)
-        warn = " ⚠️ >50MB" if audio_size > 50 * 1024 * 1024 else ""
+        warn = f" ⚠️ >{YT_MAX_FILE_SIZE_MB}MB" if audio_size > YT_MAX_FILE_SIZE_MB * 1024 * 1024 else ""
         btn_text = f"🎵 Только Звук ({size_str}){warn}"
         inline_keyboard.append([InlineKeyboardButton(text=btn_text, callback_data=f"yt_dl|{choice_key}|{request_id}")])
 
@@ -262,7 +250,7 @@ async def cmd_download_yt(message: types.Message):
     video_title = info.get('title', 'Unknown Video')
 
     await status_msg.edit_text(
-        f"<b>┌─ 🎬 {video_title}</b>\n└─ Выберите формат (Лимит TG: 50MB):", 
+        f"<b>┌─ 🎬 {video_title}</b>\n└─ Выберите формат (Лимит TG: {YT_MAX_FILE_SIZE_MB}MB):", 
         reply_markup=keyboard
     )
 
@@ -282,11 +270,11 @@ async def process_yt_callback(callback: types.CallbackQuery):
         await callback.answer()
         return
 
-    limit_bytes = 50 * 1024 * 1024
+    limit_bytes = YT_MAX_FILE_SIZE_MB * 1024 * 1024
     if choice_data["size"] > limit_bytes:
         size_mb = choice_data["size"] / (1024 * 1024)
         await callback.answer(
-            text=f"❌ Скачивание невозможно!\n\nРазмер файла ({size_mb:.1f} MB) превышает лимит Telegram в 50 MB для обычных ботов.",
+            text=f"❌ Скачивание невозможно!\n\nРазмер файла ({size_mb:.1f} MB) превышает лимит Telegram в {YT_MAX_FILE_SIZE_MB} MB для обычных ботов.",
             show_alert=True
         )
         return

@@ -9,7 +9,7 @@ from bot.utils.weather_api import cmd_weather
 from bot.utils.ai_api import cmd_ai
 from bot.utils.database import db
 from bot.handlers.nsfw_settings import cmd_nsfw_settings
-from bot.utils.whisper_stt import cmd_transcribe
+from bot.utils.whisper_stt import cmd_transcribe, cmd_translate
 from bot.utils.youtube_api import cmd_download_yt
 from functools import lru_cache
 import logging
@@ -24,20 +24,22 @@ def get_public_help_text(is_away_mode: bool = False):
 
     return (
         "<b>┌─ 🤖 ДОСТУПНЫЕ КОМАНДЫ</b>\n"
-        "<b>├─ 🎭</b> <code>!анекдот</code>\n"
-        "<b>├─ 🖼️</b> <code>!мем</code>\n"
-        "<b>├─ 🌤️</b> <code>!погода</code> [город]\n"
-        "<b>├─ 🧠</b> <code>!ии</code> [текст]\n"
-        "<b>├─ 🎙️</b> <code>!расшифровка</code>\n"
-        "<b>├─ 🎭</b> <code>!рп</code>\n"
-        "<b>├─ ⚙️</b> <code>!настройки</code>\n"
-        "<b>├─ 🤖</b> <code>!о_боте</code>\n"
-        "<b>├─ 🍩</b> <code>!donut</code>\n"
-        "<b>├─ ℹ️</b> <code>!помощь</code>\n"
-        "<b>├─ 🚀</b> <code>!старт</code>\n"
+        "<b>├─ 🎭</b> <code>!анекдот</code> — случайная шутка\n"
+        "<b>├─ 🖼️</b> <code>!мем</code> — случайный мем\n"
+        "<b>├─ 🌤️</b> <code>!погода</code> [город] — текущая погода\n"
+        "<b>├─ 🧠</b> <code>!ии</code> [текст] — запрос к локальной нейросети\n"
+        "<b>├─ 🎙️</b> <code>!расшифровка</code> — текст из аудио/видео (в ответ)\n"
+        "<b>├─ 🌐</b> <code>!перевести</code> — перевод и озвучка (в ответ)\n"
+        "<b>├─ 🎬</b> <code>!скачать</code> [ссылка] — загрузка с YouTube\n"
+        "<b>├─ 🎭</b> <code>!рп</code> — список RP-команд (взаимодействия)\n"
+        "<b>├─ ⚙️</b> <code>!настройки</code> — настройки бота (NSFW и др.)\n"
+        "<b>├─ 🤖</b> <code>!о_боте</code> — техническая информация\n"
+        "<b>├─ 🍩</b> <code>!donut</code> — поддержать автора\n"
+        "<b>├─ ℹ️</b> <code>!помощь</code> — это меню\n"
         "<b>│</b>\n"
-        "<b>├─ 🔗 <i>Отправь ссылку на музыку/видео</i></b>\n"
-        "<b>├─   Она сохранится и появится у владельца в !ссылки</b>\n"
+        "<b>├─ 🔗 <i>Авто-сохранение ссылок</i></b>\n"
+        "<b>├─   Отправь ссылку на музыку/видео, и она</b>\n"
+        "<b>├─   появится у владельца в !ссылки</b>\n"
         "<b>│</b>\n"
         f"<b>├─ {status_emoji} Статус:</b> {status_text}\n"
         "<b>└─ 🤖 Автоответ:</b> Мгновенный при включённом режиме"
@@ -58,7 +60,6 @@ def get_rp_commands(user_id: int = None):
         for cmd, action in NSFW_RP_ACTIONS.items():
             emoji = action[0] if action else "🎭"
             nsfw_list.append(f"<b>├─ {emoji}</b> <code>{cmd}</code>")
-
         nsfw_text = "\n".join(nsfw_list)
         result += f"\n<b>│</b>\n<b>├─ 🔞 NSFW RP КОМАНДЫ (18+)</b>\n{nsfw_text}"
 
@@ -68,7 +69,6 @@ def get_rp_commands(user_id: int = None):
 
 async def cmd_start(message: types.Message):
     await message.reply(WELCOME_TEXT)
-
     db.increment_commands()
     db.log_command("!старт", message.from_user.id)
     return True
@@ -77,7 +77,6 @@ async def cmd_start(message: types.Message):
 async def cmd_help(message: types.Message):
     is_away = await state.is_away_mode
     help_text = get_public_help_text(is_away)
-
     await message.reply(help_text)
     db.increment_commands()
     db.log_command("!помощь", message.from_user.id)
@@ -103,13 +102,11 @@ async def cmd_about(message: types.Message):
         "<b>├─ 🛠️ Функции:</b>\n"
         "<b>├─  •</b> Автоответчик при режиме «отошёл»\n"
         "<b>├─  •</b> RP команды (обнять, поцеловать и др.)\n"
-        "<b>├─  •</b> Анекдоты из API\n"
-        "<b>├─  •</b> Мемы с описанием (API: <a href='https://apileague.com/'>API League</a>)\n"
+        "<b>├─  •</b> Анекдоты из API и Мемы с описанием\n"
         "<b>├─  •</b> Погода в любом городе\n"
         "<b>├─  •</b> Локальный ИИ через Ollama\n"
-        "<b>├─  •</b> Расшифровка голосовых и видео\n"
-        "<b>├─  •</b> Простые ответы на вопросы\n"
-        "<b>├─  •</b> Реакции на ключевые слова\n"
+        "<b>├─  •</b> Расшифровка и перевод медиа\n"
+        "<b>├─  •</b> Скачивание с YouTube\n"
         "<b>├─ 💻 Разработчик:</b> <a href='https://t.me/an1onime'>Lonewolf239</a>\n"
         "<b>├─ 📊 Статистика:</b> <code>!статистика</code> (только для владельца)\n"
         "<b>└─ 🎭 Для RP команд:</b> ответь на сообщение и напиши <code>!обнять</code>"
@@ -128,8 +125,6 @@ async def cmd_donut(message: types.Message):
         "<b>├─ 🔗 DonationAlerts:</b>\n"
         "<b>├─</b> https://www.donationalerts.com/r/lonewolf239\n"
         "<b>│</b>\n"
-        "<b>├─ 💳 Также можно через СБП или карту по запросу</b>\n"
-        "<b>│</b>\n"
         "<b>├─ 🙏 Спасибо за поддержку! ❤️</b>\n"
         "<b>└─ 🍩 Даже маленькая сумма помогает боту жить!</b>"
     )
@@ -141,13 +136,11 @@ async def cmd_donut(message: types.Message):
 
 async def handle_keywords(message: types.Message):
     text = message.text.strip().lower()
-
     import re
     words = re.findall(r'\b\w+\b', text)
 
     for keyword, reply in KEYWORD_REACTIONS.items():
         keyword_lower = keyword.lower()
-
         if ' ' in keyword_lower:
             if keyword_lower in text:
                 await message.reply(reply)
@@ -156,7 +149,6 @@ async def handle_keywords(message: types.Message):
             if keyword_lower in words:
                 await message.reply(reply)
                 return True
-
     return False
 
 
@@ -167,11 +159,9 @@ async def handle_simple_answers(message: types.Message):
     if text_normalized in SIMPLE_ANSWERS:
         await message.reply(SIMPLE_ANSWERS[text_normalized])
         return True
-
     if text in SIMPLE_ANSWERS:
         await message.reply(SIMPLE_ANSWERS[text])
         return True
-
     return False
 
 
@@ -183,10 +173,8 @@ async def process_public_commands(message: types.Message):
 
     if text.startswith("!погода"):
         return await cmd_weather(message)
-
     if text.startswith("!ии"):
         return await cmd_ai(message)
-
     if text.startswith("!скачать"):
         return await cmd_download_yt(message)
 
@@ -200,14 +188,13 @@ async def process_public_commands(message: types.Message):
         "!рп": cmd_rp_commands,
         "!настройки": cmd_nsfw_settings,
         "!расшифровка": cmd_transcribe,
+        "!перевести": cmd_translate,
     }
 
     if text in commands:
         return await commands[text](message)
-
     if await handle_simple_answers(message):
         return True
-
     if not its_me(message.from_user.id):
         if await handle_keywords(message):
             return True

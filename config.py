@@ -6,17 +6,72 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID"))
 
-USER_PROFILE = {
-    'http_method': 'POST',
-    'pid': os.getenv("API_PID"),
-    'key': os.getenv("API_KEY")
-}
+# ==========================================
+# НАСТРОЙКИ СТОРОННИХ API
+# ==========================================
 
+# Анекдоты
+USER_PROFILE = {'http_method': 'POST', 'pid': os.getenv("API_PID"), 'key': os.getenv("API_KEY")}
 API_SETTINGS = {'lang': 1, 'note': 1, 'censor': 0, 'markup': 0}
 
+# Мемы
 MEME_API_KEY = os.getenv("MEME_API_KEY")
+MEME_API_URL = "https://api.apileague.com/retrieve-random-meme"
+MEME_MAX_AGE_DAYS = 67
+MEME_MIN_RATING = 0.9
 
+# Погода
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
+WEATHER_GEO_URL = "http://api.openweathermap.org/geo/1.0/direct"
+WEATHER_API_URL = "https://api.openweathermap.org/data/2.5/weather"
+WEATHER_FORECAST_URL = "https://api.openweathermap.org/data/2.5/forecast"
+TRANSLATE_API_URL = "https://translate.googleapis.com/translate_a/single"
+
+# ==========================================
+# НАСТРОЙКИ ИИ (Ollama & Whisper)
+# ==========================================
+
+OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+OLLAMA_MODEL = "qwen2.5:3b"
+
+AI_MAX_REPLY_LEN = 3800
+AI_REQUEST_TIMEOUT = 90
+AI_DISCLAIMER = "\n\n*⚠️ ИИ может ошибаться. Проверяй важную информацию.*"
+
+# Optimized for qwen2.5:3b (CPU-friendly, short Telegram replies)
+AI_TEMPERATURE = 0.4
+AI_TOP_P = 0.75
+AI_REPEAT_PENALTY = 1.1
+AI_NUM_CTX = 1024
+AI_NUM_PREDICT = 256
+
+# Optimized for qwen2.5:3b (CPU-friendly, short Telegram replies)
+AI_SYSTEM_PROMPT = (
+    "Ты полезный русскоязычный ИИ-помощник внутри Telegram business-бота. "
+    "Автор бота — Lonewolf239. "
+    "Всегда отвечай только на русском языке. "
+    "Основной текст пиши полностью на русском языке. Иностранные слова используй только для официальных названий. "
+    "Отвечай кратко, понятно и по делу. "
+    "Не выдумывай факты, бренды или странные советы. Если не уверен — так и скажи. "
+    "Если не уверен в конкретных названиях — советуй категории или типы. "
+    "Если просят рекомендацию — предложи 2-4 адекватных варианта с коротким объяснением. "
+    "Не морализируй. Не усложняй. "
+)
+
+WHISPER_MODEL = "base"
+WHISPER_MAX_DURATION_SECONDS = 360
+WHISPER_MAX_FILE_SIZE_MB = 20
+
+# ==========================================
+# НАСТРОЙКИ ЗАГРУЗОК (YouTube)
+# ==========================================
+
+YT_DOWNLOAD_DIR = "downloads"
+YT_MAX_FILE_SIZE_MB = 50
+
+# ==========================================
+# ТЕКСТА И СЛОВАРИ
+# ==========================================
 
 WELCOME_TEXT = (
     "<b>┌─ 🤖 ДОБРО ПОЖАЛОВАТЬ</b>\n"
@@ -27,6 +82,7 @@ WELCOME_TEXT = (
     "├─ 🌤️ Погода: <code>!погода</code> [город]\n"
     "├─ 🧠 ИИ: <code>!ии</code> [запрос]\n"
     "├─ 🎙️ Расшифровка речи: <code>!расшифровка</code>\n"
+    "├─ 🌐 Перевод видео: <code>!перевести</code>\n"
     "├─ 🎮 RP-команды: <code>!рп</code>\n"
     "├─ ⚙️ Настройки: <code>!настройки</code>\n"
     "└─ 📘 Полный список: <code>!помощь</code>"
@@ -116,24 +172,3 @@ BACKUP_JOKES = [
 ]
 
 NSFW_ENABLED_BY_DEFAULT = 0
-
-OLLAMA_BASE_URL = "http://127.0.0.1:11434"
-OLLAMA_MODEL = "qwen2.5:3b"
-
-# Optimized for qwen2.5:3b (CPU-friendly, short Telegram replies)
-AI_SYSTEM_PROMPT = (
-    "Ты полезный русскоязычный ИИ-помощник внутри Telegram business-бота. "
-    "Автор бота — Lonewolf239. "
-    "Всегда отвечай только на русском языке. "
-    "Основной текст пиши полностью на русском языке. Иностранные слова используй только для официальных названий. "
-    "Отвечай кратко, понятно и по делу. "
-    "Не выдумывай факты, бренды или странные советы. Если не уверен — так и скажи. "
-    "Если не уверен в конкретных названиях — советуй категории или типы. "
-    "Если просят рекомендацию — предложи 2-4 адекватных варианта с коротким объяснением. "
-    "Не морализируй. Не усложняй. "
-)
-
-WHISPER_MODEL = "base"
-
-WHISPER_MAX_DURATION_SECONDS = 120
-WHISPER_MAX_FILE_SIZE_MB = 20
