@@ -39,10 +39,6 @@ async def handle_all_messages(message: types.Message):
 
     try:
         if message.text:
-            if not its_me(user_id):
-                if await process_incoming_link(message):
-                    return
-
             if its_me(user_id):
                 if await process_owner_commands(message):
                     return
@@ -52,6 +48,10 @@ async def handle_all_messages(message: types.Message):
 
             if message.reply_to_message:
                 if await process_rp_command(message):
+                    return
+
+            if not its_me(user_id):
+                if await process_incoming_link(message):
                     return
 
         if not its_me(user_id):
