@@ -5,7 +5,7 @@ import uuid
 import shutil
 from typing import Optional, Dict, Any
 import yt_dlp
-from aiogram import types, F
+from aiogram import types
 from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramAPIError
 from config import YT_DOWNLOAD_DIR, YT_MAX_FILE_SIZE_MB
@@ -15,6 +15,13 @@ logger = logging.getLogger(__name__)
 os.makedirs(YT_DOWNLOAD_DIR, exist_ok=True)
 pending_requests = {}
 download_queue = asyncio.Queue()
+
+
+def detect_platform(url: str) -> str:
+    url_lower = url.lower()
+    if "tiktok.com" in url_lower:
+        return "TikTok"
+    return "YouTube"
 
 
 def _sync_get_info(url: str) -> Optional[dict]:
@@ -27,7 +34,7 @@ def _sync_get_info(url: str) -> Optional[dict]:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             return ydl.extract_info(url, download=False)
     except Exception as e:
-        logger.error(f"Ошибка получения информации о видео {url}: {e}")
+        logger.error(f"Ошибка получения информации о медиа {url}: {e}")
         return None
 
 
@@ -69,7 +76,7 @@ def _sync_download(url: str, format_str: str, media_type: str) -> Optional[Dict[
                             break
 
             return {
-                "title": info.get("title", "Unknown Video"),
+                "title": info.get("title", "Unknown Media"),
                 "duration": info.get("duration", 0),
                 "file_path": filename,
                 "type": media_type,
@@ -86,6 +93,7 @@ async def process_download_task(task_data: dict):
     url: str = task_data['url']
     format_choice: str = task_data['format_choice']
     media_type: str = task_data['type']
+    platform: str = task_data.get('platform', 'YouTube')
 
     try:
         try:
@@ -99,7 +107,7 @@ async def process_download_task(task_data: dict):
         media_data = await loop.run_in_executor(None, _sync_download, url, format_choice, media_type)
 
         if not media_data or not os.path.exists(media_data["file_path"]):
-            await message.edit_text("<b>┌─ ❌ ОШИБКА YOUTUBE</b>\n└─ Не удалось получить доступ к медиа (возможно, заблокировано).")
+            await message.edit_text(f"<b>┌─ ❌ ОШИБКА {platform.upper()}</b>\n└─ Не удалось получить доступ к медиа (возможно, заблокировано).")
             return
 
         file_size_bytes = os.path.getsize(media_data["file_path"])
@@ -135,7 +143,7 @@ async def process_download_task(task_data: dict):
                 except Exception:
                     try: await message.chat.send_document(document=file, caption=caption)
                     except Exception:
-                        await message.edit_text("<b>┌─ ❌ ОШИБКА YOUTUBE</b>\n└─ Не удалось передать файл через API Telegram.")
+                        await message.edit_text(f"<b>┌─ ❌ ОШИБКА {platform.upper()}</b>\n└─ Не удалось передать файл через API Telegram.")
                         if os.path.exists(media_data["file_path"]): os.remove(media_data["file_path"])
                         return
 
@@ -146,7 +154,7 @@ async def process_download_task(task_data: dict):
 
     except Exception as e:
         logger.error(f"Внутренняя ошибка обработки: {e}")
-        await message.edit_text("<b>┌─ ❌ ОШИБКА YOUTUBE</b>\n└─ Произошла внутренняя ошибка сервера.")
+        await message.edit_text(f"<b>┌─ ❌ ОШИБКА {platform.upper()}</b>\n└─ Произошла внутренняя ошибка сервера.")
 
 
 async def download_worker():
@@ -163,13 +171,15 @@ async def cmd_download_yt(message: types.Message):
         return
 
     url = args[-1]
-    status_msg = await message.reply("<b>┌─ ⚙️ Анализ видео:</b>\n└─ Пожалуйста, подождите, собираем доступные форматы...")
+    platform = detect_platform(url)
+    
+    status_msg = await message.reply(f"<b>┌─ ⚙️ Анализ {platform}:</b>\n└─ Пожалуйста, подождите, собираем доступные форматы...")
 
     loop = asyncio.get_running_loop()
     info = await loop.run_in_executor(None, _sync_get_info, url)
 
     if not info:
-        await status_msg.edit_text("<b>┌─ ❌ Ошибка.</b>\n└─ Не удалось извлечь данные о видео. Проверьте корректность ссылки.")
+        await status_msg.edit_text(f"<b>┌─ ❌ Ошибка {platform}.</b>\n└─ Не удалось извлечь данные. Проверьте корректность ссылки.")
         return
 
     request_id = str(uuid.uuid4())[:8]
@@ -182,10 +192,15 @@ async def cmd_download_yt(message: types.Message):
 
     video_formats = [f for f in formats if f.get('vcodec') != 'none']
     heights_dict = {}
+
     for f in video_formats:
         h = f.get('height')
         if not h:
-            continue
+            if platform == "TikTok":
+                h = "Видео"
+            else:
+                continue
+
         current_size = f.get('filesize') or f.get('filesize_approx') or 0
         if h not in heights_dict or current_size > heights_dict[h].get('size', 0):
             heights_dict[h] = {
@@ -203,7 +218,9 @@ async def cmd_download_yt(message: types.Message):
     choices = {}
     inline_keyboard = []
 
-    sorted_heights = sorted(heights_dict.keys(), reverse=True)
+    sorted_heights = sorted([k for k in heights_dict.keys() if isinstance(k, int)], reverse=True)
+    str_heights = [k for k in heights_dict.keys() if isinstance(k, str)]
+    sorted_heights.extend(str_heights)
 
     for h in sorted_heights:
         v_info = heights_dict[h]
@@ -226,7 +243,9 @@ async def cmd_download_yt(message: types.Message):
 
         size_str = format_size(total_size)
         warn = f" ⚠️ >{YT_MAX_FILE_SIZE_MB}MB" if total_size > YT_MAX_FILE_SIZE_MB * 1024 * 1024 else ""
-        btn_text = f"🎬 {h}p ({size_str}){warn}"
+
+        label = f"{h}p" if isinstance(h, int) else str(h)
+        btn_text = f"🎬 {label} ({size_str}){warn}"
         inline_keyboard.append([InlineKeyboardButton(text=btn_text, callback_data=f"yt_dl|{choice_key}|{request_id}")])
 
     if best_aud:
@@ -243,11 +262,12 @@ async def cmd_download_yt(message: types.Message):
 
     pending_requests[request_id] = {
         "url": url,
-        "formats": choices
+        "formats": choices,
+        "platform": platform
     }
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
-    video_title = info.get('title', 'Unknown Video')
+    video_title = info.get('title', 'Unknown Media')
 
     await status_msg.edit_text(
         f"<b>┌─ 🎬 {video_title}</b>\n└─ Выберите формат (Лимит TG: {YT_MAX_FILE_SIZE_MB}MB):", 
@@ -280,6 +300,7 @@ async def process_yt_callback(callback: types.CallbackQuery):
         return
 
     url = req_data["url"]
+    platform = req_data.get("platform", "YouTube")
     del pending_requests[req_id]
 
     queue_position = download_queue.qsize() + 1
@@ -290,7 +311,8 @@ async def process_yt_callback(callback: types.CallbackQuery):
         'status_message': callback.message,
         'url': url,
         'format_choice': choice_data["format_str"],
-        'type': choice_data["type"]
+        'type': choice_data["type"],
+        'platform': platform
     })
 
     await callback.answer()

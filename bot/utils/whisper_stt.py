@@ -19,6 +19,23 @@ _model_instance = None
 _model_lock = asyncio.Lock()
 
 
+def split_text_to_chunks(text: str, max_size: int = 4000) -> List[str]:
+    chunks = []
+    while len(text) > max_size:
+        split_pos = text.rfind("\n", 0, max_size)
+        if split_pos == -1:
+            split_pos = text.rfind(" ", 0, max_size)
+        if split_pos == -1:
+            split_pos = max_size
+
+        chunks.append(text[:split_pos].strip())
+        text = text[split_pos:].strip()
+
+    if text:
+        chunks.append(text)
+    return chunks
+
+
 async def get_whisper_model():
     global _model_instance
 
@@ -35,7 +52,7 @@ async def get_whisper_model():
         return _model_instance
 
 
-async def transcribe_audio(file_path: str, language: str = "ru") -> Optional[str]:
+async def transcribe_audio(file_path: str, language: str = "auto") -> Optional[str]:
     try:
         model = await get_whisper_model()
 
@@ -218,7 +235,7 @@ async def cmd_transcribe(message: types.Message):
 
         transcribed_text, _ = await queue.add_task(
             task_type=TaskType.WHISPER,
-            data={"file_path": file_path, "language": "ru"},
+            data={"file_path": file_path, "language": "auto"},
             user_id=message.from_user.id
         )
 
@@ -246,15 +263,18 @@ async def cmd_transcribe(message: types.Message):
             f"<b>└─ 📝 ТЕКСТ:</b> <code>{transcribed_text}</code>"
         )
 
-        if len(result_text) > 4000:
-            first_chunk = result_text[:3500]
-            await status_msg.edit_text(first_chunk)
+        text_chunks = split_text_to_chunks(transcribed_text, max_size=3700)
 
-            remaining = result_text[3500:]
-            if remaining:
-                await message.reply(remaining)
-        else:
-            await status_msg.edit_text(result_text)
+        first_chunk = (
+            f"<b>┌─ 🎙️ РАСШИФРОВКА</b> <i>({media_type_text})</i>\n"
+            f"<b>└─ 📝 ТЕКСТ (Часть 1/{len(text_chunks)}):</b> <code>{text_chunks[0]}</code>"
+        )
+        await status_msg.edit_text(first_chunk)
+
+        for i, chunk in enumerate(text_chunks[1:], start=2):
+            await message.reply(
+                f"<b>📝 ТЕКСТ (Часть {i}/{len(text_chunks)}):</b>\n<code>{chunk}</code>"
+            )
 
         db.increment_commands()
         db.log_command("!расшифровка", message.from_user.id)
@@ -303,6 +323,68 @@ async def text_to_speech(text: str, output_path: str) -> bool:
         return False
     except Exception as e:
         logger.error(f"❌ Ошибка генерации озвучки: {e}")
+        return False
+
+
+async def get_duration(file_path: str) -> float:
+    try:
+        cmd = [
+            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1', file_path
+        ]
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await process.communicate()
+        return float(stdout.decode().strip())
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения длительности файла {file_path}: {e}")
+        return 0.0
+
+
+async def adjust_audio_duration(audio_path: str, target_duration: float, output_path: str) -> bool:
+    current_duration = await get_duration(audio_path)
+    if current_duration == 0 or target_duration == 0:
+        return False
+
+    speed_factor = current_duration / target_duration
+
+    if abs(speed_factor - 1.0) < 0.03:
+        return False
+
+    filters = []
+    remaining_factor = speed_factor
+
+    while remaining_factor > 2.0:
+        filters.append("atempo=2.0")
+        remaining_factor /= 2.0
+    while remaining_factor < 0.5:
+        filters.append("atempo=0.5")
+        remaining_factor /= 0.5
+
+    if remaining_factor != 1.0:
+        filters.append(f"atempo={remaining_factor:.4f}")
+
+    filter_str = ",".join(filters)
+
+    try:
+        cmd = [
+            'ffmpeg', '-y',
+            '-i', audio_path,
+            '-filter:a', filter_str,
+            output_path
+        ]
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        await process.communicate()
+        return process.returncode == 0
+    except Exception as e:
+        logger.error(f"❌ Ошибка при изменении скорости аудио: {e}")
         return False
 
 
@@ -365,22 +447,23 @@ async def cmd_translate(message: types.Message):
             )
             return True
 
-        await status_msg.edit_text("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n└─ ⏳ <b>Распознаю оригинальную речь...</b>")
+        await status_msg.edit_text("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n└─ ⏳ <b>Распознаю и перевожу оригинальную речь...</b>")
 
         model = await get_whisper_model()
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, lambda: model.transcribe(file_path, task="transcribe", fp16=False, verbose=False))
 
-        if result.get("language", "unknown") == "ru":
-            await status_msg.edit_text("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n├─ ❌ <b>Обнаружен русский язык!</b>\n└─ Перевод не требуется.")
-            return True
+        result = await loop.run_in_executor(
+            None, 
+            lambda: model.transcribe(file_path, task="translate", fp16=False, verbose=False)
+        )
 
-        if not result.get("text", "").strip():
+        original_text = result.get("text", "").strip()
+        if not original_text:
             await status_msg.edit_text("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n└─ ❌ <b>Не удалось распознать текст в медиа.</b>")
             return True
 
-        await status_msg.edit_text("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n└─ ⏳ <b>Перевожу на русский...</b>")
-        translated_text = await translate_text(result.get("text", "").strip(), target_lang="ru")
+        await status_msg.edit_text("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n└─ ⏳ <b>Финальный перевод на русский...</b>")
+        translated_text = await translate_text(original_text, target_lang="ru")
 
         await status_msg.edit_text("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n└─ ⏳ <b>Генерирую новую озвучку...</b>")
         tts_path = file_path + "_tts.mp3"
@@ -389,24 +472,71 @@ async def cmd_translate(message: types.Message):
             await status_msg.edit_text("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n└─ ❌ <b>Ошибка: Не удалось сгенерировать озвучку.</b>")
             return True
 
+        original_duration = await get_duration(file_path)
+        if original_duration > 0:
+            adjusted_tts_path = file_path + "_tts_adjusted.mp3"
+            if await adjust_audio_duration(tts_path, original_duration, adjusted_tts_path):
+                try:
+                    if os.path.exists(tts_path):
+                        os.unlink(tts_path)
+                except:
+                    pass
+                tts_path = adjusted_tts_path
+
         await status_msg.edit_text("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n└─ ⏳ <b>Собираю и отправляю файл...</b>")
 
+        orig_filename = None
+        if reply_msg.audio and reply_msg.audio.file_name:
+            orig_filename = reply_msg.audio.file_name
+        elif reply_msg.video and reply_msg.video.file_name:
+            orig_filename = reply_msg.video.file_name
+
+        caption_text = translated_text
+        additional_chunks = []
+
+        if len(translated_text) > 800:
+            caption_text = translated_text[:800] + "..."
+            remaining_text = translated_text[800:]
+            additional_chunks = split_text_to_chunks(remaining_text, max_size=4000)
+
+        main_caption = f"<b>📝 Перевод:</b> {caption_text}"
+        media_sent_msg = None
+
         if media_type in ["voice", "audio"]:
-            audio_file = FSInputFile(tts_path)
-            if media_type == "voice":
-                await message.reply_voice(voice=audio_file, caption=f"<b>📝 Перевод:</b> {translated_text}")
+            if media_type == "audio" and orig_filename:
+                name, ext = os.path.splitext(orig_filename)
+                new_filename = f"{name} (перевод){ext}"
+                audio_file = FSInputFile(tts_path, filename=new_filename)
             else:
-                await message.reply_audio(audio=audio_file, caption=f"<b>📝 Перевод:</b> {translated_text}")
+                audio_file = FSInputFile(tts_path)
+
+            if media_type == "voice":
+                media_sent_msg = await message.reply_voice(voice=audio_file, caption=main_caption)
+            else:
+                media_sent_msg = await message.reply_audio(audio=audio_file, caption=main_caption)
 
         elif media_type in ["video", "video_note"]:
             output_path = file_path + "_translated.mp4"
             if await replace_audio_in_video(file_path, tts_path, output_path):
-                video_file = FSInputFile(output_path)
-                if media_type == "video_note": await message.reply_video_note(video_file)
-                else: await message.reply_video(video_file, caption=f"<b>📝 Перевод:</b> {translated_text}")
+                if media_type == "video" and orig_filename:
+                    name, ext = os.path.splitext(orig_filename)
+                    new_filename = f"{name} (перевод){ext}"
+                    video_file = FSInputFile(output_path, filename=new_filename)
+                else:
+                    video_file = FSInputFile(output_path)
+
+                if media_type == "video_note": 
+                    media_sent_msg = await message.reply_video_note(video_file)
+                    additional_chunks = split_text_to_chunks(translated_text, max_size=4000)
+                else:
+                    media_sent_msg = await message.reply_video(video_file, caption=main_caption)
             else:
                 await status_msg.edit_text("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n└─ ❌ <b>Ошибка при сборке видео-файла.</b>")
                 return True
+
+        if additional_chunks:
+            for i, chunk in enumerate(additional_chunks, start=1):
+                await message.reply(f"<b>📝 Продолжение перевода (Часть {i}):</b>\n{chunk}")
 
         await status_msg.edit_text("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n└─ ✅ <b>Успешно! Медиа отправлено ниже.</b>")
 

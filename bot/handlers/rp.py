@@ -5,9 +5,6 @@ from config import SFW_RP_ACTIONS, NSFW_RP_ACTIONS
 
 
 async def process_rp_command(message: types.Message):
-    if not message.reply_to_message:
-        return False
-
     text = message.text.strip()
     parts = text.split(maxsplit=1)
     command = parts[0].lower() if parts else ""

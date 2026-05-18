@@ -30,7 +30,7 @@ def get_public_help_text(is_away_mode: bool = False):
         "<b>├─ 🧠</b> <code>!ии</code> [текст] — запрос к локальной нейросети\n"
         "<b>├─ 🎙️</b> <code>!расшифровка</code> — текст из аудио/видео (в ответ)\n"
         "<b>├─ 🌐</b> <code>!перевести</code> — перевод и озвучка (в ответ)\n"
-        "<b>├─ 🎬</b> <code>!скачать</code> [ссылка] — загрузка с YouTube\n"
+        "<b>├─ 🎬</b> <code>!скачать</code> [ссылка] — загрузка с YouTube/TikTok\n"
         "<b>├─ 🎭</b> <code>!рп</code> — список RP-команд (взаимодействия)\n"
         "<b>├─ ⚙️</b> <code>!настройки</code> — настройки бота (NSFW и др.)\n"
         "<b>├─ 🤖</b> <code>!о_боте</code> — техническая информация\n"
@@ -166,10 +166,7 @@ async def handle_simple_answers(message: types.Message):
 
 
 async def process_public_commands(message: types.Message):
-    if not message.text:
-        return False
-
-    text = message.text.strip()
+    text = message.text.lower().strip()
 
     if text.startswith("!погода"):
         return await cmd_weather(message)
