@@ -98,24 +98,43 @@ async def cmd_ai(message: types.Message):
             f"Запрос:\n{user_prompt}"
         )
 
+    wait_msg = await message.reply(
+        "<b>┌─ 🧠 ИИ</b>\n"
+        "├─ ⏳ Анализ запроса...\n"
+        "└─ 📍 Позиция: вычисляется"
+    )
+
+    async def update_position(pos: int):
+        try:
+            if pos == 0:
+                await wait_msg.edit_text(
+                    "<b>┌─ 🧠 ИИ</b>\n"
+                    "├─ 🔄 <b>Генерирую ответ...</b>\n"
+                    "└─ ⏳ Пожалуйста, подождите"
+                )
+            else:
+                await wait_msg.edit_text(
+                    "<b>┌─ 🧠 ИИ</b>\n"
+                    "├─ ⏳ Запрос в очереди.\n"
+                    f"└─ 📍 Позиция перед вами: {pos}"
+                )
+        except Exception:
+            pass
+
     queue = get_queue()
 
     try:
         task_future, queue_position = await queue.add_task(
             task_type=TaskType.AI,
             data={"prompt": user_prompt, "system_prompt": AI_SYSTEM_PROMPT},
-            user_id=message.from_user.id
+            user_id=message.from_user.id,
+            update_cb=update_position
         )
+        await update_position(queue_position)
     except Exception as e:
         logger.exception("Ошибка при добавлении AI задачи в очередь")
-        await message.reply("❌ Не удалось поставить задачу в очередь.")
+        await wait_msg.edit_text("❌ Не удалось поставить задачу в очередь.")
         return True
-
-    wait_msg = await message.reply(
-        "<b>┌─ 🧠 ИИ</b>\n"
-        f"├─ ⏳ Запрос поставлен в очередь.\n"
-        f"└─ 📍 Позиция: {queue_position}"
-    )
 
     try:
         answer = await task_future

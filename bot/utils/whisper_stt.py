@@ -197,7 +197,7 @@ async def cmd_transcribe(message: types.Message):
     status_msg = await message.reply(
         "<b>┌─ 🎙️ РАСШИФРОВКА РЕЧИ</b>\n"
         "├─ ⏳ <b>Обработка сообщения...</b>\n"
-        "└─ ⏱️ Это займёт 5-15 секунд"
+        "└─ 📍 Позиция: вычисляется"
     )
 
     file_path = None
@@ -229,18 +229,32 @@ async def cmd_transcribe(message: types.Message):
 
         queue = get_queue()
 
+        async def update_position(pos: int):
+            try:
+                if pos == 0:
+                    await status_msg.edit_text(
+                        "<b>┌─ 🎙️ РАСШИФРОВКА РЕЧИ</b>\n"
+                        "├─ 🔄 <b>Распознаю речь...</b>\n"
+                        f"└─ 🎯 Тип: {media_type_text}"
+                    )
+                else:
+                    await status_msg.edit_text(
+                        "<b>┌─ 🎙️ РАСШИФРОВКА РЕЧИ</b>\n"
+                        "├─ ⏳ <b>Очередь...</b>\n"
+                        f"├─ 🎯 Тип: {media_type_text}\n"
+                        f"└─ 📍 Позиция перед вами: {pos}"
+                    )
+            except Exception:
+                pass
+
         task_future, queue_position = await queue.add_task(
             task_type=TaskType.WHISPER,
             data={"file_path": file_path, "language": "auto"},
-            user_id=message.from_user.id
+            user_id=message.from_user.id,
+            update_cb=update_position
         )
 
-        await status_msg.edit_text(
-            "<b>┌─ 🎙️ РАСШИФРОВКА РЕЧИ</b>\n"
-            "├─ ⏳ <b>Распознаю речь...</b>\n"
-            f"├─ 🎯 Тип: {media_type_text}\n"
-            f"└─ 📍 Позиция в очереди: {queue_position}"
-        )
+        await update_position(queue_position)
 
         transcribed_text = await task_future
 
@@ -430,7 +444,12 @@ async def cmd_translate(message: types.Message):
         await message.reply("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n└─ ❌ <b>Команда работает только для голосовых, аудио и видео!</b>")
         return True
 
-    status_msg = await message.reply("<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n└─ ⏳ <b>Скачиваю и анализирую файл...</b>")
+    status_msg = await message.reply(
+        "<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n"
+        "├─ ⏳ <b>Скачиваю и анализирую файл...</b>\n"
+        "└─ 📍 Позиция: вычисляется"
+    )
+    
     file_path = tts_path = output_path = None
 
     try:
@@ -449,17 +468,31 @@ async def cmd_translate(message: types.Message):
 
         queue = get_queue()
 
+        async def update_position(pos: int):
+            try:
+                if pos == 0:
+                    await status_msg.edit_text(
+                        "<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n"
+                        "├─ 🔄 <b>Распознаю и перевожу...</b>\n"
+                        "└─ Ожидайте ответа модели."
+                    )
+                else:
+                    await status_msg.edit_text(
+                        "<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n"
+                        f"├─ ⏳ <b>Очередь...</b>\n"
+                        f"└─ 📍 Позиция перед вами: {pos}"
+                    )
+            except Exception:
+                pass
+
         task_future, queue_position = await queue.add_task(
             task_type=TaskType.WHISPER,
             data={"file_path": file_path, "language": "auto", "task": "translate"},
-            user_id=message.from_user.id
+            user_id=message.from_user.id,
+            update_cb=update_position
         )
 
-        await status_msg.edit_text(
-            "<b>┌─ 🌐 ПЕРЕВОД И ОЗВУЧКА</b>\n"
-            f"├─ ⏳ <b>Очередь: {queue_position}. Распознаю и перевожу...</b>\n"
-            "└─ Ожидайте ответа модели."
-        )
+        await update_position(queue_position)
 
         original_text = await task_future
 
