@@ -8,10 +8,10 @@ def create_submenu_keyboard(grouped_links: dict):
 
     total_count = sum(grouped_links.values())
     text = (
-        f"<b>┌─ 📬 НОВЫЕ ССЫЛКИ</b>\n"
+        "<b>┌─ 📬 НОВЫЕ ССЫЛКИ</b>\n"
         f"<b>├─ Всего:</b> {total_count} шт.\n"
-        f"<b>├─</b>\n"
-        f"<b>└─ Выберите категорию:</b>"
+        "<b>│</b>\n"
+        "<b>└─ Выберите категорию:</b>"
     )
 
     keyboard = []
@@ -52,8 +52,8 @@ def create_unviewed_list_keyboard(links: list, link_type: str, page: int = 0) ->
         text += f"<b>├─ Страница:</b> {page + 1}/{total_pages}\n"
 
     text += (
-        f"<b>├─</b>\n"
-        f"<b>└─ Нажмите на ссылку, чтобы открыть:</b>"
+        "<b>│</b>\n"
+        "<b>└─ Нажмите на ссылку, чтобы открыть:</b>"
     )
 
     keyboard = []

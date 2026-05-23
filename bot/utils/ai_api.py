@@ -9,6 +9,10 @@ from config import (
 )
 from bot.utils.database import db
 from bot.utils.ai_queue import get_queue, TaskType, ensure_queue_started
+from bot.utils.helpers import format_styled_message
+
+API_ICON = "🧠"
+API_NAME = "ИИ"
 
 logger = logging.getLogger(__name__)
 
@@ -83,11 +87,12 @@ async def cmd_ai(message: types.Message):
     parts = message.text.split(maxsplit=1) if message.text else []
 
     if len(parts) < 2:
-        await message.reply(
-            "<b>┌─ 🧠 ИИ</b>\n"
-            "├─ ❌ Не указан запрос.\n"
-            "└─ 📝 Использование: <code>!ии [текст]</code>"
+        error_no_prompt = format_styled_message(
+            emoji=API_ICON,
+            title=API_NAME,
+            message="❌ Не указан запрос.\n📝 Использование: <code>!ии [текст]</code>"
         )
+        await message.reply(error_no_prompt)
         return True
 
     user_prompt = parts[1].strip()
@@ -98,26 +103,28 @@ async def cmd_ai(message: types.Message):
             f"Запрос:\n{user_prompt}"
         )
 
-    wait_msg = await message.reply(
-        "<b>┌─ 🧠 ИИ</b>\n"
-        "├─ ⏳ Анализ запроса...\n"
-        "└─ 📍 Позиция: вычисляется"
+    wait_msg_text = format_styled_message(
+        emoji=API_ICON,
+        title=API_NAME,
+        message="⏳ Анализ запроса...\n📍 Позиция: вычисляется"
     )
+    wait_msg = await message.reply(wait_msg_text)
 
     async def update_position(pos: int):
         try:
             if pos == 0:
-                await wait_msg.edit_text(
-                    "<b>┌─ 🧠 ИИ</b>\n"
-                    "├─ 🔄 <b>Генерирую ответ...</b>\n"
-                    "└─ ⏳ Пожалуйста, подождите"
+                msg_text = format_styled_message(
+                    emoji=API_ICON,
+                    title=API_NAME,
+                    message="🔄 <b>Генерирую ответ...</b>\n⏳ Пожалуйста, подождите"
                 )
             else:
-                await wait_msg.edit_text(
-                    "<b>┌─ 🧠 ИИ</b>\n"
-                    "├─ ⏳ Запрос в очереди.\n"
-                    f"└─ 📍 Позиция перед вами: {pos}"
+                msg_text = format_styled_message(
+                    emoji=API_ICON,
+                    title=API_NAME,
+                    message=f"⏳ Запрос в очереди.\n📍 Позиция перед вами: {pos}"
                 )
+            await wait_msg.edit_text(msg_text)
         except Exception:
             pass
 
@@ -133,7 +140,12 @@ async def cmd_ai(message: types.Message):
         await update_position(queue_position)
     except Exception as e:
         logger.exception("Ошибка при добавлении AI задачи в очередь")
-        await wait_msg.edit_text("❌ Не удалось поставить задачу в очередь.")
+        error_queue = format_styled_message(
+            emoji=API_ICON,
+            title=API_NAME,
+            message="❌ Не удалось поставить задачу в очередь."
+        )
+        await wait_msg.edit_text(error_queue)
         return True
 
     try:
@@ -143,19 +155,25 @@ async def cmd_ai(message: types.Message):
         answer = None
 
     if not answer:
-        error_msg = (
-            "<b>┌─ 🧠 ИИ</b>\n"
-            "├─ ❌ Локальная нейросеть не ответила.\n"
-            f"└─ Проверь, что Ollama запущена и модель <code>{OLLAMA_MODEL}</code> скачана."
+        error_api = format_styled_message(
+            emoji=API_ICON,
+            title=API_NAME,
+            message=f"❌ Локальная нейросеть не ответила.\nПроверь, что Ollama запущена и модель <code>{OLLAMA_MODEL}</code> скачана."
         )
         try:
-            await wait_msg.edit_text(error_msg)
+            await wait_msg.edit_text(error_api)
         except Exception:
-            await message.reply(error_msg)
+            await message.reply(error_api)
         return True
 
     chunks = split_text(answer)
-    first_chunk = f"**┌─ 🧠 ИИ**\n└─ {chunks[0]}{AI_DISCLAIMER}"
+
+    first_chunk = format_styled_message(
+        emoji=API_ICON,
+        title=API_NAME,
+        message=f"{chunks[0]}{AI_DISCLAIMER}",
+        html=False
+    )
 
     try:
         await wait_msg.edit_text(first_chunk, parse_mode="Markdown")

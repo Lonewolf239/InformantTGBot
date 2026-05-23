@@ -5,6 +5,10 @@ from datetime import datetime
 from aiogram import types
 from config import OPENWEATHER_API_KEY, WEATHER_GEO_URL, WEATHER_API_URL, WEATHER_FORECAST_URL, TRANSLATE_API_URL
 from bot.utils.database import db
+from bot.utils.helpers import format_styled_message
+
+API_ICON = "🌤️"
+API_NAME = "Погода"
 
 logger = logging.getLogger(__name__)
 
@@ -77,23 +81,28 @@ def format_weather_message(weather_data: dict, city_name: str, country: str):
     sunrise = datetime.fromtimestamp(sys_data.get("sunrise", 0)).strftime("%H:%M") if sys_data.get("sunrise") else "Н/Д"
     sunset = datetime.fromtimestamp(sys_data.get("sunset", 0)).strftime("%H:%M") if sys_data.get("sunset") else "Н/Д"
 
-    return (
-        f"<b>┌─ {emoji} ПОГОДА В {city_name.upper()}, {country}</b>\n"
-        f"<b>├─ 🌡️ Сейчас:</b> {round(main_data.get('temp', 0))}°C (ощущается как {round(main_data.get('feels_like', 0))}°C)\n"
-        f"<b>├─ 📝 Описание:</b> {weather_info.get('description', '').capitalize()}\n"
-        f"<b>├─ 💧 Влажность:</b> {main_data.get('humidity', 0)}%\n"
-        f"<b>├─ 🌬️ Ветер:</b> {wind_data.get('speed', 0)} м/с, {get_wind_direction(wind_data.get('deg', 0))}\n"
-        f"<b>├─ 📊 Давление:</b> {round(main_data.get('pressure', 0) * 0.750064)} мм рт. ст.\n"
-        f"<b>├─ ☁️ Облачность:</b> {clouds_data.get('all', 0)}%\n"
-        f"<b>├─ 🌅 Рассвет:</b> {sunrise} | <b>🌇 Закат:</b> {sunset}\n"
-        f"<b>└─ 🏙️ Хорошего дня!</b>"
+    raw_message = (
+        f"🌡️ Сейчас: {round(main_data.get('temp', 0))}°C (ощущается как {round(main_data.get('feels_like', 0))}°C)\n"
+        f"📝 Описание: {weather_info.get('description', '').capitalize()}\n"
+        f"💧 Влажность: {main_data.get('humidity', 0)}%\n"
+        f"🌬️ Ветер: {wind_data.get('speed', 0)} м/с, {get_wind_direction(wind_data.get('deg', 0))}\n"
+        f"📊 Давление: {round(main_data.get('pressure', 0) * 0.750064)} мм рт. ст.\n"
+        f"☁️ Облачность: {clouds_data.get('all', 0)}%\n"
+        f"🌅 Рассвет: {sunrise} | 🌇 Закат: {sunset}\n"
+        f"🏙️ Хорошего дня!"
     )
+    return format_styled_message(emoji=emoji, title=f"ПОГОДА В {city_name.upper()}, {country}", message=raw_message)
 
 
 async def cmd_weather(message: types.Message):
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.reply("<b>┌─ 🌤️ ПОГОДА</b>\n├─ ❌ Не указан город!\n└─ 📝 Использование: <code>!погода [город]</code>")
+        error_no_city = format_styled_message(
+            emoji=API_ICON,
+            title=API_NAME,
+            message="❌ Не указан город!\n📝 Использование: <code>!погода [город]</code>"
+        )
+        await message.reply(error_no_city)
         return True
 
     city_name = args[1].strip()
@@ -101,8 +110,13 @@ async def cmd_weather(message: types.Message):
     except: pass
 
     try:
+        search_text = format_styled_message(
+            emoji="🔍",
+            title="ПОИСК ПОГОДЫ",
+            message=f"Ищу погоду в городе <b>{city_name}</b>... 🌍"
+        )
         searching_msg = await asyncio.wait_for(
-            message.reply(f"<b>┌─ 🔍 ПОИСК ПОГОДЫ</b>\n└─ Ищу погоду в городе <b>{city_name}</b>... 🌍"),
+            message.reply(search_text),
             timeout=30.0
         )
     except asyncio.TimeoutError:
@@ -111,14 +125,22 @@ async def cmd_weather(message: types.Message):
     try:
         location = await asyncio.wait_for(get_coordinates(city_name), timeout=20.0)
         if not location:
-            reply = f"<b>┌─ ❌ ГОРОД НЕ НАЙДЕН</b>\n└─ Город <b>{city_name}</b> не найден!"
+            reply = format_styled_message(
+                emoji="❌",
+                title="ГОРОД НЕ НАЙДЕН",
+                message=f"Город <b>{city_name}</b> не найден!"
+            )
             if searching_msg: await searching_msg.edit_text(reply)
             else: await message.reply(reply)
             return True
 
         weather_data = await asyncio.wait_for(get_weather_by_coords(location["lat"], location["lon"]), timeout=15.0)
         if not weather_data:
-            reply = f"<b>┌─ ❌ ОШИБКА API</b>\n└─ Не удалось получить данные о погоде для {location['name']}"
+            reply = format_styled_message(
+                emoji="❌",
+                title="ОШИБКА API",
+                message=f"Не удалось получить данные о погоде для {location['name']}"
+            )
             if searching_msg: await searching_msg.edit_text(reply)
             else: await message.reply(reply)
             return True
@@ -132,7 +154,11 @@ async def cmd_weather(message: types.Message):
         return True
 
     except Exception:
-        error_msg = "<b>┌─ ❌ ОШИБКА</b>\n└─ Не удалось получить погоду. Попробуйте позже!"
+        error_msg = format_styled_message(
+            emoji="❌",
+            title="ОШИБКА",
+            message="Не удалось получить погоду. Попробуйте позже!"
+        )
         if searching_msg: await searching_msg.edit_text(error_msg)
         else: await message.reply(error_msg)
         return True

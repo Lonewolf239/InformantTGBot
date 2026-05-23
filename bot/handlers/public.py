@@ -170,10 +170,13 @@ async def process_public_commands(message: types.Message):
 
     if text.startswith("!погода"):
         return await cmd_weather(message)
+
     if text.startswith("!ии"):
         return await cmd_ai(message)
+
     if text.startswith("!скачать"):
-        return await cmd_download_yt(message)
+        await cmd_download_yt(message)
+        return True
 
     commands = {
         "!старт": cmd_start,
@@ -190,8 +193,10 @@ async def process_public_commands(message: types.Message):
 
     if text in commands:
         return await commands[text](message)
+
     if await handle_simple_answers(message):
         return True
+
     if not its_me(message.from_user.id):
         if await handle_keywords(message):
             return True

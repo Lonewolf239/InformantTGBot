@@ -45,6 +45,21 @@ async def business_connect(connection: types.BusinessConnection):
 @dp.callback_query()
 async def callback_handler(callback_query: types.CallbackQuery):
     data = callback_query.data
+    user_id = callback_query.from_user.id
+
+    if data and ":usr_" in data:
+        base_data, allowed_user_part = data.rsplit(":usr_", 1)
+        try:
+            allowed_user_id = int(allowed_user_part)
+            if user_id != allowed_user_id:
+                await callback_query.answer("❌ Эта панель управления создана другим пользователем и недоступна для вас!", show_alert=True)
+                return
+
+        except ValueError:
+            pass
+        data = base_data
+        callback_query.data = base_data
+
     if data and data.startswith("links_"):
         await links_callback_handler(callback_query)
     elif data == "more_joke":
@@ -58,7 +73,10 @@ async def callback_handler(callback_query: types.CallbackQuery):
     elif data and data.startswith("yt_dl|"):
         await process_yt_callback(callback_query)
 
-    await callback_query.answer()
+    try:
+        await callback_query.answer()
+    except Exception:
+        pass
 
 
 @dp.startup()

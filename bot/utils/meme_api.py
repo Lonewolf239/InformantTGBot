@@ -6,7 +6,11 @@ from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import MEME_API_KEY, MEME_API_URL, MEME_MAX_AGE_DAYS, MEME_MIN_RATING
 from bot.utils.database import db
+from bot.utils.helpers import format_styled_message
 import logging
+
+API_ICON = "🎭"
+API_NAME = "Мем"
 
 logger = logging.getLogger(__name__)
 FAVORITES_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'favorite_memes.json')
@@ -90,11 +94,10 @@ async def send_meme(target, is_callback=False, use_fallback=False):
     if not meme_data or not meme_data.get("url"):
         meme_data = get_random_favorite_meme()
         if not meme_data:
-            error_text = (
-                "<b>┌─ 😔 ОШИБКА МЕМОВ</b>\n"
-                "├─ Не удалось загрузить мем.\n"
-                "├─ Избранное пусто!\n"
-                "└─ Добавь первый мем через <code>!мем</code> и нажми ❤️"
+            error_text = format_styled_message(
+                emoji="😔",
+                title="Ошибка мемов",
+                message="Не удалось загрузить мем.\nИзбранное пусто!\nДобавь первый мем через <code>!мем</code> и нажми ❤️"
             )
             if is_callback: await target.message.answer(error_text)
             else: await target.reply(error_text)
@@ -106,7 +109,11 @@ async def send_meme(target, is_callback=False, use_fallback=False):
         description = description[:197] + "..."
 
     media_type = get_media_type(url)
-    message_caption = f"<b>┌─ 🎭 Мем</b>\n└─ {description}"
+    message_caption = format_styled_message(
+        emoji=API_ICON,
+        title=API_NAME,
+        message=description
+    )
     is_fav = is_meme_favorite(url)
     reply_markup = get_meme_keyboard(url, is_fav)
 
@@ -137,11 +144,12 @@ async def cmd_meme(message: types.Message):
     if not success:
         success = await send_meme(message, is_callback=False, use_fallback=True)
     if not success:
-        await message.reply(
-            "<b>┌─ 😔 ОШИБКА МЕМОВ</b>\n"
-            "├─ API недоступен и избранное пусто.\n"
-            "└─ Попробуй позже!"
+        error_msg = format_styled_message(
+            emoji="😔",
+            title="Ошибка мемов",
+            message="API недоступен и избранное пусто.\nПопробуй позже!"
         )
+        await message.reply(error_msg)
     return True
 
 

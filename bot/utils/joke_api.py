@@ -4,7 +4,11 @@ from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import USER_PROFILE, API_SETTINGS, BACKUP_JOKES
 from bot.utils.database import db
+from bot.utils.helpers import format_styled_message
 import logging
+
+API_ICON = "🎭"
+API_NAME = "Анекдот"
 
 logger = logging.getLogger(__name__)
 
@@ -52,23 +56,33 @@ async def cmd_joke(message: types.Message):
     try:
         joke = await get_joke_from_api()
         if joke:
-            await message.reply(f"<b>┌─ 🎭 Анекдот</b>\n└─ {joke}",
-                                reply_markup=get_joke_keyboard())
+            joke_msg = format_styled_message(
+                emoji=API_ICON,
+                title=API_NAME,
+                message=joke
+            )
+            await message.reply(joke_msg, reply_markup=get_joke_keyboard())
             db.increment_jokes()
             return True
 
         backup = get_backup_joke()
-        await message.reply(
-            "<b>┌─ 🎭 Анекдот (локальный)</b>\n"
-            f"├─ {backup}\n"
-            "└─ ⚠️ <i>API недоступен</i>"
+        backup_msg = format_styled_message(
+            emoji=API_ICON,
+            title=f"{API_NAME} (локальный)",
+            message=f"{backup}\n⚠️ <i>API недоступен</i>"
         )
+        await message.reply(backup_msg)
         db.increment_jokes()
         return True
 
     except Exception as e:
         logger.error(f"Ошибка в !анекдот: {e}")
-        await message.reply("<b>┌─ ❌ Ошибка</b>\n└─ Не удалось получить анекдот. Попробуй позже!")
+        error_msg = format_styled_message(
+            emoji="❌",
+            title="Ошибка",
+            message="Не удалось получить анекдот. Попробуй позже!"
+        )
+        await message.reply(error_msg)
         return True
 
 
@@ -77,17 +91,25 @@ async def more_joke_callback(callback_query: types.CallbackQuery):
 
     joke = await get_joke_from_api()
     if joke:
+        joke_msg = format_styled_message(
+            emoji=API_ICON,
+            title=API_NAME,
+            message=joke
+        )
         await callback_query.message.edit_text(
-            f"<b>┌─ 🎭 Анекдот</b>\n└─ {joke}",
+            joke_msg,
             reply_markup=get_joke_keyboard()
         )
         db.increment_jokes()
     else:
         backup = get_backup_joke()
+        backup_msg = format_styled_message(
+            emoji=API_ICON,
+            title=f"{API_NAME} (локальный)",
+            message=f"{backup}\n⚠️ <i>API недоступен</i>"
+        )
         await callback_query.message.edit_text(
-            "<b>┌─ 🎭 Анекдот (локальный)</b>\n"
-            f"├─ {backup}\n"
-            "└─ ⚠️ <i>API недоступен</i>",
+            backup_msg,
             reply_markup=get_joke_keyboard()
         )
         db.increment_jokes()
