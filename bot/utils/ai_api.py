@@ -116,7 +116,7 @@ async def cmd_ai(message: types.Message):
                 msg_text = format_styled_message(
                     emoji=API_ICON,
                     title=API_NAME,
-                    message="🔄 <b>Генерирую ответ...</b>\n⏳ Пожалуйста, подождите"
+                    message="🔄 Генерирую ответ...\n⏳ Пожалуйста, подождите"
                 )
             else:
                 msg_text = format_styled_message(
@@ -185,4 +185,111 @@ async def cmd_ai(message: types.Message):
 
     db.increment_commands()
     db.log_command("!ии", message.from_user.id)
+    return True
+
+
+async def cmd_ai_ham(message: types.Message):
+    ensure_queue_started()
+    parts = message.text.split(maxsplit=1) if message.text else []
+
+    if len(parts) < 2:
+        error_no_prompt = format_styled_message(
+            emoji="💢",
+            title="Нейрохам",
+            message="❌ Не указан запрос.\n📝 Использование: <code>!нейрохам [текст]</code>"
+        )
+        await message.reply(error_no_prompt)
+        return True
+
+    user_prompt = parts[1].strip()
+    if message.reply_to_message and message.reply_to_message.text:
+        user_prompt = (
+            "Ответь хамски на сообщение ниже и учти запрос пользователя.\n\n"
+            f"Сообщение:\n{message.reply_to_message.text}\n\n"
+            f"Запрос:\n{user_prompt}"
+        )
+
+    wait_msg_text = format_styled_message(
+        emoji="💢",
+        title="Нейрохам",
+        message="⏳ Анализ запроса...\n📍 Позиция: вычисляется"
+    )
+    wait_msg = await message.reply(wait_msg_text)
+
+    async def update_position(pos: int):
+        try:
+            if pos == 0:
+                msg_text = format_styled_message(
+                    emoji="💢",
+                    title="Нейрохам",
+                    message="🔄 Генерирую ответ...\n⏳ Пожалуйста, подождите"
+                )
+            else:
+                msg_text = format_styled_message(
+                    emoji="💢",
+                    title="Нейрохам",
+                    message=f"⏳ Запрос в очереди.\n📍 Позиция перед вами: {pos}"
+                )
+            await wait_msg.edit_text(msg_text)
+        except Exception:
+            pass
+
+    queue = get_queue()
+    from config import AI_HAM_SYSTEM_PROMPT
+
+    try:
+        task_future, queue_position = await queue.add_task(
+            task_type=TaskType.AI,
+            data={"prompt": user_prompt, "system_prompt": AI_HAM_SYSTEM_PROMPT},
+            user_id=message.from_user.id,
+            update_cb=update_position
+        )
+        await update_position(queue_position)
+    except Exception as e:
+        logger.exception("Ошибка при добавлении AI задачи в очередь")
+        error_queue = format_styled_message(
+            emoji="💢",
+            title="Нейрохам",
+            message="❌ Не удалось поставить задачу в очередь."
+        )
+        await wait_msg.edit_text(error_queue)
+        return True
+
+    try:
+        answer = await task_future
+    except Exception as e:
+        logger.exception("Ошибка при выполнении AI задачи воркером")
+        answer = None
+
+    if not answer:
+        error_api = format_styled_message(
+            emoji="💢",
+            title="Нейрохам",
+            message=f"❌ Хамло не отвечает. Проверь, что Ollama запущена и модель <code>{OLLAMA_MODEL}</code> скачана."
+        )
+        try:
+            await wait_msg.edit_text(error_api)
+        except Exception:
+            await message.reply(error_api)
+        return True
+
+    chunks = split_text(answer)
+
+    first_chunk = format_styled_message(
+        emoji="💢",
+        title="Нейрохам",
+        message=f"{chunks[0]}\n\n*⚠️ Режим экспериментальный, нейросеть может нести чушь.*",
+        html=False
+    )
+
+    try:
+        await wait_msg.edit_text(first_chunk, parse_mode="Markdown")
+    except Exception:
+        await message.reply(first_chunk, parse_mode="Markdown")
+
+    for chunk in chunks[1:]:
+        await message.answer(chunk, parse_mode="Markdown")
+
+    db.increment_commands()
+    db.log_command("!нейрохам", message.from_user.id)
     return True

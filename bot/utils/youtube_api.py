@@ -26,9 +26,19 @@ download_queue = asyncio.Queue()
 
 def detect_platform(url: str) -> str:
     url_lower = url.lower()
-    if "tiktok.com" in url_lower:
+    if "tiktok.com" in url_lower or "vm.tiktok.com" in url_lower:
         return "TikTok"
-    return "YouTube"
+    elif "youtube.com" in url_lower or "youtu.be" in url_lower:
+        return "YouTube"
+    elif "twitter.com" in url_lower or "x.com" in url_lower:
+        return "Twitter/X"
+    elif "instagram.com" in url_lower:
+        return "Instagram"
+    elif "vk.com" in url_lower or "vk.video" in url_lower:
+        return "VK"
+    elif "reddit.com" in url_lower:
+        return "Reddit"
+    return "Сайта"
 
 
 def _sync_get_info(url: str) -> Optional[dict]:
@@ -158,12 +168,12 @@ async def process_download_task(task_data: dict):
             os.makedirs(YT_DOWNLOAD_DIR, exist_ok=True)
         except Exception: pass
 
-        await message.edit_text(format_styled_message(emoji="⏳", title="Статус", message="Скачивание файла..."))
+        await message.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message=f"Скачивание файла... ({platform})"))
         loop = asyncio.get_running_loop()
         media_data = await loop.run_in_executor(None, _sync_download, url, format_choice, media_type)
 
         if not media_data or not os.path.exists(media_data["file_path"]):
-            await message.edit_text(format_styled_message(emoji="❌", title=f"ОШИБКА {platform.upper()}", message="Не удалось получить доступ к медиа."))
+            await message.edit_text(format_styled_message(emoji="❌", title=API_NAME, message=f"Не удалось получить доступ к медиа ({platform})."))
             return
 
         file_size_bytes = os.path.getsize(media_data["file_path"])
@@ -173,9 +183,9 @@ async def process_download_task(task_data: dict):
             await message.edit_text(
                 format_styled_message(
                     emoji="❌",
-                    title="ОШИБКА ЛИМИТА",
+                    title=API_NAME,
                     message=(
-                        f"Итоговый файл весит <b>{file_size_bytes / (1024 * 1024):.1f} MB</b>.\n"
+                        f"Ошибка лимита: Итоговый файл весит <b>{file_size_bytes / (1024 * 1024):.1f} MB</b>.\n"
                         f"Telegram запрещает ботам отправлять файлы тяжелее {YT_MAX_FILE_SIZE_MB} MB."
                     )
                 )
@@ -183,15 +193,15 @@ async def process_download_task(task_data: dict):
             if os.path.exists(media_data["file_path"]): os.remove(media_data["file_path"])
             return
 
-        await message.edit_text(format_styled_message(emoji="⏳", title="Статус", message="Отправка в Telegram..."))
+        await message.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message="Отправка в Telegram..."))
 
         original_title = "".join([c for c in media_data['title'] if c not in ['/', '\\', '?', '%', '*', ':', '|', '"', '<', '>']])
         file_ext = os.path.splitext(media_data["file_path"])[1]
         telegram_filename = f"{original_title}{file_ext}"
 
         file = FSInputFile(media_data["file_path"], filename=telegram_filename)
-        
-        caption = format_styled_message(emoji="🎬", title=media_data['title'], message="Скачано ботом")
+
+        caption = format_styled_message(emoji=API_ICON, title=f"{API_NAME} ({platform})", message=f"<b>{media_data['title']}</b>")
 
         try:
             if media_data["type"] == "audio": await original_message.reply_audio(audio=file, caption=caption)
@@ -206,18 +216,18 @@ async def process_download_task(task_data: dict):
                 except Exception:
                     try: await message.chat.send_document(document=file, caption=caption)
                     except Exception:
-                        await message.edit_text(format_styled_message(emoji="❌", title=f"ОШИБКА {platform.upper()}", message="Не удалось передать файл."))
+                        await message.edit_text(format_styled_message(emoji="❌", title=API_NAME, message="Не удалось передать файл."))
                         if os.path.exists(media_data["file_path"]): os.remove(media_data["file_path"])
                         return
 
-        await message.edit_text(format_styled_message(emoji=API_ICON, title=original_title, message="✅ <b>Успешно!</b>"))
+        await message.edit_text(format_styled_message(emoji=API_ICON, title=API_NAME, message=f"✅ <b>{original_title} успешно загружено!</b>"))
 
         if os.path.exists(media_data["file_path"]):
             os.remove(media_data["file_path"])
 
     except Exception as e:
         logger.error(f"Внутренняя ошибка обработки: {e}")
-        await message.edit_text(format_styled_message(emoji="❌", title=f"ОШИБКА {platform.upper()}", message="Произошла внутренняя ошибка сервера."))
+        await message.edit_text(format_styled_message(emoji="❌", title=API_NAME, message="Произошла внутренняя ошибка сервера."))
 
 
 async def download_worker():
@@ -239,7 +249,7 @@ async def cmd_download_yt(message: types.Message):
             "• <code>-до_X</code> — закончить на №X (например: -до_7)\n\n"
             "<i>💡 Можно комбинировать: <code>-random -5</code> скачает 5 случайных треков.</i>"
         )
-        await message.reply(format_styled_message(emoji=API_ICON, title="Использование", message=usage_text))
+        await message.reply(format_styled_message(emoji=API_ICON, title=API_NAME, message=usage_text))
         return
 
     url = None
@@ -271,14 +281,17 @@ async def cmd_download_yt(message: types.Message):
             try: to_idx = int(arg.split("_")[1])
             except ValueError: pass
 
+    if "x.com/" in url.lower():
+        url = re.sub(r"https?://(?:www\.)?x\.com/", "https://twitter.com/", url)
+
     platform = detect_platform(url)
-    status_msg = await message.reply(format_styled_message(emoji="⚙️", title=f"Анализ {platform}", message="Пожалуйста, подождите..."))
+    status_msg = await message.reply(format_styled_message(emoji="⏳", title=API_NAME, message=f"Анализ ссылки ({platform}), подождите..."))
 
     loop = asyncio.get_running_loop()
     info = await loop.run_in_executor(None, _sync_get_info, url)
 
     if not info:
-        await status_msg.edit_text(format_styled_message(emoji="❌", title=f"Ошибка {platform}", message="Не удалось извлечь данные."))
+        await status_msg.edit_text(format_styled_message(emoji="❌", title=API_NAME, message=f"Не удалось извлечь данные с {platform}."))
         return
 
     if 'entries' in info or info.get('_type') == 'playlist':
@@ -287,7 +300,7 @@ async def cmd_download_yt(message: types.Message):
 
         entries = list(info.get('entries', []))
         if not entries:
-            await status_msg.edit_text(format_styled_message(emoji="❌", title="Ошибка плейлиста", message="В данном плейлисте нет доступных треков."))
+            await status_msg.edit_text(format_styled_message(emoji="❌", title=API_NAME, message="В данном плейлисте нет доступных треков."))
             return
 
         start = (from_idx - 1) if from_idx is not None else 0
@@ -303,10 +316,10 @@ async def cmd_download_yt(message: types.Message):
             entries = entries[:1]
 
         if not entries:
-            await status_msg.edit_text(format_styled_message(emoji="❌", title="Ошибка параметров", message="По заданным критериям треков не найдено."))
+            await status_msg.edit_text(format_styled_message(emoji="❌", title=API_NAME, message="По заданным критериям треков не найдено."))
             return
 
-        await status_msg.edit_text(format_styled_message(emoji="📦", title=f"Обнаружен плейлист ({len(entries)} треков)", message="Загрузка треков..."))
+        await status_msg.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message=f"Обнаружен плейлист ({len(entries)} треков).\nЗагрузка..."))
 
         playlist_id = str(uuid.uuid4())[:8]
         temp_playlist_dir = os.path.join(YT_DOWNLOAD_DIR, f"playlist_{playlist_id}")
@@ -320,22 +333,22 @@ async def cmd_download_yt(message: types.Message):
             if not str(entry_url).startswith("http"):
                 entry_url = f"https://www.youtube.com/watch?v={entry_url}"
 
-            await status_msg.edit_text(format_styled_message(emoji="⏳", title="Скачивание", message=f"Загрузка трека {idx}/{len(entries)}..."))
+            await status_msg.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message=f"Скачивание: загрузка трека {idx}/{len(entries)}..."))
             media_data = await loop.run_in_executor(None, _sync_download_playlist_item, entry_url, temp_playlist_dir)
             if media_data and os.path.exists(media_data["file_path"]):
                 downloaded_files.append(media_data["file_path"])
 
         if not downloaded_files:
-            await status_msg.edit_text(format_styled_message(emoji="❌", title="Ошибка", message="Не удалось загрузить ни одного трека."))
+            await status_msg.edit_text(format_styled_message(emoji="❌", title=API_NAME, message="Не удалось загрузить ни одного трека."))
             shutil.rmtree(temp_playlist_dir, ignore_errors=True)
             return
 
         if len(downloaded_files) == 1:
             single_file = downloaded_files[0]
-            await status_msg.edit_text(format_styled_message(emoji="⏳", title="Отправка", message="Отправка трека..."))
+            await status_msg.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message="Отправка трека в Telegram..."))
 
             tg_file = FSInputFile(single_file, filename=os.path.basename(single_file))
-            caption = format_styled_message(emoji="🎵", title="Трек", message="Скачано ботом")
+            caption = format_styled_message(emoji="🎵", title=f"{API_NAME} ({platform})", message=f"<b>{os.path.basename(single_file)}</b>")
 
             try: 
                 await message.reply_audio(audio=tg_file, caption=caption)
@@ -345,11 +358,11 @@ async def cmd_download_yt(message: types.Message):
                 except Exception as e: 
                     logger.error(f"Ошибка отправки одиночного аудио из плейлиста: {e}")
 
-            await status_msg.edit_text(format_styled_message(emoji="🎬", title="Результат", message="✅ <b>Трек успешно отправлен!</b>"))
+            await status_msg.edit_text(format_styled_message(emoji=API_ICON, title=API_NAME, message="✅ <b>Трек успешно отправлен!</b>"))
             shutil.rmtree(temp_playlist_dir, ignore_errors=True)
             return
 
-        await status_msg.edit_text(format_styled_message(emoji="📦", title="Упаковка", message="Формируем ZIP-архивы..."))
+        await status_msg.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message="Упаковка: формируем ZIP-архивы..."))
 
         zip_groups = []
         current_group = []
@@ -369,12 +382,14 @@ async def cmd_download_yt(message: types.Message):
             zip_groups.append(current_group)
 
         for z_idx, group in enumerate(zip_groups, 1):
-            await status_msg.edit_text(format_styled_message(emoji="⏳", title="Отправка", message=f"Отправка архива {z_idx}/{len(zip_groups)}..."))
+            await status_msg.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message=f"Отправка архива {z_idx}/{len(zip_groups)}..."))
 
             if len(zip_groups) > 1:
-                caption = format_styled_message(emoji="📦", title=f"{safe_playlist_title} (Часть {z_idx}/{len(zip_groups)})", message="Скачано ботом")
+                caption = format_styled_message(emoji="📦", title=f"{API_NAME} ({platform})", message=f"<b>{safe_playlist_title}</b> (Часть {z_idx}/{len(zip_groups)})")
+                zip_name = f"{safe_playlist_title}_part{z_idx}.zip"
             else:
-                caption = format_styled_message(emoji="📦", title=safe_playlist_title, message="Скачано ботом")
+                caption = format_styled_message(emoji="📦", title=f"{API_NAME} ({platform})", message=f"<b>{safe_playlist_title}</b>")
+                zip_name = f"{safe_playlist_title}.zip"
 
             zip_filename = os.path.join(YT_DOWNLOAD_DIR, zip_name)
 
@@ -395,7 +410,7 @@ async def cmd_download_yt(message: types.Message):
             if os.path.exists(zip_filename):
                 os.remove(zip_filename)
 
-        await status_msg.edit_text(format_styled_message(emoji="🎬", title="Результат", message="✅ <b>Архивы успешно отправлены!</b>"))
+        await status_msg.edit_text(format_styled_message(emoji=API_ICON, title=API_NAME, message="✅ <b>Архивы успешно отправлены!</b>"))
         shutil.rmtree(temp_playlist_dir, ignore_errors=True)
         return
 
@@ -413,8 +428,7 @@ async def cmd_download_yt(message: types.Message):
     for f in video_formats:
         h = f.get('height')
         if not h:
-            if platform == "TikTok": h = "Видео"
-            else: continue
+            h = f.get('resolution') or f.get('format_note') or "Видео"
 
         current_size = f.get('filesize') or f.get('filesize_approx') or 0
         if h not in heights_dict or current_size > heights_dict[h].get('size', 0):
@@ -474,6 +488,15 @@ async def cmd_download_yt(message: types.Message):
         btn_text = f"🎵 Только Звук ({size_str}){warn}"
         inline_keyboard.append([InlineKeyboardButton(text=btn_text, callback_data=f"yt_dl|{choice_key}|{request_id}")])
 
+    if not choices:
+        choice_key = "best_auto"
+        choices[choice_key] = {
+            "size": 0,
+            "format_str": "bestvideo+bestaudio/best",
+            "type": "video"
+        }
+        inline_keyboard.append([InlineKeyboardButton(text="🎬 Скачать (Лучшее качество)", callback_data=f"yt_dl|{choice_key}|{request_id}")])
+
     pending_requests[request_id] = {
         "url": url,
         "formats": choices,
@@ -483,8 +506,9 @@ async def cmd_download_yt(message: types.Message):
     keyboard = create_user_keyboard(inline_keyboard, message.from_user.id)
     video_title = info.get('title', 'Unknown Media')
 
+    # Приводим к формату: Название API -> Название видео -> Статус/Инструкция
     await status_msg.edit_text(
-        format_styled_message(emoji=API_ICON, title=video_title, message="Выберите формат:"),
+        format_styled_message(emoji=API_ICON, title=f"{API_NAME} ({platform})", message=f"<b>{video_title}</b>\n\nВыберите формат:"),
         reply_markup=keyboard
     )
     return
@@ -495,12 +519,12 @@ async def process_yt_callback(callback: types.CallbackQuery):
 
     req_data = pending_requests.get(req_id)
     if not req_data:
-        await callback.message.edit_text(format_styled_message(emoji="❌", title="Ошибка", message="Ссылка устарела. Повторите запрос."))
+        await callback.message.edit_text(format_styled_message(emoji="❌", title=API_NAME, message="Ссылка устарела. Повторите запрос."))
         return
 
     choice_data = req_data["formats"].get(choice_key)
     if not choice_data:
-        await callback.message.edit_text(format_styled_message(emoji="❌", title="Ошибка", message="Формат недоступен."))
+        await callback.message.edit_text(format_styled_message(emoji="❌", title=API_NAME, message="Формат недоступен."))
         return
 
     limit_bytes = YT_MAX_FILE_SIZE_MB * 1024 * 1024
@@ -517,7 +541,11 @@ async def process_yt_callback(callback: types.CallbackQuery):
     del pending_requests[req_id]
 
     queue_position = download_queue.qsize() + 1
-    await callback.message.edit_text(format_styled_message(emoji="⏳", title="Статус", message=f"Добавлено в очередь ({queue_position})..."))
+    await callback.message.edit_text(format_styled_message(
+        emoji="⏳", 
+        title=API_NAME, 
+        message=f"Добавлено в очередь (позиция {queue_position}).\nПожалуйста, ожидайте..."
+    ))
 
     await download_queue.put({
         'original_message': callback.message.reply_to_message or callback.message,

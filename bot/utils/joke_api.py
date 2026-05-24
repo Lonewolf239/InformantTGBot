@@ -4,7 +4,7 @@ from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import USER_PROFILE, API_SETTINGS, BACKUP_JOKES
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message
+from bot.utils.helpers import format_styled_message, create_user_keyboard
 import logging
 
 API_ICON = "🎭"
@@ -45,11 +45,11 @@ def get_backup_joke():
     return random.choice(BACKUP_JOKES)
 
 
-def get_joke_keyboard():
+def get_joke_keyboard(user_id: int):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎭 Ещё анекдот", callback_data="more_joke")]
     ])
-    return keyboard
+    return create_user_keyboard(inline_keyboard, user_id)
 
 
 async def cmd_joke(message: types.Message):
@@ -61,7 +61,7 @@ async def cmd_joke(message: types.Message):
                 title=API_NAME,
                 message=joke
             )
-            await message.reply(joke_msg, reply_markup=get_joke_keyboard())
+            await message.reply(joke_msg, reply_markup=get_joke_keyboard(message.from_user.id))
             db.increment_jokes()
             return True
 
@@ -98,7 +98,7 @@ async def more_joke_callback(callback_query: types.CallbackQuery):
         )
         await callback_query.message.edit_text(
             joke_msg,
-            reply_markup=get_joke_keyboard()
+            reply_markup=get_joke_keyboard(callback_query.from_user.id)
         )
         db.increment_jokes()
     else:
@@ -110,6 +110,6 @@ async def more_joke_callback(callback_query: types.CallbackQuery):
         )
         await callback_query.message.edit_text(
             backup_msg,
-            reply_markup=get_joke_keyboard()
+            reply_markup=get_joke_keyboard(callback_query.from_user.id)
         )
         db.increment_jokes()

@@ -57,8 +57,9 @@ async def callback_handler(callback_query: types.CallbackQuery):
 
         except ValueError:
             pass
+
         data = base_data
-        callback_query.data = base_data
+        callback_query = callback_query.model_copy(update={"data": base_data})
 
     if data and data.startswith("links_"):
         await links_callback_handler(callback_query)
@@ -77,7 +78,6 @@ async def callback_handler(callback_query: types.CallbackQuery):
         await callback_query.answer()
     except Exception:
         pass
-
 
 @dp.startup()
 async def on_startup():

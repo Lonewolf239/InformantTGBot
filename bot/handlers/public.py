@@ -6,7 +6,7 @@ from bot.utils.helpers import its_me
 from bot.utils.joke_api import cmd_joke
 from bot.utils.meme_api import cmd_meme
 from bot.utils.weather_api import cmd_weather
-from bot.utils.ai_api import cmd_ai
+from bot.utils.ai_api import cmd_ai, cmd_ai_ham
 from bot.utils.database import db
 from bot.handlers.nsfw_settings import cmd_nsfw_settings
 from bot.utils.whisper_stt import cmd_transcribe, cmd_translate
@@ -173,6 +173,9 @@ async def process_public_commands(message: types.Message):
 
     if text.startswith("!ии"):
         return await cmd_ai(message)
+
+    if text.startswith("!нейрохам"):
+        return await cmd_ai_ham(message)
 
     if text.startswith("!скачать"):
         await cmd_download_yt(message)

@@ -28,6 +28,7 @@ python main.py
 | 🎭 | **Jokes & Memes** | `!анекдот` / `!мем` – random jokes + favourite memes ❤️ |
 | 🌤️ | **Weather** | `!погода [city]` – current conditions (city name in Russian or English) |
 | 🧠 | **Local AI** | `!ии [question]` – offline Ollama (queue + message splitting) |
+| 🤬 | **Rude AI** | `!нейрохам [question]` – toxic, insulting answers (experimental) |
 | 🎙️ | **Speech‑to‑Text** | `!расшифровка` (reply) – extract text from voice/video/audio |
 | 🌐 | **Translate & Dub** | `!перевести` (reply) – transcribe foreign speech, translate into Russian, send back with new dubbing (TTS) |
 | 🎬 | **Media Download** | `!скачать [url]` – supports YouTube, TikTok, playlists (options: random, range, count) |
@@ -60,6 +61,7 @@ python main.py
 - `!мем` – random meme
 - `!погода [city]` – weather forecast
 - `!ии [question]` – ask local AI
+- `!нейрохам [question]` – get a toxic, insulting answer (use with caution)
 - `!расшифровка` (reply to voice/video/audio) – speech recognition
 - `!перевести` (reply to foreign media) – translate & resend with new dubbing
 - `!скачать [url] [options]` – download media (YouTube/TikTok)

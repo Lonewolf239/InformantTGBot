@@ -6,7 +6,7 @@ from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import MEME_API_KEY, MEME_API_URL, MEME_MAX_AGE_DAYS, MEME_MIN_RATING
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message
+from bot.utils.helpers import format_styled_message, create_user_keyboard
 import logging
 
 API_ICON = "🎭"
@@ -78,12 +78,12 @@ def get_media_type(url: str) -> str:
     return 'photo'
 
 
-def get_meme_keyboard(meme_url, is_favorite=False):
+def get_meme_keyboard(meme_url, user_id: int, is_favorite=False):
     buttons = []
     if not is_favorite:
         buttons.append(InlineKeyboardButton(text="❤️", callback_data=f"fav_meme|{meme_url}"))
     buttons.append(InlineKeyboardButton(text="🎭 Ещё мем", callback_data="more_meme"))
-    return InlineKeyboardMarkup(inline_keyboard=[buttons])
+    return create_user_keyboard([buttons], user_id)
 
 
 async def send_meme(target, is_callback=False, use_fallback=False):
@@ -115,7 +115,7 @@ async def send_meme(target, is_callback=False, use_fallback=False):
         message=description
     )
     is_fav = is_meme_favorite(url)
-    reply_markup = get_meme_keyboard(url, is_fav)
+    reply_markup = get_meme_keyboard(url, target.from_user.id, is_fav)
 
     send_methods = {
         'video': (target.reply_video if not is_callback else target.message.reply_video),
@@ -176,7 +176,7 @@ async def add_favorite_callback(callback_query: types.CallbackQuery):
     if add_to_favorites(meme_to_save):
         await callback_query.answer("❤️ Мем добавлен в избранное!", show_alert=False)
         try:
-            await callback_query.message.edit_reply_markup(reply_markup=get_meme_keyboard(meme_url, is_favorite=True))
+            await callback_query.message.edit_reply_markup(reply_markup=get_meme_keyboard(meme_url, callback_query.from_user.id, is_favorite=True))
         except: pass
     else:
         await callback_query.answer("⚠️ Этот мем уже в избранном", show_alert=False)
