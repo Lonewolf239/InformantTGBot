@@ -46,10 +46,22 @@ def get_backup_joke():
 
 
 def get_joke_keyboard(user_id: int):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎭 Ещё анекдот", callback_data="more_joke")]
-    ])
-    return create_user_keyboard(inline_keyboard, user_id)
+    return create_user_keyboard([
+        [InlineKeyboardButton(text="🎭 Ещё анекдот", callback_data=f"more_joke")]
+    ], user_id)
+
+
+async def spend_tokens(message: types.Message):
+    from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
+    if PAYMENTS_ENABLED:
+        from bot.utils.tokens_database import tokens_db
+        cost = COMMAND_COSTS.get("!анекдот", 0)
+        if cost > 0 and message.from_user.id not in VIP_IDS:
+            await tokens_db.spend_tokens(message.from_user.id, cost)
+
+    await db.increment_jokes()
+    await db.increment_commands()
+    await db.log_command("!анекдот", message.from_user.id)
 
 
 async def cmd_joke(message: types.Message):
@@ -62,7 +74,7 @@ async def cmd_joke(message: types.Message):
                 message=joke
             )
             await message.reply(joke_msg, reply_markup=get_joke_keyboard(message.from_user.id))
-            db.increment_jokes()
+            await spend_tokens(message)
             return True
 
         backup = get_backup_joke()
@@ -72,7 +84,7 @@ async def cmd_joke(message: types.Message):
             message=f"{backup}\n⚠️ <i>API недоступен</i>"
         )
         await message.reply(backup_msg)
-        db.increment_jokes()
+        await spend_tokens(message)
         return True
 
     except Exception as e:
@@ -100,7 +112,7 @@ async def more_joke_callback(callback_query: types.CallbackQuery):
             joke_msg,
             reply_markup=get_joke_keyboard(callback_query.from_user.id)
         )
-        db.increment_jokes()
+        await spend_tokens(message)
     else:
         backup = get_backup_joke()
         backup_msg = format_styled_message(
@@ -112,4 +124,4 @@ async def more_joke_callback(callback_query: types.CallbackQuery):
             backup_msg,
             reply_markup=get_joke_keyboard(callback_query.from_user.id)
         )
-        db.increment_jokes()
+        await spend_tokens(message)

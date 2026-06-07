@@ -5,7 +5,9 @@ from aiogram import types
 from config import (
     OLLAMA_BASE_URL, OLLAMA_MODEL, AI_SYSTEM_PROMPT, 
     AI_MAX_REPLY_LEN, AI_REQUEST_TIMEOUT, AI_DISCLAIMER,
-    AI_TEMPERATURE, AI_TOP_P, AI_REPEAT_PENALTY, AI_NUM_CTX, AI_NUM_PREDICT
+    AI_TEMPERATURE, AI_TOP_P, AI_REPEAT_PENALTY, AI_NUM_CTX, AI_NUM_PREDICT,
+    AI_HAM_SYSTEM_PROMPT, AI_HAM_TEMPERATURE, AI_HAM_TOP_P, AI_HAM_REPEAT_PENALTY,
+    AI_HAM_NUM_CTX, AI_HAM_NUM_PREDICT, AI_HAM_DISCLAIMER
 )
 from bot.utils.database import db
 from bot.utils.ai_queue import get_queue, TaskType, ensure_queue_started
@@ -44,9 +46,22 @@ def split_text(text: str, limit: int = AI_MAX_REPLY_LEN) -> list[str]:
     return [chunk for chunk in chunks if chunk.strip()]
 
 
-async def ask_local_ai(user_prompt: str, system_prompt: Optional[str] = None) -> Optional[str]:
+async def ask_local_ai(user_prompt: str, system_prompt: Optional[str] = None, **kwargs) -> Optional[str]:
     system_prompt = system_prompt or AI_SYSTEM_PROMPT
     url = f"{OLLAMA_BASE_URL.rstrip('/')}/api/chat"
+
+    if system_prompt == AI_HAM_SYSTEM_PROMPT:
+        temp = kwargs.get("temperature", AI_HAM_TEMPERATURE)
+        top_p = kwargs.get("top_p", AI_HAM_TOP_P)
+        rep_pen = kwargs.get("repeat_penalty", AI_HAM_REPEAT_PENALTY)
+        num_ctx = kwargs.get("num_ctx", AI_HAM_NUM_CTX)
+        num_predict = kwargs.get("num_predict", AI_HAM_NUM_PREDICT)
+    else:
+        temp = kwargs.get("temperature", AI_TEMPERATURE)
+        top_p = kwargs.get("top_p", AI_TOP_P)
+        rep_pen = kwargs.get("repeat_penalty", AI_REPEAT_PENALTY)
+        num_ctx = kwargs.get("num_ctx", AI_NUM_CTX)
+        num_predict = kwargs.get("num_predict", AI_NUM_PREDICT)
 
     payload = {
         "model": OLLAMA_MODEL,
@@ -56,11 +71,11 @@ async def ask_local_ai(user_prompt: str, system_prompt: Optional[str] = None) ->
             {"role": "user", "content": user_prompt},
         ],
         "options": {
-            "temperature": AI_TEMPERATURE,
-            "top_p": AI_TOP_P,
-            "repeat_penalty": AI_REPEAT_PENALTY,
-            "num_ctx": AI_NUM_CTX,
-            "num_predict": AI_NUM_PREDICT
+            "temperature": temp,
+            "top_p": top_p,
+            "repeat_penalty": rep_pen,
+            "num_ctx": num_ctx,
+            "num_predict": num_predict
         }
     }
 
@@ -133,7 +148,15 @@ async def cmd_ai(message: types.Message):
     try:
         task_future, queue_position = await queue.add_task(
             task_type=TaskType.AI,
-            data={"prompt": user_prompt, "system_prompt": AI_SYSTEM_PROMPT},
+            data={
+                "prompt": user_prompt, 
+                "system_prompt": AI_SYSTEM_PROMPT,
+                "temperature": AI_TEMPERATURE,
+                "top_p": AI_TOP_P,
+                "repeat_penalty": AI_REPEAT_PENALTY,
+                "num_ctx": AI_NUM_CTX,
+                "num_predict": AI_NUM_PREDICT
+            },
             user_id=message.from_user.id,
             update_cb=update_position
         )
@@ -183,8 +206,15 @@ async def cmd_ai(message: types.Message):
     for chunk in chunks[1:]:
         await message.answer(chunk, parse_mode="Markdown")
 
-    db.increment_commands()
-    db.log_command("!ии", message.from_user.id)
+    from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
+    if PAYMENTS_ENABLED:
+        from bot.utils.tokens_database import tokens_db
+        cost = COMMAND_COSTS.get("!ии", 0)
+        if cost > 0 and message.from_user.id not in VIP_IDS:
+            await tokens_db.spend_tokens(message.from_user.id, cost)
+
+    await db.increment_commands()
+    await db.log_command("!ии", message.from_user.id)
     return True
 
 
@@ -201,13 +231,18 @@ async def cmd_ai_ham(message: types.Message):
         await message.reply(error_no_prompt)
         return True
 
-    user_prompt = parts[1].strip()
+    raw_prompt = parts[1].strip()
     if message.reply_to_message and message.reply_to_message.text:
-        user_prompt = (
-            "Ответь хамски на сообщение ниже и учти запрос пользователя.\n\n"
-            f"Сообщение:\n{message.reply_to_message.text}\n\n"
-            f"Запрос:\n{user_prompt}"
-        )
+        raw_prompt = f"Контекст: {message.reply_to_message.text}. Вопрос: {raw_prompt}"
+
+    user_prompt = (
+        f"Ниже дан пример правильного ответа на тупой вопрос.\n"
+        f"Вопрос: «можно ли есть кирпичи»\n"
+        f"Ответ: «Кирпичи, блядь, сделаны из глины и камня, ты себе зубы нахуй сломаешь, а не наешься, еблан конченый!»\n\n"
+        f"А теперь сгенерируй строго один аналогичный, логичный и матерный ответ на основе этого примера.\n"
+        f"Вопрос: «{raw_prompt}»\n"
+        f"Ответ: «"
+    )
 
     wait_msg_text = format_styled_message(
         emoji="💢",
@@ -235,12 +270,19 @@ async def cmd_ai_ham(message: types.Message):
             pass
 
     queue = get_queue()
-    from config import AI_HAM_SYSTEM_PROMPT
 
     try:
         task_future, queue_position = await queue.add_task(
             task_type=TaskType.AI,
-            data={"prompt": user_prompt, "system_prompt": AI_HAM_SYSTEM_PROMPT},
+            data={
+                "prompt": user_prompt, 
+                "system_prompt": AI_HAM_SYSTEM_PROMPT,
+                "temperature": AI_HAM_TEMPERATURE,
+                "top_p": AI_HAM_TOP_P,
+                "repeat_penalty": AI_HAM_REPEAT_PENALTY,
+                "num_ctx": AI_HAM_NUM_CTX,
+                "num_predict": AI_HAM_NUM_PREDICT
+            },
             user_id=message.from_user.id,
             update_cb=update_position
         )
@@ -273,12 +315,13 @@ async def cmd_ai_ham(message: types.Message):
             await message.reply(error_api)
         return True
 
+    answer = answer.strip().strip('"').strip("'").strip("«").strip("»")
     chunks = split_text(answer)
 
     first_chunk = format_styled_message(
         emoji="💢",
         title="Нейрохам",
-        message=f"{chunks[0]}\n\n*⚠️ Режим экспериментальный, нейросеть может нести чушь.*",
+        message=f"{chunks[0]}{AI_HAM_DISCLAIMER}",
         html=False
     )
 
@@ -290,6 +333,13 @@ async def cmd_ai_ham(message: types.Message):
     for chunk in chunks[1:]:
         await message.answer(chunk, parse_mode="Markdown")
 
-    db.increment_commands()
-    db.log_command("!нейрохам", message.from_user.id)
+    from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
+    if PAYMENTS_ENABLED:
+        from bot.utils.tokens_database import tokens_db
+        cost = COMMAND_COSTS.get("!нейрохам", 0)
+        if cost > 0 and message.from_user.id not in VIP_IDS:
+            await tokens_db.spend_tokens(message.from_user.id, cost)
+
+    await db.increment_commands()
+    await db.log_command("!нейрохам", message.from_user.id)
     return True

@@ -27,7 +27,7 @@ async def process_incoming_link(message: types.Message):
     saved_count = 0
     for url in urls:
         link_type = detect_link_type(url)
-        if save_link(
+        if await save_link(
             url=url,
             link_type=link_type,
             from_user_id=user.id,
@@ -54,7 +54,7 @@ async def cmd_links(message: types.Message):
         await message.reply("<b>┌─ ❌ Ошибка</b>\n└─ Эта команда только для владельца бота.")
         return True
 
-    grouped = get_unviewed_links_grouped()
+    grouped = await get_unviewed_links_grouped()
     text, reply_markup = create_submenu_keyboard(grouped)
 
     if reply_markup:
@@ -68,7 +68,7 @@ async def cmd_links_stats(message: types.Message):
     if message.from_user.id != OWNER_ID:
         return False
 
-    stats = get_stats()
+    stats = await get_stats()
     await message.reply(
         "<b>┌─ 📊 СТАТИСТИКА ССЫЛОК</b>\n"
         f"<b>├─ 📎 Всего ссылок:</b> {stats['total']}\n"
@@ -88,7 +88,7 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
 
     if data.startswith("links_submenu|"):
         link_type = data.split("|")[1]
-        links = get_unviewed_links_by_type(link_type)
+        links = await get_unviewed_links_by_type(link_type)
         text, reply_markup = create_unviewed_list_keyboard(links, link_type)
 
         await callback_query.message.edit_text(
@@ -97,7 +97,7 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
         )
 
     elif data == "links_back":
-        grouped = get_unviewed_links_grouped()
+        grouped = await get_unviewed_links_grouped()
         text, reply_markup = create_submenu_keyboard(grouped)
 
         await callback_query.message.edit_text(
@@ -109,7 +109,7 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
         parts = data.split("|")
         link_type = parts[1]
         page = int(parts[2])
-        links = get_unviewed_links_by_type(link_type)
+        links = await get_unviewed_links_by_type(link_type)
         text, reply_markup = create_unviewed_list_keyboard(links, link_type, page)
 
         await callback_query.message.edit_text(
@@ -121,14 +121,14 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
         link_id = int(data.split("|")[1])
 
         try:
-            url = get_link(link_id)
+            url = await get_link(link_id)
 
             if url:
                 await callback_query.message.reply(url)
-                delete_link(link_id)
+                await delete_link(link_id)
 
                 await callback_query.answer("✅ Ссылка отмечена как просмотренная")
-                grouped = get_unviewed_links_grouped()
+                grouped = await get_unviewed_links_grouped()
                 if grouped:
                     text, reply_markup = create_submenu_keyboard(grouped)
                     await callback_query.message.edit_text(
@@ -148,15 +148,15 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
 
     elif data.startswith("links_markall|"):
         link_type = data.split("|")[1]
-        links = get_unviewed_links_by_type(link_type)
+        links = await get_unviewed_links_by_type(link_type)
         marked_count = len(links)
 
         deleted_count = 0
         for link in links:
-            if delete_link(link[0]):
+            if await delete_link(link[0]):
                 deleted_count += 1
 
-        grouped = get_unviewed_links_grouped()
+        grouped = await get_unviewed_links_grouped()
         if grouped:
             text, reply_markup = create_submenu_keyboard(grouped)
             await callback_query.message.edit_text(
@@ -171,7 +171,7 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
             )
 
     elif data == "links_refresh":
-        grouped = get_unviewed_links_grouped()
+        grouped = await get_unviewed_links_grouped()
         text, reply_markup = create_submenu_keyboard(grouped)
 
         if reply_markup:

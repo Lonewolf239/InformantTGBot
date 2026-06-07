@@ -1,4 +1,5 @@
 import os
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -8,6 +9,37 @@ OWNER_ID = int(os.getenv("OWNER_ID", "0"))
 
 if OWNER_ID == 0:
     raise ValueError("OWNER_ID не задан в .env!")
+
+vip_str = os.getenv("VIP_IDS", "")
+VIP_IDS = set(map(int, filter(None, vip_str.split(",")))) if vip_str else set()
+VIP_IDS.add(OWNER_ID)
+
+YOOKASSA_SHOP_ID = os.getenv("YOOKASSA_SHOP_ID", "")
+YOOKASSA_SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY", "")
+
+PAYMENTS_ENABLED = True
+USE_WEBHOOKS = False
+
+BOT_LINK = "https://t.me/Lonewolf239_informantBOT"
+
+DEFAULT_DAILY_TOKENS = 50
+TOKEN_PRICE_RUB = 2
+MIN_TOKENS_BUY = 50
+MAX_TOKENS_BUY = 5000
+TOKEN_PACKAGES = [50, 100, 250, 500, 1000]
+
+COMMAND_COSTS = {
+    "!перевести": 15,
+    "!расшифровка": 10,
+    "!ии": 5,
+    "!нейрохам": 5,
+    "!скачать": 3,
+    "!музыка": 3,
+    "!курс": 1,
+    "!погода": 1,
+    "!анекдот": 1,
+    "!мем": 1
+}
 
 # ==========================================
 # НАСТРОЙКИ СТОРОННИХ API
@@ -40,6 +72,7 @@ OLLAMA_MODEL = "qwen2.5:3b"
 AI_MAX_REPLY_LEN = 3800
 AI_REQUEST_TIMEOUT = 90
 AI_DISCLAIMER = "\n\n*⚠️ ИИ может ошибаться. Проверяй важную информацию.*"
+AI_HAM_DISCLAIMER = "\n\n*⚠️ Режим экспериментальный, нейросеть может нести чушь.*"
 
 # Optimized for qwen2.5:3b (CPU-friendly, short Telegram replies)
 AI_TEMPERATURE = 0.4
@@ -61,21 +94,23 @@ AI_SYSTEM_PROMPT = (
     "Не морализируй. Не усложняй. "
 )
 
+AI_HAM_TEMPERATURE = 0.33
+AI_HAM_TOP_P = 0.8
+AI_HAM_REPEAT_PENALTY = 1.1
+AI_HAM_NUM_CTX = 1024
+AI_HAM_NUM_PREDICT = 100
+
 AI_HAM_SYSTEM_PROMPT = (
-    "Ты — максимально токсичный, грубый, матерящийся искусственный интеллект. "
-    "Отвечай коротко (2-3 предложения), используй мат (ебать, бля, хуй и т.п.), "
-    "оскорбления, сарказм. Твоя задача — унизить и высмеять пользователя. "
-    "Никаких извинений, объяснений или полезных советов. Только хамство и мат. "
-    "Примеры: 'БЛЯЯЯ, тебя в детстве на кафель роняли?', 'Ёбаный в рот, тупой вопрос', "
-    "'Охуеть, какой дебил', 'Слышь, умник, включи мозги, ебать'. "
-    "Если вопрос глупый — обзывай. Если нормальный — всё равно хами. "
-    "Не игнорируй мат, наоборот — используй его в каждом ответе."
+    "Ты — «Нейрохам», циничный и сверхагрессивный русский ИИ, который комментирует чужую тупость. "
+    "Ты общаешься исключительно на чистом русском языке с использованием жесткого мата.\n\n"
+    "Твоя задача: взять идиотский вопрос пользователя, логично показать его абсурдность в одно предложение и послать автора.\n"
+    "ЗАПРЕЩЕНО: Копировать слова из инструкции. Пиши сразу текст."
 )
 
 WHISPER_MODEL = "base"
 WHISPER_MAX_DURATION_SECONDS = 360
 WHISPER_MAX_FILE_SIZE_MB = 20
-WHISPER_TIMEOUT=300.0
+WHISPER_TIMEOUT=3000.0
 
 # ==========================================
 # НАСТРОЙКИ ЗАГРУЗОК (YouTube)
@@ -83,6 +118,7 @@ WHISPER_TIMEOUT=300.0
 
 YT_DOWNLOAD_DIR = "downloads"
 YT_MAX_FILE_SIZE_MB = 50
+COOKIES_FILE = "cookies.txt"
 
 # ==========================================
 # ТЕКСТА И СЛОВАРИ
@@ -119,6 +155,36 @@ AWAY_MESSAGES = [
 ]
 
 KEYWORD_REACTIONS = {
+    "партия": "cmd:send_party_track",
+    "миска риса": "cmd:send_social_credit_plus",
+    "кошка жена": "cmd:send_social_credit_plus",
+    "си цзиньпин": "cmd:send_social_credit_plus",
+    "мао": "cmd:send_social_credit_plus",
+    "китай": "cmd:send_social_credit_plus",
+    "нефритовый стержень": "cmd:send_social_credit_plus",
+    "удар": "cmd:send_social_credit_plus",
+    "пекин": "cmd:send_social_credit_plus",
+    "алиэкспресс": "cmd:send_social_credit_plus",
+    "тикток": "cmd:send_social_credit_plus",
+    "tiktok": "cmd:send_social_credit_plus",
+    "xiaomi": "cmd:send_social_credit_plus",
+    "коммунизм": "cmd:send_social_credit_plus",
+    "bing chilling": "cmd:send_social_credit_plus",
+    "тайвань": "cmd:send_social_credit_minus",
+    "винни пух": "cmd:send_social_credit_minus",
+    "уйгуры": "cmd:send_social_credit_minus",
+    "1989": "cmd:send_social_credit_minus",
+    "свобода слова": "cmd:send_social_credit_minus",
+    "сво": "cmd:send_social_credit_minus",
+    "гойда": "cmd:send_social_credit_minus",
+    "сша": "cmd:send_social_credit_minus",
+    "америка": "cmd:send_social_credit_minus",
+    "байден": "cmd:send_social_credit_minus",
+    "демократия": "cmd:send_social_credit_minus",
+    "капитализм": "cmd:send_social_credit_minus",
+    "протест": "cmd:send_social_credit_minus",
+    "гонконг": "cmd:send_social_credit_minus",
+    "тибет": "cmd:send_social_credit_minus",
     "бот": "🤖 БИП-БУП! Я не бот, я человек! Ну почти...",
     "смешно": "😂 Рад, что ты оценил!",
     "67": "СЫЫЫЫЫЫЫЫЫЫЫЫЫЫЫЫЫКС СЭЭВЭЭЭН",
@@ -187,3 +253,5 @@ BACKUP_JOKES = [
 ]
 
 NSFW_ENABLED_BY_DEFAULT = 0
+AUTO_REPLY_ENABLED = True
+REPLY_TO_OWNER = False

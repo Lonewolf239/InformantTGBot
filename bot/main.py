@@ -1,19 +1,28 @@
 import asyncio
 import logging
+import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from config import BOT_TOKEN, OWNER_ID
+from aiohttp import web
+from config import BOT_TOKEN, OWNER_ID, COOKIES_FILE, USE_WEBHOOKS
 from bot.handlers.message import handle_all_messages
 from bot.middlewares import LoggingMiddleware
 from bot.state import state
 from bot.links.database import init_links_db
+from bot.utils.database import db
+from bot.utils.tokens_database import tokens_db
+from bot.utils.user_settings import user_settings_db
 from bot.links.handlers import links_callback_handler
 from bot.utils.joke_api import more_joke_callback
 from bot.utils.meme_api import more_meme_callback, add_favorite_callback
 from bot.handlers.nsfw_settings import nsfw_callback_handler
 from bot.utils.ai_queue import get_queue
 from bot.utils.youtube_api import download_worker, process_yt_callback
+from aiogram.types.message import ContentType
+from bot.handlers.payments import process_buy_tokens_callback, process_check_payment_callback
+from bot.webhooks.yookassa_webhook import setup_yookassa_routes
+from bot.utils.music_api import process_music_callback
 
 logging.basicConfig(
     level=logging.INFO,
@@ -73,16 +82,48 @@ async def callback_handler(callback_query: types.CallbackQuery):
         await nsfw_callback_handler(callback_query)
     elif data and data.startswith("yt_dl|"):
         await process_yt_callback(callback_query)
+    elif data and data.startswith("buy_tokens:"):
+        try:
+            amount = int(data.split(":")[1])
+            await process_buy_tokens_callback(callback_query, amount)
+        except (IndexError, ValueError):
+            await callback_query.answer("❌ Ошибка данных", show_alert=True)
+    elif data and data.startswith("cp|"):
+        try:
+            _, payment_id, amount_str = data.split("|")
+            await process_check_payment_callback(callback_query, payment_id, int(amount_str))
+        except (IndexError, ValueError) as e:
+            logger.error(f"Ошибка парсинга callback проверки платежа: {e}")
+            await callback_query.answer("❌ Ошибка данных проверки", show_alert=True)
+    elif data and data.startswith("yt_dl|"):
+        await process_yt_callback(callback_query)
+    elif data and data.startswith("mus_dl|"):
+        await process_music_callback(callback_query)
 
     try:
         await callback_query.answer()
     except Exception:
         pass
 
+
 @dp.startup()
 async def on_startup():
-    init_links_db()
+    await init_links_db()
+    await db.init_db()
+    await tokens_db.init_db()
+    await user_settings_db.init_db()
+
     logger.info("🚀 БОТ ЗАПУСКАЕТСЯ...")
+
+    if not os.path.exists(COOKIES_FILE):
+        logger.warning("=" * 60)
+        logger.warning(f"⚠️ ВНИМАНИЕ: Файл '{COOKIES_FILE}' не найден!")
+        logger.warning("Для корректной работы скачивания видео (обход 403 и 18+)")
+        logger.warning(f"пожалуйста, положите файл '{COOKIES_FILE}' в корневую папку бота.")
+        logger.warning("=" * 60)
+    else:
+        logger.info(f"✅ Файл '{COOKIES_FILE}' обнаружен и будет использоваться.")
+
     logger.info(f"👑 Владелец ID: {OWNER_ID}")
     logger.info(f"🤖 Автоответ: мгновенный при включённом режиме")
     await state.set_away_mode(False)
@@ -101,13 +142,27 @@ async def on_shutdown():
     logger.info("🛑 БОТ ОСТАНАВЛИВАЕТСЯ...")
 
 
+async def start_web_app(bot_instance: Bot):
+    app = web.Application()
+    setup_yookassa_routes(app, bot_instance)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+
+    site = web.TCPSite(runner, '0.0.0.0', 8080)
+    await site.start()
+    logger.info("🌐 Web-сервер для ЮKassa запущен на порту 8080")
+
+    return runner
+
+
 async def main():
     print("═" * 50)
-    print("📊 НАСТРОЙКИ АВТООТВЕТЧИКА")
-    print("   ├─ Режим: МГНОВЕННЫЙ (включи !отошёл)")
-    print("   └─ Автоответ приходит сразу на каждое сообщение")
+    print("┌─ 📊 НАСТРОЙКИ АВТООТВЕТЧИКА")
+    print("├─ Режим: МГНОВЕННЫЙ (включи !отошёл)")
+    print("└─ Автоответ приходит сразу на каждое сообщение")
     print("═" * 50)
-    print("🎭 RP команды: ответь на сообщение и напиши !обнять")
+    print("┌─ 🎭 RP команды: ответь на сообщение и напиши !обнять")
     print("├─ 🔘 Включить автоответ: !отошёл")
     print("├─ 🔘 Выключить автоответ: !вернулся")
     print("├─ 📖 Публичная справка: !помощь")
@@ -116,9 +171,14 @@ async def main():
     print("└─ 👑 Приватная справка: !ownerhelp")
     print("═" * 50)
 
+    if USE_WEBHOOKS:
+        web_runner = await start_web_app(bot)
+
     try:
         await dp.start_polling(bot)
     finally:
+        if USE_WEBHOOKS:
+            await web_runner.cleanup()
         await bot.session.close()
 
 

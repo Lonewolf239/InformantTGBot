@@ -9,7 +9,7 @@
 # InformantTGBot — Telegram Business Assistant
 
 **⚠️ This bot is Russian‑only. All commands, responses, and interface are in Russian.**  
-Asynchronous Telegram bot with local AI (Ollama), speech recognition (Whisper), video/audio download, memes, RP actions, away mode, and link saving.
+Asynchronous Telegram bot with local AI (Ollama), speech recognition (Whisper), video/audio download, memes, RP actions, away mode, link saving, **token economy** and **paid commands** (optional).
 
 ```bash
 git clone https://github.com/Lonewolf239/InformantTGBot.git
@@ -31,7 +31,10 @@ python main.py
 | 🤬 | **Rude AI** | `!нейрохам [question]` – toxic, insulting answers (experimental) |
 | 🎙️ | **Speech‑to‑Text** | `!расшифровка` (reply) – extract text from voice/video/audio |
 | 🌐 | **Translate & Dub** | `!перевести` (reply) – transcribe foreign speech, translate into Russian, send back with new dubbing (TTS) |
-| 🎬 | **Media Download** | `!скачать [url]` – supports YouTube, TikTok, playlists (options: random, range, count) |
+| 🎬 | **Media Download** | `!скачать [url]` – supports YouTube, TikTok, Twitter/X, Instagram, VK, Reddit, playlists (options: random, range, count) |
+| 🎵 | **Music Search** | `!музыка` / `!трек [query]` – search and download music (audio) |
+| 💱 | **Currency Converter** | `!курс [amount] [from] [to]` – real‑time exchange rates |
+| 💰 | **Token System** | Daily free tokens, command costs, optional top‑up via YooKassa |
 | 🎮 | **RP commands** | Reply + `!обнять`, `!выебать` (NSFW requires opt‑in) |
 | 🔗 | **Link saver** | Auto‑save music/video URLs → owner menu `!ссылки` |
 | 👑 | **Owner panel** | Stats, waiting list, reset, link stats, NSFW stats, clear user status |
@@ -64,7 +67,11 @@ python main.py
 - `!нейрохам [question]` – get a toxic, insulting answer (use with caution)
 - `!расшифровка` (reply to voice/video/audio) – speech recognition
 - `!перевести` (reply to foreign media) – translate & resend with new dubbing
-- `!скачать [url] [options]` – download media (YouTube/TikTok)
+- `!скачать [url] [options]` – download media (YouTube/TikTok/others)
+- `!музыка` / `!трек [query]` – search and download music
+- `!курс [amount] [from] [to]` – currency converter (e.g. `!курс 100 usd rub`)
+- `!прайс` / `!цены` – show command costs in tokens
+- `!баланс` – check token balance and top up (if payments enabled)
 - `!рп` – list of RP commands
 - `!настройки` – NSFW toggle
 - `!о_боте` – bot info
@@ -78,7 +85,7 @@ When NSFW enabled: `!отсосать`, `!выебать`, `!трахнуть`, 
 - `-random` – random order (or just one random track if used alone)
 - `-N` – download N tracks (e.g. `-5`)
 - `-от_N` – start from track N
-- `-до_N` – end at track N
+- `-до_N` – end at track N  
 Combine examples: `!скачать -random -3` – three random tracks.
 
 ---
@@ -92,6 +99,13 @@ API_PID=xxx          # for jokes
 API_KEY=xxx          # for jokes
 MEME_API_KEY=xxx
 OPENWEATHER_API_KEY=xxx
+
+# Optional payments (YooKassa)
+YOOKASSA_SHOP_ID=xxx
+YOOKASSA_SECRET_KEY=xxx
+
+# VIP users (comma‑separated IDs, bypass token costs)
+VIP_IDS=123456,789012
 ```
 
 ### Additional Requirements (outside Python dependencies)
@@ -107,3 +121,4 @@ OPENWEATHER_API_KEY=xxx
 - `bot_stats.db` – global stats, user stats, command history
 - `bot_links.db` – saved URLs (type, sender, viewed)
 - `user_settings.db` – NSFW preferences
+- `bot_tokens.db` – user token balances

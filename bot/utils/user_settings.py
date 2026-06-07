@@ -1,4 +1,4 @@
-import sqlite3
+import aiosqlite
 import os
 from config import NSFW_ENABLED_BY_DEFAULT
 from typing import Dict, Optional
@@ -9,55 +9,52 @@ DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)
 class UserSettingsDB:
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
-        self._init_db()
 
-    def _get_connection(self):
-        return sqlite3.connect(self.db_path)
-
-    def _init_db(self):
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(f'''
+    async def init_db(self):
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute(f'''
                 CREATE TABLE IF NOT EXISTS user_nsfw_settings (
                     user_id INTEGER PRIMARY KEY,
                     nsfw_enabled INTEGER DEFAULT {NSFW_ENABLED_BY_DEFAULT},
                     updated_at TEXT NOT NULL
                 )
             ''')
-            conn.commit()
+            await conn.commit()
 
-    def get_nsfw_setting(self, user_id: int) -> bool:
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
+    async def get_nsfw_setting(self, user_id: int) -> bool:
+        async with aiosqlite.connect(self.db_path) as conn:
+            async with conn.execute(
                 "SELECT nsfw_enabled FROM user_nsfw_settings WHERE user_id = ?",
                 (user_id,)
-            )
-            result = cursor.fetchone()
-            if result:
-                return bool(result[0])
-            return False
+            ) as cursor:
+                result = await cursor.fetchone()
+                if result:
+                    return bool(result[0])
+                return False
 
-    def set_nsfw_setting(self, user_id: int, enabled: bool) -> None:
+    async def set_nsfw_setting(self, user_id: int, enabled: bool) -> None:
         from datetime import datetime
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
+        async with aiosqlite.connect(self.db_path) as conn:
+            now = datetime.now().isoformat()
+            await conn.execute('''
                 INSERT INTO user_nsfw_settings (user_id, nsfw_enabled, updated_at)
                 VALUES (?, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET
                     nsfw_enabled = ?,
                     updated_at = ?
-            ''', (user_id, int(enabled), datetime.now().isoformat(), int(enabled), datetime.now().isoformat()))
-            conn.commit()
+            ''', (user_id, int(enabled), now, int(enabled), now))
+            await conn.commit()
 
-    def get_stats(self) -> Dict:
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM user_nsfw_settings")
-            total = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM user_nsfw_settings WHERE nsfw_enabled = 1")
-            enabled = cursor.fetchone()[0]
+    async def get_stats(self) -> Dict:
+        async with aiosqlite.connect(self.db_path) as conn:
+            async with conn.execute("SELECT COUNT(*) FROM user_nsfw_settings") as cursor:
+                total_row = await cursor.fetchone()
+                total = total_row[0] if total_row else 0
+
+            async with conn.execute("SELECT COUNT(*) FROM user_nsfw_settings WHERE nsfw_enabled = 1") as cursor:
+                enabled_row = await cursor.fetchone()
+                enabled = enabled_row[0] if enabled_row else 0
+
             return {
                 "total_users": total,
                 "nsfw_enabled": enabled,

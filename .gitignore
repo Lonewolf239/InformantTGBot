@@ -6,6 +6,8 @@ __pycache__/
 *.db
 *.json
 downloads/
+docker/
+cookies.txt
 
 # C extensions
 *.so

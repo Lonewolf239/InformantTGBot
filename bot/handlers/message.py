@@ -30,9 +30,9 @@ async def handle_all_messages(message: types.Message):
     username = user.username or f"{user.first_name}_{user.id}"
     user_link = f"tg://user?id={user.id}"
 
-    is_new_user = db.get_user_stats(user_id) is None
-    db.increment_total_messages()
-    db.update_user_message(user.id, username, user_link)
+    is_new_user = await db.get_user_stats(user_id) is None
+    await db.increment_total_messages()
+    await db.update_user_message(user.id, username, user_link)
 
     if is_new_user and not its_me(user_id):
         await safe_reply(message, WELCOME_TEXT)

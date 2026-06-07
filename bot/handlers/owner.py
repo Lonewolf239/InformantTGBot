@@ -61,7 +61,7 @@ async def cmd_away_on(message: types.Message):
             "<b>├─ Действие:</b> Автоответ приходит мгновенно, 1 раз на пользователя\n"
             "<b>└─ Выключение:</b> <code>!вернулся</code>"
         )
-        db.increment_away_toggled()
+        await db.increment_away_toggled()
     else:
         await message.reply("<b>┌─ ⚠️ Ошибка</b>\n└─ Режим «отошёл» уже включён! Чтобы выключить — напиши <code>!вернулся</code>")
     return True
@@ -103,14 +103,14 @@ async def cmd_away_off(message: types.Message):
             report += "<b>└─ 💤 За время отсутствия никто не писал</b>"
 
         await message.reply(report, disable_web_page_preview=True)
-        db.increment_away_toggled()
+        await db.increment_away_toggled()
     else:
         await message.reply("<b>┌─ ✅ Информация</b>\n└─ Ты и так в режиме онлайн! Чтобы включить «отошёл» — напиши <code>!отошёл</code>")
     return True
 
 
 async def cmd_status(message: types.Message):
-    state_info = await state.get_stats()
+    state_info = state.get_stats()
     status_text = "🚶‍♂️ ОТОШЁЛ (автоответ включён)" if state_info["is_away"] else "🟢 ОНЛАЙН (автоответ выключен)"
 
     await message.reply(
@@ -166,13 +166,13 @@ async def cmd_waiting(message: types.Message):
 
 async def cmd_owner_help(message: types.Message):
     await message.reply(get_owner_help_text())
-    db.increment_commands()
+    await db.increment_commands()
     return True
 
 
 async def cmd_stats(message: types.Message):
-    full_stats = db.get_full_stats()
-    state_info = await state.get_stats()
+    full_stats = await db.get_full_stats()
+    state_info = state.get_stats()
 
     uptime_seconds = full_stats.get("uptime_seconds", 0)
     hours = uptime_seconds // 3600
@@ -225,14 +225,14 @@ async def cmd_stats(message: types.Message):
     )
 
     await message.reply(reply_text)
-    db.increment_commands()
+    await db.increment_commands()
     return True
 
 
 async def cmd_reset_timers(message: types.Message):
     await state.reset_session()
     await message.reply("<b>┌─ ✅ Сброс</b>\n└─ Все таймеры и статусы автоответа сброшены!")
-    db.increment_commands()
+    await db.increment_commands()
     return True
 
 
@@ -243,14 +243,14 @@ async def cmd_clear_status(message: types.Message):
         await message.reply(f"<b>┌─ ✅ Очистка статуса</b>\n└─ Статус пользователя {target_id} очищен!")
     except (IndexError, ValueError):
         await message.reply("<b>┌─ ❌ Ошибка</b>\n└─ Используй: <code>!очистить_статус [user_id]</code>")
-    db.increment_commands()
+    await db.increment_commands()
     return True
 
 
 async def cmd_nsfw_stats(message: types.Message):
     from bot.utils.user_settings import user_settings_db
 
-    stats = user_settings_db.get_stats()
+    stats = await user_settings_db.get_stats()
     text = (
         "<b>┌─ 🔞 СТАТИСТИКА NSFW НАСТРОЕК</b>\n"
         f"<b>├─ 👥 Всего настроек:</b> {stats['total_users']}\n"

@@ -11,7 +11,7 @@ import yt_dlp
 from aiogram import types
 from aiogram.types import FSInputFile, InlineKeyboardButton
 from aiogram.exceptions import TelegramAPIError
-from config import YT_DOWNLOAD_DIR, YT_MAX_FILE_SIZE_MB
+from config import YT_DOWNLOAD_DIR, YT_MAX_FILE_SIZE_MB, COOKIES_FILE
 from bot.utils.helpers import create_user_keyboard, format_styled_message
 
 logger = logging.getLogger(__name__)
@@ -21,32 +21,13 @@ API_NAME = "Медиа"
 
 os.makedirs(YT_DOWNLOAD_DIR, exist_ok=True)
 pending_requests = {}
-download_queue = asyncio.Queue()
+download_queue = asyncio.Queue(maxsize=50)
 
 
-def detect_platform(url: str) -> str:
-    url_lower = url.lower()
-    if "tiktok.com" in url_lower or "vm.tiktok.com" in url_lower:
-        return "TikTok"
-    elif "youtube.com" in url_lower or "youtu.be" in url_lower:
-        return "YouTube"
-    elif "twitter.com" in url_lower or "x.com" in url_lower:
-        return "Twitter/X"
-    elif "instagram.com" in url_lower:
-        return "Instagram"
-    elif "vk.com" in url_lower or "vk.video" in url_lower:
-        return "VK"
-    elif "reddit.com" in url_lower:
-        return "Reddit"
-    return "Сайта"
-
-
-def _sync_get_info(url: str) -> Optional[dict]:
-    ydl_opts = {
+def get_base_ydl_opts() -> dict:
+    opts = {
         'quiet': True,
         'no_warnings': True,
-        'skip_download': True,
-        'extract_flat': 'in_playlist',
         'nocheckcertificate': True,
         'geo_bypass': True,
         'headers': {
@@ -54,6 +35,52 @@ def _sync_get_info(url: str) -> Optional[dict]:
         },
         'extractor_args': {'youtube': {'player_client': ['android', 'web', 'mweb', 'ios']}},
     }
+
+    if os.path.exists(COOKIES_FILE):
+        opts['cookiefile'] = COOKIES_FILE
+
+    return opts
+
+
+def sanitize_filename(name: str) -> str:
+    return re.sub(r'[\\/*?:"<>|%]', '', name)
+
+
+def extract_audio_tags(media_data: dict) -> tuple:
+    artist = media_data.get('artist')
+    track = media_data.get('track')
+    raw_title = media_data.get('title', 'Unknown Media')
+
+    if not artist or not track:
+        if " - " in raw_title:
+            parts = raw_title.split(" - ", 1)
+            artist = parts[0].strip()
+            track = parts[1].strip()
+        else:
+            artist = media_data.get('uploader', 'Unknown Artist')
+            track = raw_title
+
+    track = re.sub(r'\s*[\(\[].*?[\)\]]', '', track).strip().strip('"\'').strip()
+    return track, artist
+
+
+def detect_platform(url: str) -> str:
+    url_lower = url.lower()
+    if "tiktok.com" in url_lower: return "TikTok"
+    if "youtube.com" in url_lower or "youtu.be" in url_lower: return "YouTube"
+    if "twitter.com" in url_lower or "x.com" in url_lower: return "Twitter/X"
+    if "instagram.com" in url_lower: return "Instagram"
+    if "vk.com" in url_lower or "vk.video" in url_lower: return "VK"
+    if "reddit.com" in url_lower: return "Reddit"
+    return "Сайта"
+
+
+def _sync_get_info(url: str) -> Optional[dict]:
+    ydl_opts = get_base_ydl_opts()
+    ydl_opts.update({
+        'skip_download': True,
+        'extract_flat': 'in_playlist',
+    })
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             return ydl.extract_info(url, download=False)
@@ -63,19 +90,13 @@ def _sync_get_info(url: str) -> Optional[dict]:
 
 
 def _sync_download(url: str, format_str: str, media_type: str) -> Optional[Dict[str, Any]]:
-    ydl_opts = {
+    ydl_opts = get_base_ydl_opts()
+    ydl_opts.update({
         'outtmpl': f'{YT_DOWNLOAD_DIR}/%(title)s.%(ext)s',
         'noplaylist': True,
-        'quiet': True,
-        'no_warnings': True,
         'format': format_str,
-        'nocheckcertificate': True,
-        'geo_bypass': True,
-        'headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-        },
-        'extractor_args': {'youtube': {'player_client': ['android', 'web', 'mweb', 'ios']}},
-    }
+        'writethumbnail': True,
+    })
 
     if media_type == "audio":
         ydl_opts.update({
@@ -89,11 +110,10 @@ def _sync_download(url: str, format_str: str, media_type: str) -> Optional[Dict[
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
+            if not info:
+                return None
 
-            if 'requested_downloads' in info and info['requested_downloads']:
-                filename = info['requested_downloads'][0].get('filepath')
-            else:
-                filename = ydl.prepare_filename(info)
+            filename = info['requested_downloads'][0].get('filepath') if 'requested_downloads' in info and info['requested_downloads'] else ydl.prepare_filename(info)
 
             if media_type == "audio":
                 filename = os.path.splitext(filename)[0] + '.mp3'
@@ -107,47 +127,45 @@ def _sync_download(url: str, format_str: str, media_type: str) -> Optional[Dict[
 
             return {
                 "title": info.get("title", "Unknown Media"),
+                "uploader": info.get("uploader", "Unknown Artist"),
+                "artist": info.get("artist"),
+                "track": info.get("track"),
                 "duration": info.get("duration", 0),
                 "file_path": filename,
                 "type": media_type,
             }
-
     except Exception as e:
         logger.error(f"Ошибка yt-dlp при скачивании {url}: {e}")
         return None
 
 
 def _sync_download_playlist_item(url: str, output_dir: str) -> Optional[Dict[str, Any]]:
-    ydl_opts = {
+    ydl_opts = get_base_ydl_opts()
+    ydl_opts.update({
         'outtmpl': f'{output_dir}/%(uploader|Неизвестен)s - %(title)s.%(ext)s',
         'noplaylist': True,
-        'quiet': True,
-        'no_warnings': True,
         'format': 'bestaudio/best',
-        'nocheckcertificate': True,
-        'geo_bypass': True,
         'ignoreerrors': True,
-        'headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-        },
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
-        'extractor_args': {'youtube': {'player_client': ['android', 'web', 'mweb', 'ios']}},
-    }
+    })
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             if not info:
                 return None
-            if 'requested_downloads' in info and info['requested_downloads']:
-                filename = info['requested_downloads'][0].get('filepath')
-            else:
-                filename = ydl.prepare_filename(info)
+
+            filename = info['requested_downloads'][0].get('filepath') if 'requested_downloads' in info and info['requested_downloads'] else ydl.prepare_filename(info)
             filename = os.path.splitext(filename)[0] + '.mp3'
-            return {"file_path": filename}
+
+            return {
+                "file_path": filename,
+                "title": info.get("title", "Unknown Track"),
+                "uploader": info.get("uploader", "Unknown Artist"),
+            }
     except Exception as e:
         logger.error(f"Ошибка при скачивании трека из плейлиста {url}: {e}")
         return None
@@ -161,14 +179,13 @@ async def process_download_task(task_data: dict):
     media_type: str = task_data['type']
     platform: str = task_data.get('platform', 'YouTube')
 
-    try:
-        try:
-            if os.path.exists(YT_DOWNLOAD_DIR):
-                shutil.rmtree(YT_DOWNLOAD_DIR)
-            os.makedirs(YT_DOWNLOAD_DIR, exist_ok=True)
-        except Exception: pass
+    media_path = None
+    thumbnail_path = None
 
+    try:
+        os.makedirs(YT_DOWNLOAD_DIR, exist_ok=True)
         await message.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message=f"Скачивание файла... ({platform})"))
+
         loop = asyncio.get_running_loop()
         media_data = await loop.run_in_executor(None, _sync_download, url, format_choice, media_type)
 
@@ -176,65 +193,99 @@ async def process_download_task(task_data: dict):
             await message.edit_text(format_styled_message(emoji="❌", title=API_NAME, message=f"Не удалось получить доступ к медиа ({platform})."))
             return
 
-        file_size_bytes = os.path.getsize(media_data["file_path"])
+        media_path = media_data["file_path"]
+        file_size_bytes = os.path.getsize(media_path)
         limit_bytes = YT_MAX_FILE_SIZE_MB * 1024 * 1024
 
         if file_size_bytes > limit_bytes:
             await message.edit_text(
                 format_styled_message(
-                    emoji="❌",
-                    title=API_NAME,
-                    message=(
-                        f"Ошибка лимита: Итоговый файл весит <b>{file_size_bytes / (1024 * 1024):.1f} MB</b>.\n"
-                        f"Telegram запрещает ботам отправлять файлы тяжелее {YT_MAX_FILE_SIZE_MB} MB."
-                    )
+                    emoji="❌", title=API_NAME,
+                    message=(f"Ошибка лимита: Итоговый файл весит <b>{file_size_bytes / (1024 * 1024):.1f} MB</b>.\n"
+                             f"Telegram запрещает ботам отправлять файлы тяжелее {YT_MAX_FILE_SIZE_MB} MB.")
                 )
             )
-            if os.path.exists(media_data["file_path"]): os.remove(media_data["file_path"])
             return
 
         await message.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message="Отправка в Telegram..."))
 
-        original_title = "".join([c for c in media_data['title'] if c not in ['/', '\\', '?', '%', '*', ':', '|', '"', '<', '>']])
-        file_ext = os.path.splitext(media_data["file_path"])[1]
+        original_title = sanitize_filename(media_data['title'])
+        file_ext = os.path.splitext(media_path)[1]
         telegram_filename = f"{original_title}{file_ext}"
 
-        file = FSInputFile(media_data["file_path"], filename=telegram_filename)
-
+        file = FSInputFile(media_path, filename=telegram_filename)
         caption = format_styled_message(emoji=API_ICON, title=f"{API_NAME} ({platform})", message=f"<b>{media_data['title']}</b>")
 
+        base_path = os.path.splitext(media_path)[0]
+        for ext in ['.jpg', '.webp', '.png']:
+            if os.path.exists(base_path + ext):
+                thumbnail_path = base_path + ext
+                break
+
+        track_title, artist_name = extract_audio_tags(media_data)
+
         try:
-            if media_data["type"] == "audio": await original_message.reply_audio(audio=file, caption=caption)
-            else: await original_message.reply_video(video=file, caption=caption)
+            if media_type == "audio":
+                await original_message.reply_audio(
+                    audio=file, caption=caption, title=track_title, performer=artist_name,
+                    thumbnail=FSInputFile(thumbnail_path) if thumbnail_path else None
+                )
+            else: 
+                await original_message.reply_video(video=file, caption=caption)
 
         except TelegramAPIError as e:
-            if "reply" in str(e) or "not found" in str(e):
-                if media_data["type"] == "audio": await message.chat.send_audio(audio=file, caption=caption)
-                else: await message.chat.send_video(video=file, caption=caption)
+            err_msg = str(e).lower()
+            if "reply" in err_msg or "not found" in err_msg:
+                if media_type == "audio":
+                    await message.chat.send_audio(
+                        audio=file, caption=caption, title=track_title, performer=artist_name,
+                        thumbnail=FSInputFile(thumbnail_path) if thumbnail_path else None
+                    )
+                else:
+                    await message.chat.send_video(video=file, caption=caption)
             else:
-                try: await original_message.reply_document(document=file, caption=caption + "\n<i>(Отправлено файлом из-за лимитов)</i>")
+                try:
+                    await original_message.reply_document(document=file, caption=caption + "\n<i>(Отправлено файлом из-за лимитов Telegram)</i>")
                 except Exception:
-                    try: await message.chat.send_document(document=file, caption=caption)
-                    except Exception:
-                        await message.edit_text(format_styled_message(emoji="❌", title=API_NAME, message="Не удалось передать файл."))
-                        if os.path.exists(media_data["file_path"]): os.remove(media_data["file_path"])
-                        return
+                    await message.chat.send_document(document=file, caption=caption)
+
+        from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
+        if PAYMENTS_ENABLED:
+            from bot.utils.tokens_database import tokens_db
+            cost = COMMAND_COSTS.get("!скачать", 0)
+            if cost > 0 and message.from_user.id not in VIP_IDS:
+                await tokens_db.spend_tokens(message.from_user.id, cost)
+
+        from bot.utils.database import db
+        await db.increment_commands()
+        await db.log_command("!скачать", message.from_user.id)
 
         await message.edit_text(format_styled_message(emoji=API_ICON, title=API_NAME, message=f"✅ <b>{original_title} успешно загружено!</b>"))
-
-        if os.path.exists(media_data["file_path"]):
-            os.remove(media_data["file_path"])
 
     except Exception as e:
         logger.error(f"Внутренняя ошибка обработки: {e}")
         await message.edit_text(format_styled_message(emoji="❌", title=API_NAME, message="Произошла внутренняя ошибка сервера."))
 
+    finally:
+        if media_path and os.path.exists(media_path): os.remove(media_path)
+        if thumbnail_path and os.path.exists(thumbnail_path): os.remove(thumbnail_path)
+
 
 async def download_worker():
     while True:
-        task_data = await download_queue.get()
-        await process_download_task(task_data)
-        download_queue.task_done()
+        try:
+            task_data = await download_queue.get()
+            try:
+                await process_download_task(task_data)
+            except Exception as e:
+                logger.error(f"Критическая ошибка при скачивании файла: {e}")
+            finally:
+                download_queue.task_done()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Глобальная ошибка воркера YouTube: {e}")
+            await asyncio.sleep(1)
 
 
 async def cmd_download_yt(message: types.Message):
@@ -243,37 +294,23 @@ async def cmd_download_yt(message: types.Message):
         usage_text = (
             "<code>!скачать</code> [ссылка] [параметры]\n\n"
             "<b>Параметры для плейлистов:</b>\n"
-            "• <code>-random</code> — 1 случайный трек (или перемешать список)\n"
+            "• <code>-random</code> — 1 случайный трек\n"
             "• <code>-X</code> — скачать X треков (например: -5)\n"
-            "• <code>-от_X</code> — начать с трека №X (например: -от_2)\n"
-            "• <code>-до_X</code> — закончить на №X (например: -до_7)\n\n"
-            "<i>💡 Можно комбинировать: <code>-random -5</code> скачает 5 случайных треков.</i>"
+            "• <code>-от_X</code> — начать с трека №X\n"
+            "• <code>-до_X</code> — закончить на №X\n\n"
+            "<i>💡 Можно комбинировать: <code>-random -5</code></i>"
         )
         await message.reply(format_styled_message(emoji=API_ICON, title=API_NAME, message=usage_text))
         return
 
-    url = None
-    params_args = []
-    for arg in args[1:]:
-        if arg.startswith("http://") or arg.startswith("https://"):
-            url = arg
-        else:
-            params_args.append(arg)
+    url = next((arg for arg in args[1:] if arg.startswith("http://") or arg.startswith("https://")), args[1])
+    params_args = [arg for arg in args[1:] if not arg.startswith("http")]
 
-    if not url:
-        url = args[1]
-        params_args = args[2:]
-
-    is_random = False
-    count = None
-    from_idx = None
-    to_idx = None
+    is_random = "-random" in [a.lower() for a in params_args]
+    count, from_idx, to_idx = None, None, None
 
     for arg in params_args:
-        if arg.lower() == "-random":
-            is_random = True
-        elif re.match(r"^-\d+$", arg):
-            count = int(arg[1:])
+        if re.match(r"^-\d+$", arg): count = int(arg[1:])
         elif arg.lower().startswith("-от_"):
             try: from_idx = int(arg.split("_")[1])
             except ValueError: pass
@@ -296,7 +333,7 @@ async def cmd_download_yt(message: types.Message):
 
     if 'entries' in info or info.get('_type') == 'playlist':
         playlist_title = info.get('title', 'Плейлист')
-        safe_playlist_title = "".join([c for c in playlist_title if c not in ['/', '\\', '?', '%', '*', ':', '|', '"', '<', '>']])
+        safe_playlist_title = sanitize_filename(playlist_title)
 
         entries = list(info.get('entries', []))
         if not entries:
@@ -307,13 +344,9 @@ async def cmd_download_yt(message: types.Message):
         end = to_idx if to_idx is not None else len(entries)
         entries = entries[max(0, start):min(len(entries), end)]
 
-        if is_random:
-            random.shuffle(entries)
-
-        if count is not None:
-            entries = entries[:count]
-        elif is_random and from_idx is None and to_idx is None:
-            entries = entries[:1]
+        if is_random: random.shuffle(entries)
+        if count is not None: entries = entries[:count]
+        elif is_random and from_idx is None and to_idx is None: entries = entries[:1]
 
         if not entries:
             await status_msg.edit_text(format_styled_message(emoji="❌", title=API_NAME, message="По заданным критериям треков не найдено."))
@@ -321,197 +354,189 @@ async def cmd_download_yt(message: types.Message):
 
         await status_msg.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message=f"Обнаружен плейлист ({len(entries)} треков).\nЗагрузка..."))
 
-        playlist_id = str(uuid.uuid4())[:8]
-        temp_playlist_dir = os.path.join(YT_DOWNLOAD_DIR, f"playlist_{playlist_id}")
+        temp_playlist_dir = os.path.join(YT_DOWNLOAD_DIR, f"playlist_{uuid.uuid4().hex[:8]}")
         os.makedirs(temp_playlist_dir, exist_ok=True)
+
+        from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
+        user_id = message.from_user.id
+        is_vip = user_id in VIP_IDS
+        cost = COMMAND_COSTS.get("!скачать", 0)
+        insufficient_funds = False
+
+        if PAYMENTS_ENABLED:
+            from bot.utils.tokens_database import tokens_db
 
         downloaded_files = []
         for idx, entry in enumerate(entries, 1):
+            if PAYMENTS_ENABLED and not is_vip and cost > 0:
+                has_tokens = await tokens_db.has_enough_tokens(user_id, cost)
+                if not has_tokens:
+                    insufficient_funds = True
+                    break
+
             entry_url = entry.get('url') or entry.get('webpage_url') or entry.get('id')
-            if not entry_url:
-                continue
-            if not str(entry_url).startswith("http"):
-                entry_url = f"https://www.youtube.com/watch?v={entry_url}"
+            if not entry_url: continue
+            if not str(entry_url).startswith("http"): entry_url = f"https://www.youtube.com/watch?v={entry_url}"
 
             await status_msg.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message=f"Скачивание: загрузка трека {idx}/{len(entries)}..."))
             media_data = await loop.run_in_executor(None, _sync_download_playlist_item, entry_url, temp_playlist_dir)
+
             if media_data and os.path.exists(media_data["file_path"]):
-                downloaded_files.append(media_data["file_path"])
+                downloaded_files.append(media_data)
+
+                if PAYMENTS_ENABLED and not is_vip and cost > 0:
+                    await tokens_db.spend_tokens(user_id, cost)
 
         if not downloaded_files:
-            await status_msg.edit_text(format_styled_message(emoji="❌", title=API_NAME, message="Не удалось загрузить ни одного трека."))
+            if insufficient_funds:
+                err_msg = "У тебя недостаточно токенов даже для загрузки первого трека!"
+            else:
+                err_msg = "Не удалось загрузить ни одного трека."
+            await status_msg.edit_text(format_styled_message(emoji="❌", title=API_NAME, message=err_msg))
             shutil.rmtree(temp_playlist_dir, ignore_errors=True)
             return
 
         if len(downloaded_files) == 1:
-            single_file = downloaded_files[0]
-            await status_msg.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message="Отправка трека в Telegram..."))
+            media_info = downloaded_files[0]
+            single_file = media_info["file_path"]
 
+            await status_msg.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message="Отправка трека в Telegram..."))
             tg_file = FSInputFile(single_file, filename=os.path.basename(single_file))
             caption = format_styled_message(emoji="🎵", title=f"{API_NAME} ({platform})", message=f"<b>{os.path.basename(single_file)}</b>")
 
-            try: 
-                await message.reply_audio(audio=tg_file, caption=caption)
-            except Exception:
-                try: 
-                    await message.chat.send_audio(audio=tg_file, caption=caption)
-                except Exception as e: 
-                    logger.error(f"Ошибка отправки одиночного аудио из плейлиста: {e}")
+            track_title, artist_name = extract_audio_tags(media_info)
 
-            await status_msg.edit_text(format_styled_message(emoji=API_ICON, title=API_NAME, message="✅ <b>Трек успешно отправлен!</b>"))
+            try: 
+                await message.reply_audio(audio=tg_file, caption=caption, title=track_title, performer=artist_name)
+            except Exception:
+                try: await message.chat.send_audio(audio=tg_file, caption=caption, title=track_title, performer=artist_name)
+                except Exception as e: logger.error(f"Ошибка отправки одиночного аудио из плейлиста: {e}")
+
+            from bot.utils.database import db
+            await db.increment_commands()
+            await db.log_command("!скачать", message.from_user.id)
+
+            warning_msg = "\n\n⚠️ <i>Скачивание плейлиста прервано: закончились токены!</i>" if insufficient_funds else ""
+            await status_msg.edit_text(format_styled_message(emoji=API_ICON, title=API_NAME, message=f"✅ <b>Трек успешно отправлен!</b>{warning_msg}"))
             shutil.rmtree(temp_playlist_dir, ignore_errors=True)
             return
 
         await status_msg.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message="Упаковка: формируем ZIP-архивы..."))
 
-        zip_groups = []
-        current_group = []
-        current_size = 0
+        zip_groups, current_group, current_size = [], [], 0
         MAX_ZIP_SIZE = 49 * 1024 * 1024
 
-        for f_path in downloaded_files:
+        for item in downloaded_files:
+            f_path = item["file_path"]
             f_size = os.path.getsize(f_path)
             if current_size + f_size > MAX_ZIP_SIZE and current_group:
                 zip_groups.append(current_group)
-                current_group = [f_path]
-                current_size = f_size
+                current_group, current_size = [f_path], f_size
             else:
                 current_group.append(f_path)
                 current_size += f_size
-        if current_group:
-            zip_groups.append(current_group)
+        if current_group: zip_groups.append(current_group)
 
         for z_idx, group in enumerate(zip_groups, 1):
             await status_msg.edit_text(format_styled_message(emoji="⏳", title=API_NAME, message=f"Отправка архива {z_idx}/{len(zip_groups)}..."))
 
-            if len(zip_groups) > 1:
-                caption = format_styled_message(emoji="📦", title=f"{API_NAME} ({platform})", message=f"<b>{safe_playlist_title}</b> (Часть {z_idx}/{len(zip_groups)})")
-                zip_name = f"{safe_playlist_title}_part{z_idx}.zip"
-            else:
-                caption = format_styled_message(emoji="📦", title=f"{API_NAME} ({platform})", message=f"<b>{safe_playlist_title}</b>")
-                zip_name = f"{safe_playlist_title}.zip"
+            is_multi = len(zip_groups) > 1
+            caption_msg = f"<b>{safe_playlist_title}</b> (Часть {z_idx}/{len(zip_groups)})" if is_multi else f"<b>{safe_playlist_title}</b>"
+            caption = format_styled_message(emoji="📦", title=f"{API_NAME} ({platform})", message=caption_msg)
+            zip_name = f"{safe_playlist_title}_part{z_idx}.zip" if is_multi else f"{safe_playlist_title}.zip"
 
             zip_filename = os.path.join(YT_DOWNLOAD_DIR, zip_name)
-
             with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for f_path in group:
-                    zipf.write(f_path, os.path.basename(f_path))
+                for f_path in group: zipf.write(f_path, os.path.basename(f_path))
 
             tg_file = FSInputFile(zip_filename, filename=zip_name)
-
-            try:
-                await message.reply_document(document=tg_file, caption=caption)
+            try: await message.reply_document(document=tg_file, caption=caption)
             except Exception:
-                try:
-                    await message.chat.send_document(document=tg_file, caption=caption)
-                except Exception as e: 
-                    logger.error(f"Ошибка отправки ZIP: {e}")
+                try: await message.chat.send_document(document=tg_file, caption=caption)
+                except Exception as e: logger.error(f"Ошибка отправки ZIP: {e}")
 
-            if os.path.exists(zip_filename):
-                os.remove(zip_filename)
+            if os.path.exists(zip_filename): os.remove(zip_filename)
 
-        await status_msg.edit_text(format_styled_message(emoji=API_ICON, title=API_NAME, message="✅ <b>Архивы успешно отправлены!</b>"))
+        from bot.utils.database import db
+        await db.increment_commands()
+        await db.log_command("!скачать", message.from_user.id)
+
+        warning_msg = "\n\n⚠️ <i>Скачивание плейлиста прервано: закончились токены! Выдана часть архивов.</i>" if insufficient_funds else ""
+        await status_msg.edit_text(format_styled_message(emoji=API_ICON, title=API_NAME, message=f"✅ <b>Архивы успешно отправлены!</b>{warning_msg}"))
         shutil.rmtree(temp_playlist_dir, ignore_errors=True)
         return
 
-    request_id = str(uuid.uuid4())[:8]
+    request_id = uuid.uuid4().hex[:8]
     formats = info.get('formats', [])
 
     audio_formats = [f for f in formats if f.get('vcodec') == 'none' and f.get('acodec') != 'none']
-    best_aud = max(audio_formats, key=lambda x: x.get('filesize') or x.get('filesize_approx') or 0, default={})
+    best_aud = audio_formats[-1] if audio_formats else {}
     audio_size = best_aud.get('filesize') or best_aud.get('filesize_approx') or 0
-    audio_format_id = best_aud.get('format_id')
+    audio_format_id = best_aud.get('format_id') or "bestaudio/best"
 
-    video_formats = [f for f in formats if f.get('vcodec') != 'none']
+    video_formats = [f for f in formats if f.get('vcodec') != 'none' and f.get('vcodec') is not None]
     heights_dict = {}
 
     for f in video_formats:
         h = f.get('height')
         if not h:
-            h = f.get('resolution') or f.get('format_note') or "Видео"
+            res = f.get('resolution')
+            if isinstance(res, str) and 'x' in res:
+                try: h = int(res.split('x')[1])
+                except ValueError: pass
+        if not h:
+            note = f.get('format_note')
+            if isinstance(note, str) and 'p' in note:
+                try: h = int(re.sub(r'\D', '', note))
+                except ValueError: pass
+        if not h: h = "Видео"
 
         current_size = f.get('filesize') or f.get('filesize_approx') or 0
-        if h not in heights_dict or current_size > heights_dict[h].get('size', 0):
-            heights_dict[h] = {
-                'format_id': f.get('format_id'),
-                'size': current_size,
-                'acodec': f.get('acodec')
-            }
+        new_entry = {'format_id': f.get('format_id'), 'size': current_size, 'acodec': f.get('acodec')}
+
+        if h not in heights_dict or (current_size > 0 or heights_dict[h]['size'] == 0):
+            heights_dict[h] = new_entry
 
     def format_size(bytes_size):
-        if not bytes_size: return "размер неизвестен"
-        mb = bytes_size / (1024 * 1024)
-        return f"{mb:.1f} MB"
+        return f"{bytes_size / (1024 * 1024):.1f} MB" if bytes_size else "неизвестно"
 
     choices = {}
     inline_keyboard = []
 
-    sorted_heights = sorted([k for k in heights_dict.keys() if isinstance(k, int)], reverse=True)
-    str_heights = [k for k in heights_dict.keys() if isinstance(k, str)]
-    sorted_heights.extend(str_heights)
+    sorted_heights = sorted([k for k in heights_dict.keys() if isinstance(k, int)], reverse=True) + \
+                     [k for k in heights_dict.keys() if isinstance(k, str)]
 
     for h in sorted_heights:
         v_info = heights_dict[h]
-        v_size = v_info['size']
+        v_size, acodec = v_info['size'], v_info.get('acodec')
+        is_video_only = (acodec == 'none' or acodec is None)
 
-        is_video_only = v_info['acodec'] == 'none'
-        total_size = (v_size + audio_size) if (is_video_only and v_size and audio_size) else (v_size or audio_size)
-
-        if is_video_only and audio_format_id:
-            format_str = f"{v_info['format_id']}+{audio_format_id}"
-        else:
-            format_str = v_info['format_id']
+        total_size = (v_size + audio_size) if is_video_only and v_size else v_size
+        format_str = f"{v_info['format_id']}+{audio_format_id}" if is_video_only else v_info['format_id']
 
         choice_key = f"vid_{h}"
-        choices[choice_key] = {
-            "size": total_size,
-            "format_str": format_str,
-            "type": "video"
-        }
+        choices[choice_key] = {"size": total_size, "format_str": format_str, "type": "video"}
 
-        size_str = format_size(total_size)
         warn = f" ⚠️ >{YT_MAX_FILE_SIZE_MB}MB" if total_size > YT_MAX_FILE_SIZE_MB * 1024 * 1024 else ""
-
         label = f"{h}p" if isinstance(h, int) else str(h)
-        btn_text = f"🎬 {label} ({size_str}){warn}"
+        btn_text = f"🎬 {label} ({format_size(total_size)}){warn}"
+
         inline_keyboard.append([InlineKeyboardButton(text=btn_text, callback_data=f"yt_dl|{choice_key}|{request_id}")])
 
-    if best_aud:
-        choice_key = "audio"
-        choices[choice_key] = {
-            "size": audio_size,
-            "format_str": audio_format_id if audio_format_id else "bestaudio/best",
-            "type": "audio"
-        }
-        size_str = format_size(audio_size)
-        warn = f" ⚠️ >{YT_MAX_FILE_SIZE_MB}MB" if audio_size > YT_MAX_FILE_SIZE_MB * 1024 * 1024 else ""
-        btn_text = f"🎵 Только Звук ({size_str}){warn}"
-        inline_keyboard.append([InlineKeyboardButton(text=btn_text, callback_data=f"yt_dl|{choice_key}|{request_id}")])
+    choices["audio"] = {"size": audio_size, "format_str": audio_format_id, "type": "audio"}
+    warn = f" ⚠️ >{YT_MAX_FILE_SIZE_MB}MB" if audio_size > YT_MAX_FILE_SIZE_MB * 1024 * 1024 else ""
+    inline_keyboard.append([InlineKeyboardButton(text=f"🎵 Только Звук ({format_size(audio_size)}){warn}", callback_data=f"yt_dl|audio|{request_id}")])
 
-    if not choices:
-        choice_key = "best_auto"
-        choices[choice_key] = {
-            "size": 0,
-            "format_str": "bestvideo+bestaudio/best",
-            "type": "video"
-        }
-        inline_keyboard.append([InlineKeyboardButton(text="🎬 Скачать (Лучшее качество)", callback_data=f"yt_dl|{choice_key}|{request_id}")])
+    if len(choices) == 1:
+        choices["best_auto"] = {"size": 0, "format_str": "bestvideo+bestaudio/best", "type": "video"}
+        inline_keyboard.insert(0, [InlineKeyboardButton(text="🎬 Скачать (Лучшее качество)", callback_data=f"yt_dl|best_auto|{request_id}")])
 
-    pending_requests[request_id] = {
-        "url": url,
-        "formats": choices,
-        "platform": platform
-    }
+    pending_requests[request_id] = {"url": url, "formats": choices, "platform": platform}
 
-    keyboard = create_user_keyboard(inline_keyboard, message.from_user.id)
-    video_title = info.get('title', 'Unknown Media')
-
-    # Приводим к формату: Название API -> Название видео -> Статус/Инструкция
     await status_msg.edit_text(
-        format_styled_message(emoji=API_ICON, title=f"{API_NAME} ({platform})", message=f"<b>{video_title}</b>\n\nВыберите формат:"),
-        reply_markup=keyboard
+        format_styled_message(emoji=API_ICON, title=f"{API_NAME} ({platform})", message=f"<b>{info.get('title', 'Unknown Media')}</b>\n\nВыберите формат:"),
+        reply_markup=create_user_keyboard(inline_keyboard, message.from_user.id)
     )
-    return
 
 
 async def process_yt_callback(callback: types.CallbackQuery):
@@ -527,31 +552,27 @@ async def process_yt_callback(callback: types.CallbackQuery):
         await callback.message.edit_text(format_styled_message(emoji="❌", title=API_NAME, message="Формат недоступен."))
         return
 
-    limit_bytes = YT_MAX_FILE_SIZE_MB * 1024 * 1024
-    if choice_data["size"] > limit_bytes:
-        size_mb = choice_data["size"] / (1024 * 1024)
-        await callback.answer(
-            text=f"❌ Файл ({size_mb:.1f} MB) превышает лимит {YT_MAX_FILE_SIZE_MB} MB.",
-            show_alert=True
-        )
+    if choice_data["size"] > YT_MAX_FILE_SIZE_MB * 1024 * 1024:
+        await callback.answer(text=f"❌ Файл ({choice_data['size'] / (1024 * 1024):.1f} MB) превышает лимит {YT_MAX_FILE_SIZE_MB} MB.", show_alert=True)
         return
 
-    url = req_data["url"]
-    platform = req_data.get("platform", "YouTube")
+    url, platform = req_data["url"], req_data.get("platform", "YouTube")
     del pending_requests[req_id]
 
-    queue_position = download_queue.qsize() + 1
     await callback.message.edit_text(format_styled_message(
-        emoji="⏳", 
-        title=API_NAME, 
-        message=f"Добавлено в очередь (позиция {queue_position}).\nПожалуйста, ожидайте..."
+        emoji="⏳", title=API_NAME, 
+        message=f"Добавлено в очередь (позиция {download_queue.qsize() + 1}).\nПожалуйста, ожидайте..."
     ))
 
-    await download_queue.put({
-        'original_message': callback.message.reply_to_message or callback.message,
-        'status_message': callback.message,
-        'url': url,
-        'format_choice': choice_data["format_str"],
-        'type': choice_data["type"],
-        'platform': platform
-    })
+    try:
+        download_queue.put_nowait({
+            'original_message': callback.message.reply_to_message or callback.message,
+            'status_message': callback.message,
+            'url': url,
+            'format_choice': choice_data["format_str"],
+            'type': choice_data["type"],
+            'platform': platform
+        })
+    except asyncio.QueueFull:
+        await callback.answer("❌ Очередь загрузок переполнена (макс. 50). Попробуйте позже.", show_alert=True)
+        return

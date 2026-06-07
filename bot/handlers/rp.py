@@ -16,8 +16,8 @@ async def process_rp_command(message: types.Message):
         sender_id = message.from_user.id
         target_id = message.reply_to_message.from_user.id
 
-        sender_nsfw_enabled = user_settings_db.get_nsfw_setting(sender_id)
-        target_nsfw_enabled = user_settings_db.get_nsfw_setting(target_id)
+        sender_nsfw_enabled = await user_settings_db.get_nsfw_setting(sender_id)
+        target_nsfw_enabled = await user_settings_db.get_nsfw_setting(target_id)
 
         if not sender_nsfw_enabled:
             await message.reply(
@@ -60,6 +60,6 @@ async def execute_rp_action(message: types.Message, command: str, action: str, p
         response += f" со словами: <i>«{custom_text}»</i>"
 
     await message.reply(response)
-    db.increment_rp_actions()
-    db.log_rp_action(message.from_user.id, target.id, command, custom_text)
+    await db.increment_rp_actions()
+    await db.log_rp_action(message.from_user.id, target.id, command, custom_text)
     return True

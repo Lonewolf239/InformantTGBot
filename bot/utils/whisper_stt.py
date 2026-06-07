@@ -313,8 +313,15 @@ async def cmd_transcribe(message: types.Message):
         for i, chunk in enumerate(text_chunks[1:], start=2):
             await message.reply(f"<b>📝 ТЕКСТ (Часть {i}/{len(text_chunks)}):</b>\n<code>{chunk}</code>")
 
-        db.increment_commands()
-        db.log_command("!расшифровка", message.from_user.id)
+        from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
+        if PAYMENTS_ENABLED:
+            from bot.utils.tokens_database import tokens_db
+            cost = COMMAND_COSTS.get("!расшифровка", 0)
+            if cost > 0 and message.from_user.id not in VIP_IDS:
+                await tokens_db.spend_tokens(message.from_user.id, cost)
+
+        await db.increment_commands()
+        await db.log_command("!расшифровка", message.from_user.id)
         return True
 
     except Exception as e:
@@ -486,7 +493,7 @@ async def cmd_translate(message: types.Message):
             message="⏳ <b>Скачиваю и анализирую файл...</b>\n📍 Позиция: вычисляется"
         )
     )
-    
+
     file_path = tts_path = output_path = None
 
     try:
@@ -623,8 +630,15 @@ async def cmd_translate(message: types.Message):
 
         await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="✅ <b>Успешно! Медиа отправлено ниже.</b>"))
 
-        db.increment_commands()
-        db.log_command("!перевести", message.from_user.id)
+        from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
+        if PAYMENTS_ENABLED:
+            from bot.utils.tokens_database import tokens_db
+            cost = COMMAND_COSTS.get("!перевести", 0)
+            if cost > 0 and message.from_user.id not in VIP_IDS:
+                await tokens_db.spend_tokens(message.from_user.id, cost)
+
+        await db.increment_commands()
+        await db.log_command("!перевести", message.from_user.id)
         return True
 
     except Exception as e:

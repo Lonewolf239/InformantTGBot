@@ -149,8 +149,15 @@ async def cmd_weather(message: types.Message):
         if searching_msg: await searching_msg.edit_text(weather_text)
         else: await message.reply(weather_text)
 
-        db.increment_commands()
-        db.log_command("!погода", message.from_user.id)
+        from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
+        if PAYMENTS_ENABLED:
+            from bot.utils.tokens_database import tokens_db
+            cost = COMMAND_COSTS.get("!погода", 0)
+            if cost > 0 and message.from_user.id not in VIP_IDS:
+                await tokens_db.spend_tokens(message.from_user.id, cost)
+
+        await db.increment_commands()
+        await db.log_command("!погода", message.from_user.id)
         return True
 
     except Exception:

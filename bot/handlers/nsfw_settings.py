@@ -6,8 +6,8 @@ from bot.utils.database import db
 from aiogram.exceptions import TelegramBadRequest
 
 
-def get_nsfw_settings_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    current = user_settings_db.get_nsfw_setting(user_id)
+async def get_nsfw_settings_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    current = await user_settings_db.get_nsfw_setting(user_id)
 
     button = []
     if current:
@@ -25,8 +25,8 @@ def get_nsfw_settings_keyboard(user_id: int) -> InlineKeyboardMarkup:
     return keyboard
 
 
-def get_nsfw_status_text(user_id: int, username: str) -> str:
-    enabled = user_settings_db.get_nsfw_setting(user_id)
+async def get_nsfw_status_text(user_id: int, username: str) -> str:
+    enabled = await user_settings_db.get_nsfw_setting(user_id)
     status = "🔞 ВКЛЮЧЕНЫ" if enabled else "✅ ВЫКЛЮЧЕНЫ"
 
     rp_commands_list = []
@@ -50,12 +50,12 @@ def get_nsfw_status_text(user_id: int, username: str) -> str:
 
 async def cmd_nsfw_settings(message: types.Message):
     user_id = message.from_user.id
-    status_text = get_nsfw_status_text(user_id, message.from_user.username)
-    keyboard = get_nsfw_settings_keyboard(user_id)
+    status_text = await get_nsfw_status_text(user_id, message.from_user.username)
+    keyboard = await get_nsfw_settings_keyboard(user_id)
 
     await message.reply(status_text, reply_markup=keyboard)
-    db.increment_commands()
-    db.log_command("!настройки", user_id)
+    await db.increment_commands()
+    await db.log_command("!настройки", user_id)
     return True
 
 
@@ -79,14 +79,14 @@ async def nsfw_callback_handler(callback_query: types.CallbackQuery):
         return
 
     if action == "enable":
-        user_settings_db.set_nsfw_setting(target_user_id, True)
+        await user_settings_db.set_nsfw_setting(target_user_id, True)
         await callback_query.answer("✅ NSFW команды ВКЛЮЧЕНЫ!")
     else:
-        user_settings_db.set_nsfw_setting(target_user_id, False)
+        await user_settings_db.set_nsfw_setting(target_user_id, False)
         await callback_query.answer("🔞 NSFW команды ВЫКЛЮЧЕНЫ!")
 
-    new_text = get_nsfw_status_text(target_user_id, callback_query.message.from_user.username)
-    new_keyboard = get_nsfw_settings_keyboard(target_user_id)
+    new_text = await get_nsfw_status_text(target_user_id, callback_query.message.from_user.username)
+    new_keyboard = await get_nsfw_settings_keyboard(target_user_id)
     try:
         await callback_query.message.edit_text(new_text, reply_markup=new_keyboard)
     except TelegramBadRequest:

@@ -23,8 +23,8 @@ class QueueTask:
 
 class NeuralNetworkQueue:
     def __init__(self):
-        self.ai_queue: asyncio.Queue[QueueTask] = asyncio.Queue()
-        self.whisper_queue: asyncio.Queue[QueueTask] = asyncio.Queue()
+        self.ai_queue: asyncio.Queue[QueueTask] = asyncio.Queue(maxsize=100)
+        self.whisper_queue: asyncio.Queue[QueueTask] = asyncio.Queue(maxsize=50)
         self.worker_tasks = []
         self.is_running = False
 

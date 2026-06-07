@@ -132,7 +132,17 @@ async def send_meme(target, is_callback=False, use_fallback=False):
 
     try:
         await method(**kwargs)
-        db.increment_memes()
+
+        from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
+        if PAYMENTS_ENABLED:
+            from bot.utils.tokens_database import tokens_db
+            cost = COMMAND_COSTS.get("!мем", 0)
+            if cost > 0 and message.from_user.id not in VIP_IDS:
+                await tokens_db.spend_tokens(message.from_user.id, cost)
+
+        await db.increment_memes()
+        await db.increment_commands()
+        await db.log_command("!мем", target.from_user.id)
         return True
     except Exception as e:
         logger.error(f"Ошибка при отправке медиа: {e}")
