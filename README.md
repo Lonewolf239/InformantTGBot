@@ -13,6 +13,7 @@ Asynchronous Telegram bot with local AI (Ollama), speech recognition (Whisper), 
 
 ```bash
 git clone https://github.com/Lonewolf239/InformantTGBot.git
+cd InformantTGBot
 pip install -r requirements.txt
 cp dotenv_template .env
 python main.py
