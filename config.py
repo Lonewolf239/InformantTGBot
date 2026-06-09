@@ -65,8 +65,6 @@ COMMAND_METADATA = {
     "!старт": {"icon": "🚀", "name": "Старт", "cost": 0, "desc": "приветственное сообщение"}
 }
 
-COMMAND_COSTS = {cmd: data["cost"] for cmd, data in COMMAND_METADATA.items() if data["cost"] > 0}
-
 COMMAND_ALIASES = {
     "!старт": ["!старт", "/start", "!start"],
     "!помощь": ["!помощь", "!help", "!команды"],
@@ -182,13 +180,25 @@ COOKIES_FILE = "cookies.txt"
 # ==========================================
 # Kinopoisk Api Unofficial
 # ==========================================
-KINOPOISK_API_KEY = os.getenv("KINOPOISK_API_KEY", "")
 
+KINOPOISK_API_KEY = os.getenv("KINOPOISK_API_KEY", "")
 
 # ==========================================
 # pollinations.ai
 # ==========================================
+
+POLLINATIONS_ENABLED = False
 POLLINATIONS_API_KEY = os.getenv("POLLINATIONS_API_KEY", "")
+
+if POLLINATIONS_ENABLED:
+    COMMAND_METADATA["!рис"] = {
+        "icon": "🎨", 
+        "name": "Нейро-Художник", 
+        "cost": 5, 
+        "args": "[промпт]", 
+        "desc": "генерация картинок (модель FLUX)"
+    }
+    COMMAND_ALIASES["!рис"] = ["!рис", "!нарисуй", "!draw", "!render"]
 
 # ==========================================
 # ТЕКСТА И СЛОВАРИ
@@ -325,3 +335,5 @@ BACKUP_JOKES = [
 NSFW_ENABLED_BY_DEFAULT = 0
 AUTO_REPLY_ENABLED = True
 REPLY_TO_OWNER = False
+
+COMMAND_COSTS = {cmd: data["cost"] for cmd, data in COMMAND_METADATA.items() if data["cost"] > 0}

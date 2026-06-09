@@ -2,7 +2,8 @@ from aiogram import types
 from config import (
     COMMAND_COSTS, COMMAND_ALIASES, VIP_IDS, PAYMENTS_ENABLED,
     WELCOME_TEXT, KEYWORD_REACTIONS, SIMPLE_ANSWERS, COMMAND_METADATA,
-    SFW_RP_ACTIONS, NSFW_RP_ACTIONS, AUTO_REPLY_ENABLED, REPLY_TO_OWNER, DEFAULT_DAILY_TOKENS
+    SFW_RP_ACTIONS, NSFW_RP_ACTIONS, AUTO_REPLY_ENABLED, REPLY_TO_OWNER, DEFAULT_DAILY_TOKENS,
+    POLLINATIONS_ENABLED
 )
 from bot.utils.keyword_handlers import KEYWORD_COMMANDS_REGISTRY
 from bot.utils.user_settings import user_settings_db
@@ -33,6 +34,9 @@ from bot.utils.qr_api import cmd_qr
 from bot.utils.search_image_api import cmd_search_image
 from functools import lru_cache
 import logging
+
+if POLLINATIONS_ENABLED:
+    from bot.utils.image_api import cmd_render
 
 logger = logging.getLogger(__name__)
 
@@ -295,6 +299,9 @@ COMMAND_HANDLERS = {
     "!кино": cmd_movie,
     "!qr": cmd_qr,
 }
+
+if POLLINATIONS_ENABLED:
+    COMMAND_HANDLERS["!рис"] = cmd_render
 
 ALIAS_TO_BASE = {}
 for base_cmd, aliases in COMMAND_ALIASES.items():
