@@ -63,7 +63,7 @@ async def send_cat(target, is_callback=False):
 
         await db.increment_commands()
         await db.log_command("!кот", target.from_user.id)
-        await spend_tokens(message, "!кот")
+        await spend_tokens(message_obj, "!кот")
         return True
     except Exception as e:
         logger.error(f"Ошибка при отправке котика: {e}")

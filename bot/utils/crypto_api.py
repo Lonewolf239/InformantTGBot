@@ -111,15 +111,17 @@ async def send_crypto(target, is_callback=False):
     keyboard = get_crypto_keyboard(user_id)
 
     try:
+        message_obj = target.message if is_callback else target
+
         if is_callback:
-            await target.message.edit_text(msg_text, reply_markup=keyboard)
+            await message_obj.edit_text(msg_text, reply_markup=keyboard)
         else:
-            await target.reply(msg_text, reply_markup=keyboard)
+            await message_obj.reply(msg_text, reply_markup=keyboard)
 
         if not is_callback:
             await db.increment_commands()
             await db.log_command("!курс_крипты", user_id)
-            await spend_tokens(message, "!курс_крипты")
+            await spend_tokens(message_obj, "!курс_крипты")
 
         return True
     except Exception as e:

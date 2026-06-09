@@ -112,7 +112,7 @@ async def more_joke_callback(callback_query: types.CallbackQuery):
             joke_msg,
             reply_markup=get_joke_keyboard(callback_query.from_user.id)
         )
-        await spend_tokens(message)
+        await spend_tokens(callback_query.message)
     else:
         backup = get_backup_joke()
         backup_msg = format_styled_message(
@@ -124,4 +124,4 @@ async def more_joke_callback(callback_query: types.CallbackQuery):
             backup_msg,
             reply_markup=get_joke_keyboard(callback_query.from_user.id)
         )
-        await spend_tokens(message)
+        await spend_tokens(callback_query.message)

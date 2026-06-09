@@ -53,14 +53,16 @@ async def send_forecast(target, is_callback=False):
     keyboard = get_forecast_keyboard(user_id)
 
     try:
+        message_obj = target.message if is_callback else target
+
         if is_callback:
-            await target.message.edit_text(msg_text, reply_markup=keyboard)
+            await message_obj.edit_text(msg_text, reply_markup=keyboard)
         else:
-            await target.reply(msg_text, reply_markup=keyboard)
+            await message_obj.reply(msg_text, reply_markup=keyboard)
 
         await db.increment_commands()
         await db.log_command("!прогноз", user_id)
-        await spend_tokens(message, "!прогноз")
+        await spend_tokens(message_obj, "!прогноз")
         return True
     except Exception as e:
         logger.error(f"Ошибка отправки прогноза: {e}")

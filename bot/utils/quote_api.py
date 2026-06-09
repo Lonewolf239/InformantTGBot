@@ -64,14 +64,16 @@ async def send_quote(target, is_callback=False):
     keyboard = get_quote_keyboard(user_id)
 
     try:
+        message_obj = target.message if is_callback else target
+
         if is_callback:
-            await target.message.edit_text(msg_text, reply_markup=keyboard)
+            await message_obj.edit_text(msg_text, reply_markup=keyboard)
         else:
-            await target.reply(msg_text, reply_markup=keyboard)
+            await message_obj.reply(msg_text, reply_markup=keyboard)
 
         await db.increment_commands()
         await db.log_command("!цитата", user_id)
-        await spend_tokens(message, "!цитата")
+        await spend_tokens(message_obj, "!цитата")
         return True
     except Exception as e:
         logger.error(f"Ошибка отправки цитаты: {e}")
