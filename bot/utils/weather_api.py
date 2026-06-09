@@ -3,12 +3,12 @@ import logging
 import asyncio
 from datetime import datetime
 from aiogram import types
-from config import OPENWEATHER_API_KEY, WEATHER_GEO_URL, WEATHER_API_URL, WEATHER_FORECAST_URL, TRANSLATE_API_URL
+from config import OPENWEATHER_API_KEY, WEATHER_GEO_URL, WEATHER_API_URL, WEATHER_FORECAST_URL, TRANSLATE_API_URL, COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message
+from bot.utils.helpers import format_styled_message, spend_tokens
 
-API_ICON = "🌤️"
-API_NAME = "Погода"
+API_ICON = COMMAND_METADATA["!погода"]["icon"]
+API_NAME = COMMAND_METADATA["!погода"]["name"]
 
 logger = logging.getLogger(__name__)
 
@@ -149,15 +149,9 @@ async def cmd_weather(message: types.Message):
         if searching_msg: await searching_msg.edit_text(weather_text)
         else: await message.reply(weather_text)
 
-        from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
-        if PAYMENTS_ENABLED:
-            from bot.utils.tokens_database import tokens_db
-            cost = COMMAND_COSTS.get("!погода", 0)
-            if cost > 0 and message.from_user.id not in VIP_IDS:
-                await tokens_db.spend_tokens(message.from_user.id, cost)
-
         await db.increment_commands()
         await db.log_command("!погода", message.from_user.id)
+        await spend_tokens(message, "!погода")
         return True
 
     except Exception:

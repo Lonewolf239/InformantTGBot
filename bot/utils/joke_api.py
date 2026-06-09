@@ -2,13 +2,13 @@ import random
 import aiohttp
 from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from config import USER_PROFILE, API_SETTINGS, BACKUP_JOKES
+from config import USER_PROFILE, API_SETTINGS, BACKUP_JOKES, COMMAND_METADATA
 from bot.utils.database import db
 from bot.utils.helpers import format_styled_message, create_user_keyboard
 import logging
 
-API_ICON = "🎭"
-API_NAME = "Анекдот"
+API_ICON = COMMAND_METADATA["!анекдот"]["icon"]
+API_NAME = COMMAND_METADATA["!анекдот"]["name"]
 
 logger = logging.getLogger(__name__)
 

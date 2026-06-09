@@ -1,6 +1,7 @@
 from config import OWNER_ID
 from typing import Union, List
 from aiogram.types import InlineKeyboardMarkup
+from aiogram import types
 
 
 def its_me(user_id: int) -> bool:
@@ -43,3 +44,12 @@ def format_styled_message(emoji: str, title: str, message: str, html: bool = Tru
             formatted_lines.append(f"{prefix}{line}")
 
     return "\n".join(formatted_lines)
+
+
+async def spend_tokens(message: types.Message, command):
+    from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
+    if PAYMENTS_ENABLED:
+        from bot.utils.tokens_database import tokens_db
+        cost = COMMAND_COSTS.get(command, 0)
+        if cost > 0 and message.from_user.id not in VIP_IDS:
+            await tokens_db.spend_tokens(message.from_user.id, cost)

@@ -1,9 +1,8 @@
 from aiogram import types
 from config import (
-    COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED,
-    WELCOME_TEXT, KEYWORD_REACTIONS, SIMPLE_ANSWERS,
-    SFW_RP_ACTIONS, NSFW_RP_ACTIONS, PAYMENTS_ENABLED,
-    AUTO_REPLY_ENABLED, REPLY_TO_OWNER, DEFAULT_DAILY_TOKENS
+    COMMAND_COSTS, COMMAND_ALIASES, VIP_IDS, PAYMENTS_ENABLED,
+    WELCOME_TEXT, KEYWORD_REACTIONS, SIMPLE_ANSWERS, COMMAND_METADATA,
+    SFW_RP_ACTIONS, NSFW_RP_ACTIONS, AUTO_REPLY_ENABLED, REPLY_TO_OWNER, DEFAULT_DAILY_TOKENS
 )
 from bot.utils.keyword_handlers import KEYWORD_COMMANDS_REGISTRY
 from bot.utils.user_settings import user_settings_db
@@ -21,6 +20,17 @@ from bot.utils.tokens_database import tokens_db
 from bot.handlers.payments import cmd_balance
 from bot.utils.currency_api import cmd_currency
 from bot.utils.music_api import cmd_music
+from bot.utils.cat_api import cmd_cat
+from bot.utils.fact_api import cmd_fact
+from bot.utils.forecast_api import cmd_forecast
+from bot.utils.quote_api import cmd_quote
+from bot.utils.crypto_api import cmd_crypto
+from bot.utils.voiceover_api import cmd_voiceover
+from bot.utils.wiki_api import cmd_wiki
+from bot.utils.games_api import cmd_roulette, cmd_duel
+from bot.utils.movie_api import cmd_movie
+from bot.utils.qr_api import cmd_qr
+from bot.utils.search_image_api import cmd_search_image
 from functools import lru_cache
 import logging
 
@@ -32,29 +42,25 @@ def get_public_help_text(is_away_mode: bool = False):
     status_emoji = "🚶‍♂️" if is_away_mode else "🟢"
     status_text = "режим ОТОШЁЛ активен" if is_away_mode else "режим ОНЛАЙН"
 
-    commands = [
-        "<b>┌─ 🤖 ДОСТУПНЫЕ КОМАНДЫ</b>",
-        "<b>├─ 🎭</b> <code>!анекдот</code> — случайная шутка",
-        "<b>├─ 🖼️</b> <code>!мем</code> — случайный мем",
-        "<b>├─ 🌤️</b> <code>!погода</code> [город] — текущая погода",
-        "<b>├─ 🧠</b> <code>!ии</code> [текст] — запрос к локальной нейросети",
-        "<b>├─ 🎙️</b> <code>!расшифровка</code> — текст из аудио/видео",
-        "<b>├─ 🌐</b> <code>!перевести</code> — перевод и озвучка",
-        "<b>├─ 🎬</b> <code>!скачать</code> [ссылка] — загрузка с YouTube",
-        "<b>├─ 🎭</b> <code>!рп</code> — список RP-команд",
-        "<b>├─ 🎵</b> <code>!трек</code> [название] — поиск и скачивание музыки",
-        "<b>├─ 💱</b> <code>!курс</code> [сумма] [валюты] — конвертер валют",
-    ]
+    commands = ["<b>┌─ 🤖 ДОСТУПНЫЕ КОМАНДЫ</b>"]
+    exclude_from_main = {"!старт", "!помощь", "!прайс", "!баланс", "!настройки", "!о_боте", "!donut"}
+
+    for cmd, data in COMMAND_METADATA.items():
+        if cmd not in exclude_from_main:
+
+            args_str = f" {data['args']}" if "args" in data else ""
+
+            commands.append(f"<b>├─ {data['icon']}</b> <code>{cmd}</code>{args_str} — {data['desc']}")
 
     if PAYMENTS_ENABLED:
-        commands.append("<b>├─ 💰</b> <code>!прайс</code> — стоимость команд")
-        commands.append("<b>├─ 💳</b> <code>!баланс</code> — кошелёк и покупка токенов")
+        commands.append(f"<b>├─ {COMMAND_METADATA['!прайс']['icon']}</b> <code>!прайс</code> — {COMMAND_METADATA['!прайс']['desc']}")
+        commands.append(f"<b>├─ {COMMAND_METADATA['!баланс']['icon']}</b> <code>!баланс</code> — {COMMAND_METADATA['!баланс']['desc']}")
 
     commands.extend([
-        "<b>├─ ⚙️</b> <code>!настройки</code> — настройки бота (NSFW и др.)",
-        "<b>├─ 🤖</b> <code>!о_боте</code> — техническая информация",
-        "<b>├─ 🍩</b> <code>!donut</code> — поддержать автора",
-        "<b>├─ ℹ️</b> <code>!помощь</code> — это меню",
+        f"<b>├─ {COMMAND_METADATA['!настройки']['icon']}</b> <code>!настройки</code> — {COMMAND_METADATA['!настройки']['desc']}",
+        f"<b>├─ {COMMAND_METADATA['!о_боте']['icon']}</b> <code>!о_боте</code> — {COMMAND_METADATA['!о_боте']['desc']}",
+        f"<b>├─ {COMMAND_METADATA['!donut']['icon']}</b> <code>!donut</code> — {COMMAND_METADATA['!donut']['desc']}",
+        f"<b>├─ {COMMAND_METADATA['!помощь']['icon']}</b> <code>!помощь</code> — {COMMAND_METADATA['!помощь']['desc']}",
         "<b>│</b>",
         "<b>├─ 🔗 <i>Авто-сохранение ссылок</i></b>",
         "<b>├─   Отправь ссылку на музыку/видео, и она</b>",
@@ -63,24 +69,10 @@ def get_public_help_text(is_away_mode: bool = False):
         f"<b>├─ {status_emoji} Статус:</b> {status_text}",
         "<b>└─ 🤖 Автоответ:</b> Мгновенный при включённом режиме"
     ])
-
     return "\n".join(commands)
 
 
 async def cmd_prices(message: types.Message):
-    emoji_map = {
-        "!перевести": "🌐",
-        "!расшифровка": "🎙️",
-        "!ии": "🧠",
-        "!нейрохам": "🤬",
-        "!скачать": "🎬",
-        "!музыка": "🎵",
-        "!курс": "💱",
-        "!погода": "🌤️",
-        "!анекдот": "🎭",
-        "!мем": "🖼️"
-    }
-
     price_text = (
         "<b>┌─ 💰 ПРАЙС-ЛИСТ КОМАНД</b>\n"
         f"<b>├─ 🎁 Ежедневный лимит:</b> {DEFAULT_DAILY_TOKENS} токенов\n"
@@ -88,7 +80,7 @@ async def cmd_prices(message: types.Message):
     )
 
     for cmd, cost in sorted(COMMAND_COSTS.items(), key=lambda x: x[1], reverse=True):
-        emoji = emoji_map.get(cmd, "🔹")
+        emoji = COMMAND_METADATA.get(cmd, {}).get("icon", "🔹")
 
         if cost % 10 == 1 and cost % 100 != 11:
             token_word = "токен"
@@ -244,13 +236,104 @@ async def handle_simple_answers(message: types.Message):
     return False
 
 
+async def cmd_aliases(message: types.Message):
+    alias_text = "<b>┌─ 🔀 СИНОНИМЫ КОМАНД (АЛИАСЫ)</b>\n"
+    alias_text += "<b>├─</b> Любую команду из списка можно вызывать разными способами:\n"
+    alias_text += "<b>│</b>\n"
+
+    for base_cmd, aliases in sorted(COMMAND_ALIASES.items()):
+        aliases_list = [a for a in aliases if a != base_cmd]
+
+        if not aliases_list:
+            continue
+
+        aliases_formatted = ", ".join([f"<code>{a}</code>" for a in aliases_list])
+
+        icon = COMMAND_METADATA.get(base_cmd, {}).get("icon", "🔹")
+
+        alias_text += f"<b>├─ {icon}</b> <code>{base_cmd}</code> ➔ {aliases_formatted}\n"
+
+    alias_text += "<b>│</b>\n"
+    alias_text += "<b>└─ ℹ️</b> Регистр букв значения не имеет."
+
+    await message.reply(alias_text)
+    await db.increment_commands()
+    await db.log_command("!алиасы", message.from_user.id)
+    return True
+
+
+COMMAND_HANDLERS = {
+    "!старт": cmd_start,
+    "!помощь": cmd_help,
+    "!анекдот": cmd_joke,
+    "!мем": cmd_meme,
+    "!факт": cmd_fact,
+    "!вики": cmd_wiki,
+    "!о_боте": cmd_about,
+    "!donut": cmd_donut,
+    "!рп": cmd_rp_commands,
+    "!настройки": cmd_nsfw_settings,
+    "!расшифровка": cmd_transcribe,
+    "!прайс": cmd_prices,
+    "!прогноз": cmd_forecast,
+    "!цитата": cmd_quote,
+    "!курс_крипты": cmd_crypto,
+    "!озвучка": cmd_voiceover,
+    "!картинка": cmd_search_image,
+    "!погода": cmd_weather,
+    "!ии": cmd_ai,
+    "!нейрохам": cmd_ai_ham,
+    "!перевести": cmd_translate,
+    "!скачать": cmd_download_yt,
+    "!трек": cmd_music,
+    "!курс": cmd_currency,
+    "!кот": cmd_cat,
+    "!баланс": cmd_balance,
+    "!алиасы": cmd_aliases,
+    "!рулетка": cmd_roulette,
+    "!дуэль": cmd_duel,
+    "!кино": cmd_movie,
+    "!qr": cmd_qr,
+}
+
+ALIAS_TO_BASE = {}
+for base_cmd, aliases in COMMAND_ALIASES.items():
+    for alias in aliases:
+        ALIAS_TO_BASE[alias] = base_cmd
+
+
 async def process_public_commands(message: types.Message):
     text = message.text.lower().strip()
+    if not text:
+        return False
+
+    command_trigger = text.split()[0]
+
+    base_command = ALIAS_TO_BASE.get(command_trigger)
+
+    if not base_command:
+        if AUTO_REPLY_ENABLED:
+            if not its_me(message.from_user.id) or REPLY_TO_OWNER:
+                if await handle_simple_answers(message):
+                    return True
+
+                if await handle_keywords(message):
+                    return True
+        return False
 
     if PAYMENTS_ENABLED:
         user_id = message.from_user.id
-        base_command = text.split()[0] if text else ""
         cost = COMMAND_COSTS.get(base_command, 0)
+
+        if base_command == "!перевести":
+            reply = message.reply_to_message
+            if reply:
+                is_media = any([reply.voice, reply.video_note, reply.video, reply.audio])
+                is_text = bool(reply.text)
+                if is_text and not is_media:
+                    cost = 1
+            else:
+                cost = 0
 
         if cost > 0 and user_id not in VIP_IDS:
             has_tokens = await tokens_db.has_enough_tokens(user_id, cost)
@@ -265,52 +348,11 @@ async def process_public_commands(message: types.Message):
                 await message.reply(error_msg)
                 return True
 
-        if text == "!баланс":
-            return await cmd_balance(message)
-
-    if text.startswith("!погода"):
-        return await cmd_weather(message)
-
-    if text.startswith("!ии"):
-        return await cmd_ai(message)
-
-    if text.startswith("!нейрохам"):
-        return await cmd_ai_ham(message)
-
-    if text.startswith("!скачать"):
-        await cmd_download_yt(message)
-        return True
-
-    if text.startswith("!музыка") or text.startswith("!трек"):
-        return await cmd_music(message)
-
-    if text.startswith("!курс"):
-        return await cmd_currency(message)
-
-    commands = {
-        "!старт": cmd_start,
-        "!помощь": cmd_help,
-        "!анекдот": cmd_joke,
-        "!мем": cmd_meme,
-        "!о_боте": cmd_about,
-        "!donut": cmd_donut,
-        "!рп": cmd_rp_commands,
-        "!настройки": cmd_nsfw_settings,
-        "!расшифровка": cmd_transcribe,
-        "!перевести": cmd_translate,
-        "!прайс": cmd_prices,
-        "!цены": cmd_prices
-    }
-
-    if text in commands:
-        return await commands[text](message)
-
-    if AUTO_REPLY_ENABLED:
-        if not its_me(message.from_user.id) or REPLY_TO_OWNER:
-            if await handle_simple_answers(message):
-                return True
-
-            if await handle_keywords(message):
-                return True
+    handler = COMMAND_HANDLERS.get(base_command)
+    if handler:
+        result = await handler(message)
+        if result is None:
+            return True
+        return result
 
     return False

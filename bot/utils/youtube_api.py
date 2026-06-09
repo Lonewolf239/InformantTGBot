@@ -11,13 +11,13 @@ import yt_dlp
 from aiogram import types
 from aiogram.types import FSInputFile, InlineKeyboardButton
 from aiogram.exceptions import TelegramAPIError
-from config import YT_DOWNLOAD_DIR, YT_MAX_FILE_SIZE_MB, COOKIES_FILE
-from bot.utils.helpers import create_user_keyboard, format_styled_message
+from config import YT_DOWNLOAD_DIR, YT_MAX_FILE_SIZE_MB, COOKIES_FILE, COMMAND_METADATA
+from bot.utils.helpers import create_user_keyboard, format_styled_message, spend_tokens
 
 logger = logging.getLogger(__name__)
 
-API_ICON = "🎬"
-API_NAME = "Медиа"
+API_ICON = COMMAND_METADATA["!скачать"]["icon"]
+API_NAME = COMMAND_METADATA["!скачать"]["name"]
 
 os.makedirs(YT_DOWNLOAD_DIR, exist_ok=True)
 pending_requests = {}
@@ -249,16 +249,10 @@ async def process_download_task(task_data: dict):
                 except Exception:
                     await message.chat.send_document(document=file, caption=caption)
 
-        from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
-        if PAYMENTS_ENABLED:
-            from bot.utils.tokens_database import tokens_db
-            cost = COMMAND_COSTS.get("!скачать", 0)
-            if cost > 0 and message.from_user.id not in VIP_IDS:
-                await tokens_db.spend_tokens(message.from_user.id, cost)
-
         from bot.utils.database import db
         await db.increment_commands()
         await db.log_command("!скачать", message.from_user.id)
+        await spend_tokens(message, "!скачать")
 
         await message.edit_text(format_styled_message(emoji=API_ICON, title=API_NAME, message=f"✅ <b>{original_title} успешно загружено!</b>"))
 

@@ -6,12 +6,12 @@ import re
 import yt_dlp
 from aiogram import types
 from aiogram.types import FSInputFile, InlineKeyboardButton
-from config import YT_DOWNLOAD_DIR, YT_MAX_FILE_SIZE_MB, COOKIES_FILE
-from bot.utils.helpers import format_styled_message, create_user_keyboard
+from config import YT_DOWNLOAD_DIR, YT_MAX_FILE_SIZE_MB, COOKIES_FILE, COMMAND_METADATA
+from bot.utils.helpers import format_styled_message, create_user_keyboard, spend_tokens
 from bot.utils.database import db
 
-API_ICON = "🎵"
-API_NAME = "Музыка"
+API_ICON = COMMAND_METADATA["!трек"]["icon"]
+API_NAME = COMMAND_METADATA["!трек"]["name"]
 
 logger = logging.getLogger(__name__)
 
@@ -185,15 +185,9 @@ async def cmd_music(message: types.Message):
         reply_markup=create_user_keyboard(inline_keyboard, message.from_user.id)
     )
 
-    from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
-    if PAYMENTS_ENABLED:
-        from bot.utils.tokens_database import tokens_db
-        cost = COMMAND_COSTS.get("!музыка", 0)
-        if cost > 0 and message.from_user.id not in VIP_IDS:
-            await tokens_db.spend_tokens(message.from_user.id, cost)
-
     await db.increment_commands()
     await db.log_command("!музыка", message.from_user.id)
+    await spend_tokens(message, "!музыка")
     return True
 
 

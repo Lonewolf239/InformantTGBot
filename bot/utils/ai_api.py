@@ -9,12 +9,15 @@ from config import (
     AI_HAM_SYSTEM_PROMPT, AI_HAM_TEMPERATURE, AI_HAM_TOP_P, AI_HAM_REPEAT_PENALTY,
     AI_HAM_NUM_CTX, AI_HAM_NUM_PREDICT, AI_HAM_DISCLAIMER
 )
+from config import COMMAND_METADATA
 from bot.utils.database import db
 from bot.utils.ai_queue import get_queue, TaskType, ensure_queue_started
-from bot.utils.helpers import format_styled_message
+from bot.utils.helpers import format_styled_message, spend_tokens
 
-API_ICON = "🧠"
-API_NAME = "ИИ"
+API_ICON = COMMAND_METADATA["!ии"]["icon"]
+API_NAME = COMMAND_METADATA["!ии"]["name"]
+HAM_ICON = COMMAND_METADATA["!нейрохам"]["icon"]
+HAM_NAME = COMMAND_METADATA["!нейрохам"]["name"]
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +152,7 @@ async def cmd_ai(message: types.Message):
         task_future, queue_position = await queue.add_task(
             task_type=TaskType.AI,
             data={
-                "prompt": user_prompt, 
+                "prompt": user_prompt,
                 "system_prompt": AI_SYSTEM_PROMPT,
                 "temperature": AI_TEMPERATURE,
                 "top_p": AI_TOP_P,
@@ -206,15 +209,9 @@ async def cmd_ai(message: types.Message):
     for chunk in chunks[1:]:
         await message.answer(chunk, parse_mode="Markdown")
 
-    from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
-    if PAYMENTS_ENABLED:
-        from bot.utils.tokens_database import tokens_db
-        cost = COMMAND_COSTS.get("!ии", 0)
-        if cost > 0 and message.from_user.id not in VIP_IDS:
-            await tokens_db.spend_tokens(message.from_user.id, cost)
-
     await db.increment_commands()
     await db.log_command("!ии", message.from_user.id)
+    await spend_tokens(message, "!ии")
     return True
 
 
@@ -224,8 +221,8 @@ async def cmd_ai_ham(message: types.Message):
 
     if len(parts) < 2:
         error_no_prompt = format_styled_message(
-            emoji="💢",
-            title="Нейрохам",
+            emoji=HAM_ICON,
+            title=HAM_NAME,
             message="❌ Не указан запрос.\n📝 Использование: <code>!нейрохам [текст]</code>"
         )
         await message.reply(error_no_prompt)
@@ -245,8 +242,8 @@ async def cmd_ai_ham(message: types.Message):
     )
 
     wait_msg_text = format_styled_message(
-        emoji="💢",
-        title="Нейрохам",
+        emoji=HAM_ICON,
+        title=HAM_NAME,
         message="⏳ Анализ запроса...\n📍 Позиция: вычисляется"
     )
     wait_msg = await message.reply(wait_msg_text)
@@ -255,14 +252,14 @@ async def cmd_ai_ham(message: types.Message):
         try:
             if pos == 0:
                 msg_text = format_styled_message(
-                    emoji="💢",
-                    title="Нейрохам",
+                    emoji=HAM_ICON,
+                    title=HAM_NAME,
                     message="🔄 Генерирую ответ...\n⏳ Пожалуйста, подождите"
                 )
             else:
                 msg_text = format_styled_message(
-                    emoji="💢",
-                    title="Нейрохам",
+                    emoji=HAM_ICON,
+                    title=HAM_NAME,
                     message=f"⏳ Запрос в очереди.\n📍 Позиция перед вами: {pos}"
                 )
             await wait_msg.edit_text(msg_text)
@@ -290,8 +287,8 @@ async def cmd_ai_ham(message: types.Message):
     except Exception as e:
         logger.exception("Ошибка при добавлении AI задачи в очередь")
         error_queue = format_styled_message(
-            emoji="💢",
-            title="Нейрохам",
+            emoji=HAM_ICON,
+            title=HAM_NAME,
             message="❌ Не удалось поставить задачу в очередь."
         )
         await wait_msg.edit_text(error_queue)
@@ -305,8 +302,8 @@ async def cmd_ai_ham(message: types.Message):
 
     if not answer:
         error_api = format_styled_message(
-            emoji="💢",
-            title="Нейрохам",
+            emoji=HAM_ICON,
+            title=HAM_NAME,
             message=f"❌ Хамло не отвечает. Проверь, что Ollama запущена и модель <code>{OLLAMA_MODEL}</code> скачана."
         )
         try:
@@ -319,8 +316,8 @@ async def cmd_ai_ham(message: types.Message):
     chunks = split_text(answer)
 
     first_chunk = format_styled_message(
-        emoji="💢",
-        title="Нейрохам",
+        emoji=HAM_ICON,
+        title=HAM_NAME,
         message=f"{chunks[0]}{AI_HAM_DISCLAIMER}",
         html=False
     )
@@ -333,13 +330,7 @@ async def cmd_ai_ham(message: types.Message):
     for chunk in chunks[1:]:
         await message.answer(chunk, parse_mode="Markdown")
 
-    from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
-    if PAYMENTS_ENABLED:
-        from bot.utils.tokens_database import tokens_db
-        cost = COMMAND_COSTS.get("!нейрохам", 0)
-        if cost > 0 and message.from_user.id not in VIP_IDS:
-            await tokens_db.spend_tokens(message.from_user.id, cost)
-
     await db.increment_commands()
     await db.log_command("!нейрохам", message.from_user.id)
+    await spend_tokens(message, "!нейрохам")
     return True

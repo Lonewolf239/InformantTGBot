@@ -23,6 +23,12 @@ from aiogram.types.message import ContentType
 from bot.handlers.payments import process_buy_tokens_callback, process_check_payment_callback
 from bot.webhooks.yookassa_webhook import setup_yookassa_routes
 from bot.utils.music_api import process_music_callback
+from bot.utils.cat_api import more_cat_callback
+from bot.utils.fact_api import more_fact_callback
+from bot.utils.forecast_api import more_forecast_callback
+from bot.utils.quote_api import more_quote_callback
+from bot.utils.crypto_api import more_crypto_callback
+from bot.utils.games_api import accept_duel_callback, cancel_duel_callback
 
 logging.basicConfig(
     level=logging.INFO,
@@ -76,6 +82,20 @@ async def callback_handler(callback_query: types.CallbackQuery):
         await more_joke_callback(callback_query)
     elif data == "more_meme":
         await more_meme_callback(callback_query)
+    elif data and data.startswith("duel_accept:"):
+        await accept_duel_callback(callback_query)
+    elif data and data.startswith("duel_cancel:"):
+        await cancel_duel_callback(callback_query)
+    elif data == "more_cat":
+        await more_cat_callback(callback_query)
+    elif data == "more_fact":
+        await more_fact_callback(callback_query)
+    elif data == "more_forecast":
+        await more_forecast_callback(callback_query)
+    elif data == "more_quote":
+        await more_quote_callback(callback_query)
+    elif data == "more_crypto":
+        await more_crypto_callback(callback_query)
     elif data and data.startswith("fav_meme"):
         await add_favorite_callback(callback_query)
     elif data and data.startswith("nsfw_"):

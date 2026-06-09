@@ -4,13 +4,13 @@ import json
 from urllib.parse import urlparse
 from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from config import MEME_API_KEY, MEME_API_URL, MEME_MAX_AGE_DAYS, MEME_MIN_RATING
+from config import MEME_API_KEY, MEME_API_URL, MEME_MAX_AGE_DAYS, MEME_MIN_RATING, COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, create_user_keyboard
+from bot.utils.helpers import format_styled_message, create_user_keyboard, spend_tokens
 import logging
 
-API_ICON = "🎭"
-API_NAME = "Мем"
+API_ICON = COMMAND_METADATA["!мем"]["icon"]
+API_NAME = COMMAND_METADATA["!мем"]["name"]
 
 logger = logging.getLogger(__name__)
 FAVORITES_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'favorite_memes.json')
@@ -133,16 +133,13 @@ async def send_meme(target, is_callback=False, use_fallback=False):
     try:
         await method(**kwargs)
 
-        from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
-        if PAYMENTS_ENABLED:
-            from bot.utils.tokens_database import tokens_db
-            cost = COMMAND_COSTS.get("!мем", 0)
-            if cost > 0 and message.from_user.id not in VIP_IDS:
-                await tokens_db.spend_tokens(message.from_user.id, cost)
-
         await db.increment_memes()
         await db.increment_commands()
         await db.log_command("!мем", target.from_user.id)
+
+        msg_context = target.message if is_callback else target
+        await spend_tokens(msg_context, "!мем")
+
         return True
     except Exception as e:
         logger.error(f"Ошибка при отправке медиа: {e}")

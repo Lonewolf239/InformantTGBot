@@ -2,11 +2,12 @@ import aiohttp
 import logging
 import re
 from aiogram import types
+from config import COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message
+from bot.utils.helpers import format_styled_message, spend_tokens
 
-API_ICON = "💱"
-API_NAME = "Курс Валют"
+API_ICON = COMMAND_METADATA["!курс"]["icon"]
+API_NAME = COMMAND_METADATA["!курс"]["name"]
 
 logger = logging.getLogger(__name__)
 
@@ -123,13 +124,7 @@ async def cmd_currency(message: types.Message):
         format_styled_message(emoji=API_ICON, title=API_NAME, message=text)
     )
 
-    from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
-    if PAYMENTS_ENABLED:
-        from bot.utils.tokens_database import tokens_db
-        cost = COMMAND_COSTS.get("!курс", 0)
-        if cost > 0 and message.from_user.id not in VIP_IDS:
-            await tokens_db.spend_tokens(message.from_user.id, cost)
-
     await db.increment_commands()
     await db.log_command("!курс", message.from_user.id)
+    await spend_tokens(message, "!курс")
     return True

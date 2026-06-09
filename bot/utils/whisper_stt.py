@@ -1,160 +1,22 @@
 import logging
-import asyncio
-import tempfile
 import os
-from typing import Optional, Tuple, List
 from aiogram import types
 from aiogram.types import FSInputFile
-from config import WHISPER_MODEL, WHISPER_MAX_DURATION_SECONDS, WHISPER_MAX_FILE_SIZE_MB, WHISPER_TIMEOUT
-import whisper
+from config import WHISPER_MAX_DURATION_SECONDS, WHISPER_MAX_FILE_SIZE_MB, PAYMENTS_ENABLED, COMMAND_COSTS, VIP_IDS, COMMAND_METADATA
 from bot.utils.database import db
 from bot.utils.ai_queue import get_queue, TaskType, ensure_queue_started
-from bot.utils.helpers import format_styled_message
-import subprocess
-from deep_translator import GoogleTranslator
-import edge_tts
+from bot.utils.helpers import format_styled_message, spend_tokens
+from bot.utils.text_utils import split_text_to_chunks
+from bot.utils.translation_core import resolve_lang_code, translate_text, text_to_speech
+from bot.utils.media_core import download_media_file, get_duration, adjust_audio_duration, replace_audio_in_video
+from bot.utils.whisper_core import transcribe_audio
 
 logger = logging.getLogger(__name__)
 
-API_ICON = "🎙️"
-API_NAME = "Расшифровка"
-
-TRANS_ICON = "🌐"
-TRANS_NAME = "Перевод и Озвучка"
-
-_model_instance = None
-_model_lock = asyncio.Lock()
-
-
-def split_text_to_chunks(text: str, max_size: int = 4000) -> List[str]:
-    chunks = []
-    while len(text) > max_size:
-        split_pos = text.rfind("\n", 0, max_size)
-        if split_pos == -1:
-            split_pos = text.rfind(" ", 0, max_size)
-        if split_pos == -1:
-            split_pos = max_size
-
-        chunks.append(text[:split_pos].strip())
-        text = text[split_pos:].strip()
-
-    if text:
-        chunks.append(text)
-    return chunks
-
-
-async def get_whisper_model():
-    global _model_instance
-
-    async with _model_lock:
-        if _model_instance is None:
-            logger.info(f"🔄 Загрузка модели Whisper: {WHISPER_MODEL}...")
-            loop = asyncio.get_event_loop()
-            _model_instance = await loop.run_in_executor(
-                None,
-                lambda: whisper.load_model(WHISPER_MODEL)
-            )
-            logger.info(f"✅ Модель Whisper ({WHISPER_MODEL}) загружена!")
-
-        return _model_instance
-
-
-async def transcribe_audio(file_path: str, language: str = "auto", task: str = "transcribe") -> Optional[str]:
-    try:
-        model = await get_whisper_model()
-
-        options = {
-            "language": language if language != "auto" else None,
-            "task": task,
-            "fp16": False,
-            "verbose": False,
-        }
-
-        loop = asyncio.get_event_loop()
-
-        result = await asyncio.wait_for(
-            loop.run_in_executor(None, lambda: model.transcribe(file_path, **options)),
-            timeout=WHISPER_TIMEOUT
-        )
-
-        transcribed_text = result.get("text", "").strip()
-
-        if transcribed_text:
-            logger.info(f"✅ Распознано {len(transcribed_text)} символов")
-            return transcribed_text
-        else:
-            logger.warning("⚠️ Распознавание не дало результатов")
-            return None
-
-    except asyncio.TimeoutError:
-        logger.error("❌ Whisper завис и был остановлен по таймауту")
-        return None
-    except Exception as e:
-        logger.error(f"❌ Ошибка при распознавании речи: {e}", exc_info=True)
-        return None
-
-
-async def download_media_file(message: types.Message, bot) -> Tuple[Optional[str], Optional[str]]:
-    file_id = None
-    media_type = None
-    extension = None
-    duration = None
-
-    if message.voice:
-        file_id = message.voice.file_id
-        media_type = "voice"
-        extension = ".ogg"
-        duration = message.voice.duration
-
-    elif message.video_note:
-        file_id = message.video_note.file_id
-        media_type = "video_note"
-        extension = ".mp4"
-        duration = message.video_note.duration
-
-    elif message.video:
-        file_id = message.video.file_id
-        media_type = "video"
-        extension = ".mp4"
-        duration = message.video.duration
-
-    elif message.audio:
-        file_id = message.audio.file_id
-        media_type = "audio"
-        file_name = message.audio.file_name or "audio.mp3"
-        _, extension = os.path.splitext(file_name)
-        if not extension:
-            extension = ".mp3"
-        duration = message.audio.duration
-
-    else:
-        return None, None
-
-    if duration and duration > WHISPER_MAX_DURATION_SECONDS:
-        logger.warning(f"⚠️ Слишком длинное сообщение: {duration} сек (макс {WHISPER_MAX_DURATION_SECONDS})")
-        return None, None
-
-    media_obj = message.voice or message.video_note or message.video or message.audio
-    file_size = getattr(media_obj, 'file_size', 0)
-
-    if file_size and file_size > WHISPER_MAX_FILE_SIZE_MB * 1024 * 1024:
-        logger.warning(f"⚠️ Слишком большой файл: {file_size // (1024*1024)} MB")
-        return None, None
-
-    try:
-        file = await bot.get_file(file_id)
-        file_bytes = await bot.download_file(file.file_path)
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix=extension) as tmp_file:
-            tmp_file.write(file_bytes.getvalue())
-            tmp_path = tmp_file.name
-
-        logger.info(f"📥 Скачан файл: {tmp_path} ({file_size} bytes)")
-        return tmp_path, media_type
-
-    except Exception as e:
-        logger.error(f"❌ Ошибка скачивания файла: {e}")
-        return None, None
+API_ICON = COMMAND_METADATA["!расшифровка"]["icon"]
+API_NAME = COMMAND_METADATA["!расшифровка"]["name"]
+TRANS_ICON = COMMAND_METADATA["!перевести"]["icon"]
+TRANS_NAME = COMMAND_METADATA["!перевести"]["name"]
 
 
 async def cmd_transcribe(message: types.Message):
@@ -313,15 +175,9 @@ async def cmd_transcribe(message: types.Message):
         for i, chunk in enumerate(text_chunks[1:], start=2):
             await message.reply(f"<b>📝 ТЕКСТ (Часть {i}/{len(text_chunks)}):</b>\n<code>{chunk}</code>")
 
-        from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
-        if PAYMENTS_ENABLED:
-            from bot.utils.tokens_database import tokens_db
-            cost = COMMAND_COSTS.get("!расшифровка", 0)
-            if cost > 0 and message.from_user.id not in VIP_IDS:
-                await tokens_db.spend_tokens(message.from_user.id, cost)
-
         await db.increment_commands()
         await db.log_command("!расшифровка", message.from_user.id)
+        await spend_tokens(message, "!расшифровка")
         return True
 
     except Exception as e:
@@ -348,120 +204,6 @@ async def cmd_transcribe(message: types.Message):
         return True
 
 
-async def translate_text(text: str, target_lang: str = "ru") -> str:
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None, 
-        lambda: GoogleTranslator(source='auto', target=target_lang).translate(text)
-    )
-
-
-async def text_to_speech(text: str, output_path: str) -> bool:
-    if not text or not text.strip():
-        logger.warning("⚠️ Попытка озвучить пустой текст")
-        return False
-
-    try:
-        clean_text = text.strip()
-        communicate = edge_tts.Communicate(clean_text, "ru-RU-DmitryNeural")
-        await communicate.save(output_path)
-        return True
-    except edge_tts.exceptions.NoAudioReceived:
-        logger.error("❌ edge_tts не вернул аудио (NoAudioReceived). Возможно, текст нечитаем или API недоступно.")
-        return False
-    except Exception as e:
-        logger.error(f"❌ Ошибка генерации озвучки: {e}")
-        return False
-
-
-async def get_duration(file_path: str) -> float:
-    try:
-        cmd = [
-            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-            '-of', 'default=noprint_wrappers=1:nokey=1', file_path
-        ]
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, _ = await process.communicate()
-        return float(stdout.decode().strip())
-    except Exception as e:
-        logger.error(f"❌ Ошибка получения длительности файла {file_path}: {e}")
-        return 0.0
-
-
-async def adjust_audio_duration(audio_path: str, target_duration: float, output_path: str) -> bool:
-    current_duration = await get_duration(audio_path)
-    if current_duration == 0 or target_duration == 0:
-        return False
-
-    speed_factor = current_duration / target_duration
-
-    if abs(speed_factor - 1.0) < 0.03:
-        return False
-
-    filters = []
-    remaining_factor = speed_factor
-
-    while remaining_factor > 2.0:
-        filters.append("atempo=2.0")
-        remaining_factor /= 2.0
-    while remaining_factor < 0.5:
-        filters.append("atempo=0.5")
-        remaining_factor /= 0.5
-
-    if remaining_factor != 1.0:
-        filters.append(f"atempo={remaining_factor:.4f}")
-
-    filter_str = ",".join(filters)
-
-    try:
-        cmd = [
-            'ffmpeg', '-y',
-            '-i', audio_path,
-            '-filter:a', filter_str,
-            output_path
-        ]
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        await process.communicate()
-        return process.returncode == 0
-    except Exception as e:
-        logger.error(f"❌ Ошибка при изменении скорости аудио: {e}")
-        return False
-
-
-async def replace_audio_in_video(video_path: str, audio_path: str, output_path: str) -> bool:
-    try:
-        cmd = [
-            'ffmpeg', '-y',
-            '-i', video_path,
-            '-i', audio_path,
-            '-c:v', 'copy',
-            '-c:a', 'aac',
-            '-map', '0:v:0',
-            '-map', '1:a:0',
-            '-shortest',
-            output_path
-        ]
-
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        await process.communicate()
-        return process.returncode == 0
-    except Exception as e:
-        logger.error(f"❌ Ошибка FFmpeg: {e}")
-        return False
-
-
 async def cmd_translate(message: types.Message):
     ensure_queue_started()
 
@@ -476,12 +218,45 @@ async def cmd_translate(message: types.Message):
         return True
 
     reply_msg = message.reply_to_message
-    if not any([reply_msg.voice, reply_msg.video_note, reply_msg.video, reply_msg.audio]):
+    has_media = any([reply_msg.voice, reply_msg.video_note, reply_msg.video, reply_msg.audio])
+    has_text = bool(reply_msg.text)
+
+    args = message.text.split(maxsplit=1)
+    target_lang = resolve_lang_code(args[1].strip().lower() if len(args) > 1 else "ru")
+
+    if has_text and not has_media:
+        status_msg = await message.reply(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="⏳ <b>Перевожу текст...</b>"))
+        try:
+            translated_text = await translate_text(reply_msg.text, target_lang=target_lang)
+            await status_msg.edit_text(
+                format_styled_message(
+                    emoji=TRANS_ICON,
+                    title=TRANS_NAME,
+                    message=f"<code>{translated_text}</code>"
+                )
+            )
+
+            from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
+            if PAYMENTS_ENABLED:
+                from bot.utils.tokens_database import tokens_db
+                cost = 1
+                if cost > 0 and message.from_user.id not in VIP_IDS:
+                    await tokens_db.spend_tokens(message.from_user.id, cost)
+
+            await db.increment_commands()
+            await db.log_command("!перевести", message.from_user.id)
+            return True
+        except Exception as e:
+            logger.error(f"❌ Ошибка перевода текста: {e}")
+            await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Ошибка перевода.</b>"))
+            return True
+
+    if not has_media:
         await message.reply(
             format_styled_message(
                 emoji=TRANS_ICON,
                 title=TRANS_NAME,
-                message="❌ <b>Команда работает только для голосовых, аудио и видео!</b>"
+                message="❌ <b>Команда работает только для текста, голосовых, аудио и видео!</b>"
             )
         )
         return True
@@ -553,12 +328,12 @@ async def cmd_translate(message: types.Message):
             return True
 
         await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="⏳ <b>Финальный перевод на русский...</b>"))
-        translated_text = await translate_text(original_text, target_lang="ru")
+        translated_text = await translate_text(original_text, target_lang=target_lang)
 
         await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="⏳ <b>Генерирую новую озвучку...</b>"))
         tts_path = file_path + "_tts.mp3"
 
-        if not await text_to_speech(translated_text, tts_path):
+        if not await text_to_speech(translated_text, tts_path, lang_code=target_lang):
             await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Ошибка: Не удалось сгенерировать озвучку.</b>"))
             return True
 

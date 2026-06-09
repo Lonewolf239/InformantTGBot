@@ -1,4 +1,5 @@
 from aiogram import types
+from aiogram.exceptions import TelegramNetworkError
 from bot.handlers.owner import process_owner_commands
 from bot.handlers.public import process_public_commands
 from bot.handlers.rp import process_rp_command
@@ -56,6 +57,9 @@ async def handle_all_messages(message: types.Message):
 
         if not its_me(user_id):
             await check_auto_reply(message)
+
+    except TelegramNetworkError as e:
+        logger.warning(f"Сетевая ошибка Telegram API (таймаут): {e}")
 
     except Exception as e:
         logger.error(f"Ошибка в handle_all_messages: {e}", exc_info=True)
