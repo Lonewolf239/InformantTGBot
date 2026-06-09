@@ -29,6 +29,7 @@ async def get_random_fact():
                         return f"<b>{title}</b>\n\n{extract}"
                 else:
                     logger.error(f"Ошибка API Википедии: HTTP {response.status}")
+
         except Exception as e:
             logger.error(f"Ошибка API Википедии: {e}")
             return None
@@ -50,7 +51,7 @@ async def cmd_fact(message: types.Message):
             message="Не удалось загрузить факт. Попробуй позже!"
         )
         await message.reply(error_msg)
-        return True
+        return
 
     fact_msg = format_styled_message(
         emoji=API_ICON,
@@ -63,7 +64,6 @@ async def cmd_fact(message: types.Message):
     await db.increment_commands()
     await db.log_command("!факт", message.from_user.id)
     await spend_tokens(message, "!факт")
-    return True
 
 
 async def more_fact_callback(callback_query: types.CallbackQuery):

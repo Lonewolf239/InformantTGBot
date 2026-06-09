@@ -26,7 +26,7 @@ async def cmd_qr(message: types.Message):
             emoji=API_ICON, title=API_NAME, 
             message="❌ <b>Не указан текст или ссылка.</b>\n📝 Пример: <code>!qr https://google.com</code> или ответом на сообщение."
         ))
-        return True
+        return
 
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=450x450&data={quote(text_data)}"
     caption = format_styled_message(emoji=API_ICON, title=API_NAME, message=f"Готово! Твой QR-код для:\n<code>{text_data}</code>")
@@ -40,7 +40,6 @@ async def cmd_qr(message: types.Message):
         await db.increment_commands()
         await db.log_command("!qr", message.from_user.id)
         await spend_tokens(message, "!qr")
-        return True
+
     except Exception as e:
         logger.error(f"Критическая ошибка генерации QR: {e}")
-        return False

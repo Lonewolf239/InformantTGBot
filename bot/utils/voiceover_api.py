@@ -27,7 +27,7 @@ async def cmd_voiceover(message: types.Message):
             )
         )
         await message.reply(usage_msg)
-        return True
+        return
 
     reply_msg = message.reply_to_message
 
@@ -40,7 +40,7 @@ async def cmd_voiceover(message: types.Message):
             message="❌ <b>В сообщении нет текста для озвучки!</b>"
         )
         await message.reply(error_msg)
-        return True
+        return
 
     status_msg = await message.reply(
         format_styled_message(
@@ -70,7 +70,7 @@ async def cmd_voiceover(message: types.Message):
                     message=f"❌ <b>Не удалось сгенерировать озвучку.</b> Возможно, язык ({detected_lang}) не поддерживается."
                 )
             )
-            return True
+            return
 
         voice_file = FSInputFile(output_path)
         caption_text = target_text[:50] + "..." if len(target_text) > 50 else target_text
@@ -90,7 +90,6 @@ async def cmd_voiceover(message: types.Message):
         await db.increment_commands()
         await db.log_command("!озвучка", message.from_user.id)
         await spend_tokens(message, "!озвучка")
-        return True
 
     except Exception as e:
         logger.error(f"❌ Ошибка в cmd_voiceover: {e}", exc_info=True)
@@ -101,7 +100,6 @@ async def cmd_voiceover(message: types.Message):
                 message="❌ <b>Произошла внутренняя ошибка при озвучке.</b>"
             )
         )
-        return True
 
     finally:
         if output_path and os.path.exists(output_path):

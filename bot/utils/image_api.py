@@ -50,7 +50,7 @@ async def cmd_render(message: types.Message):
             title=API_NAME,
             message="❌ <b>Не указан промпт для генерации.</b>\n📝 Пример: <code>!рис неоновый самурай, киберпанк, 8k</code> или ответом на текст."
         ))
-        return True
+        return
 
     wait_msg = await message.reply(format_styled_message(
         emoji="⏳", title=API_NAME, message="Рисую шедевр (модель <b>FLUX</b>)... Это займет около 10-20 секунд."
@@ -62,7 +62,7 @@ async def cmd_render(message: types.Message):
         await wait_msg.edit_text(format_styled_message(
             emoji="❌", title=API_NAME, message="Не удалось сгенерировать картинку. Сервер временно перегружен."
         ))
-        return True
+        return
 
     try:
         photo_file = BufferedInputFile(image_bytes, filename="flux_art.jpg")
@@ -81,10 +81,9 @@ async def cmd_render(message: types.Message):
         await db.increment_commands()
         await db.log_command("!рис", message.from_user.id)
         await spend_tokens(message, "!рис")
-        return True
+
     except Exception as e:
         logger.error(f"Ошибка при отправке готового фото: {e}")
         await wait_msg.edit_text(format_styled_message(
             emoji="❌", title=API_NAME, message="Ошибка отправки готового файла. Попробуйте еще раз."
         ))
-        return False

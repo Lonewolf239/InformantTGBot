@@ -44,7 +44,7 @@ async def send_cat(target, is_callback=False):
             await target.message.answer(error_msg)
         else:
             await target.reply(error_msg)
-        return False
+        return
 
     caption = format_styled_message(
         emoji=API_ICON,
@@ -64,15 +64,13 @@ async def send_cat(target, is_callback=False):
         await db.increment_commands()
         await db.log_command("!кот", target.from_user.id)
         await spend_tokens(message_obj, "!кот")
-        return True
+
     except Exception as e:
         logger.error(f"Ошибка при отправке котика: {e}")
-        return False
 
 
 async def cmd_cat(message: types.Message):
     await send_cat(message)
-    return True
 
 
 async def more_cat_callback(callback_query: types.CallbackQuery):

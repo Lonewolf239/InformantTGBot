@@ -25,7 +25,7 @@ async def cmd_roulette(message: types.Message):
             title=API_NAME,
             message="📝 Использование: <code>!рулетка [ставка]</code> или <code>!рулетка всё</code>"
         ))
-        return True
+        return
 
     balance = await tokens_db.get_balance(user_id)
     arg = parts[1].lower()
@@ -37,15 +37,15 @@ async def cmd_roulette(message: types.Message):
             amount = int(arg)
         except ValueError:
             await message.reply(format_styled_message(emoji="❌", title=API_NAME, message="Ставка должна быть целым числом."))
-            return True
+            return
 
     if amount <= 0:
         await message.reply(format_styled_message(emoji="❌", title=API_NAME, message="Ставка должна быть больше 0 токенов."))
-        return True
+        return
 
     if balance < amount:
         await message.reply(format_styled_message(emoji="⛽", title=API_NAME, message=f"Недостаточно токенов. Твой баланс: <b>{balance}</b>"))
-        return True
+        return
 
     win = random.choice([True, False])
 
@@ -61,7 +61,6 @@ async def cmd_roulette(message: types.Message):
     await message.reply(format_styled_message(emoji=API_ICON, title=API_NAME, message=msg))
     await db.increment_commands()
     await db.log_command("!рулетка", user_id)
-    return True
 
 
 async def cmd_duel(message: types.Message):
@@ -69,12 +68,12 @@ async def cmd_duel(message: types.Message):
 
     if not message.reply_to_message or message.reply_to_message.from_user.is_bot:
         await message.reply(format_styled_message(emoji="⚔️", title=DUEL_NAME, message="❌ Чтобы бросить вызов, <b>ответь командой на сообщение соперника</b>!"))
-        return True
+        return
 
     target_id = message.reply_to_message.from_user.id
     if target_id == user_id:
         await message.reply(format_styled_message(emoji="⚔️", title=DUEL_NAME, message="❌ Нельзя вызвать на дуэль самого себя."))
-        return True
+        return
 
     parts = message.text.split()
     try:
@@ -90,10 +89,10 @@ async def cmd_duel(message: types.Message):
 
     if bal_a < amount:
         await message.reply(format_styled_message(emoji="⛽", title=DUEL_NAME, message=f"У тебя не хватает токенов! Нужно: {amount}, твой баланс: {bal_a}"))
-        return True
+        return
     if bal_b < amount:
         await message.reply(format_styled_message(emoji="⛽", title=DUEL_NAME, message=f"У твоего соперника мало токенов для такой ставки (баланс: {bal_b})."))
-        return True
+        return
 
     keyboard = create_user_keyboard([
         [InlineKeyboardButton(text="⚔️ Принять вызов!", callback_data=f"duel_accept:{user_id}:{amount}")]
@@ -114,7 +113,6 @@ async def cmd_duel(message: types.Message):
     await message.reply(challenge_text, reply_markup=keyboard)
     await db.increment_commands()
     await db.log_command("!дуэль", user_id)
-    return True
 
 
 async def accept_duel_callback(callback_query: types.CallbackQuery):

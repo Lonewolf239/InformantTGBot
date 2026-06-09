@@ -101,7 +101,7 @@ async def send_meme(target, is_callback=False, use_fallback=False):
             )
             if is_callback: await target.message.answer(error_text)
             else: await target.reply(error_text)
-            return False
+            return
 
     url = meme_data["url"]
     description = meme_data.get("description", "Без описания")
@@ -140,10 +140,8 @@ async def send_meme(target, is_callback=False, use_fallback=False):
         msg_context = target.message if is_callback else target
         await spend_tokens(msg_context, "!мем")
 
-        return True
     except Exception as e:
         logger.error(f"Ошибка при отправке медиа: {e}")
-        return False
 
 
 async def cmd_meme(message: types.Message):
@@ -157,7 +155,6 @@ async def cmd_meme(message: types.Message):
             message="API недоступен и избранное пусто.\nПопробуй позже!"
         )
         await message.reply(error_msg)
-    return True
 
 
 async def more_meme_callback(callback_query: types.CallbackQuery):

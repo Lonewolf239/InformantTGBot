@@ -97,7 +97,7 @@ async def send_crypto(target, is_callback=False):
             await target.message.answer(error_msg)
         else:
             await target.reply(error_msg)
-        return False
+        return
 
     text = "\n".join(rates_lines)
 
@@ -123,10 +123,8 @@ async def send_crypto(target, is_callback=False):
             await db.log_command("!курс_крипты", user_id)
             await spend_tokens(message_obj, "!курс_крипты")
 
-        return True
     except Exception as e:
         logger.error(f"Ошибка отправки крипты: {e}")
-        return False
 
 
 async def cmd_crypto(message: types.Message):

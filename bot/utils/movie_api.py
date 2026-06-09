@@ -39,7 +39,7 @@ async def cmd_movie(message: types.Message):
             emoji=API_ICON, title=API_NAME,
             message="❌ Напиши название фильма.\n📝 Пример: <code>!кино Бойцовский клуб</code>"
         ))
-        return True
+        return
 
     query = parts[1].strip()
     wait_msg = await message.reply(format_styled_message(emoji="⏳", title=API_NAME, message="Ищу фильм в базе Кинопоиска..."))
@@ -47,7 +47,7 @@ async def cmd_movie(message: types.Message):
     movie = await search_movie(query)
     if not movie:
         await wait_msg.edit_text(format_styled_message(emoji="❌", title=API_NAME, message=f"Фильм «{query}» не найден."))
-        return True
+        return
 
     title = movie.get("nameRu") or movie.get("nameEn") or "Без названия"
     year = movie.get("year", "—")
@@ -82,7 +82,6 @@ async def cmd_movie(message: types.Message):
         await db.increment_commands()
         await db.log_command("!кино", message.from_user.id)
         await spend_tokens(message, "!кино")
-        return True
+
     except Exception as e:
         logger.error(f"Ошибка отправки сообщения кино: {e}")
-        return False

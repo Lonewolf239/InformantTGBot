@@ -103,7 +103,7 @@ async def cmd_weather(message: types.Message):
             message="❌ Не указан город!\n📝 Использование: <code>!погода [город]</code>"
         )
         await message.reply(error_no_city)
-        return True
+        return
 
     city_name = args[1].strip()
     try: await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
@@ -132,7 +132,7 @@ async def cmd_weather(message: types.Message):
             )
             if searching_msg: await searching_msg.edit_text(reply)
             else: await message.reply(reply)
-            return True
+            return
 
         weather_data = await asyncio.wait_for(get_weather_by_coords(location["lat"], location["lon"]), timeout=15.0)
         if not weather_data:
@@ -143,7 +143,7 @@ async def cmd_weather(message: types.Message):
             )
             if searching_msg: await searching_msg.edit_text(reply)
             else: await message.reply(reply)
-            return True
+            return
 
         weather_text = format_weather_message(weather_data, location["name"], location["country"])
         if searching_msg: await searching_msg.edit_text(weather_text)
@@ -152,7 +152,6 @@ async def cmd_weather(message: types.Message):
         await db.increment_commands()
         await db.log_command("!погода", message.from_user.id)
         await spend_tokens(message, "!погода")
-        return True
 
     except Exception:
         error_msg = format_styled_message(
@@ -162,4 +161,3 @@ async def cmd_weather(message: types.Message):
         )
         if searching_msg: await searching_msg.edit_text(error_msg)
         else: await message.reply(error_msg)
-        return True

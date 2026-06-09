@@ -136,7 +136,7 @@ async def cmd_music(message: types.Message):
             message="❌ <b>Не указано название.</b>\n📝 Пример: <code>!трек Bring Me The Horizon</code>"
         )
         await message.reply(error_msg)
-        return True
+        return
 
     query = args[1].strip()
     status_msg = await message.reply(
@@ -150,7 +150,7 @@ async def cmd_music(message: types.Message):
         await status_msg.edit_text(
             format_styled_message(emoji="❌", title=API_NAME, message="По вашему запросу ничего не найдено.")
         )
-        return True
+        return
 
     request_id = uuid.uuid4().hex[:8]
     music_search_cache[request_id] = {}
@@ -188,7 +188,6 @@ async def cmd_music(message: types.Message):
     await db.increment_commands()
     await db.log_command("!музыка", message.from_user.id)
     await spend_tokens(message, "!музыка")
-    return True
 
 
 async def process_music_callback(callback: types.CallbackQuery):

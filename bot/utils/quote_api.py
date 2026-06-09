@@ -74,10 +74,9 @@ async def send_quote(target, is_callback=False):
         await db.increment_commands()
         await db.log_command("!цитата", user_id)
         await spend_tokens(message_obj, "!цитата")
-        return True
+
     except Exception as e:
         logger.error(f"Ошибка отправки цитаты: {e}")
-        return False
 
 
 async def cmd_quote(message: types.Message):

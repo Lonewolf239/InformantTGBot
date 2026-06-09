@@ -101,7 +101,7 @@ async def cmd_search_image(message: types.Message):
             title=API_NAME,
             message="❌ <b>Не указан запрос для поиска.</b>\n📝 Пример: <code>!картинка чешское пиво</code>"
         ))
-        return True
+        return
 
     wait_msg = await message.reply(format_styled_message(
         emoji="⏳", title=API_NAME, message=f"Ищу изображения по запросу: «<code>{query}</code>»..."
@@ -113,7 +113,7 @@ async def cmd_search_image(message: types.Message):
         await wait_msg.edit_text(format_styled_message(
             emoji="❌", title=API_NAME, message="Ничего не найдено по вашему запросу. Попробуйте изменить формулировку."
         ))
-        return True
+        return
 
     downloaded_images = []
     download_headers = {
@@ -139,7 +139,7 @@ async def cmd_search_image(message: types.Message):
         await wait_msg.edit_text(format_styled_message(
             emoji="❌", title=API_NAME, message="Не удалось загрузить найденные изображения. Попробуйте другой запрос."
         ))
-        return True
+        return
 
     try:
         caption = format_styled_message(
@@ -169,11 +169,9 @@ async def cmd_search_image(message: types.Message):
         await db.increment_commands()
         await db.log_command("!картинка", message.from_user.id)
         await spend_tokens(message, "!картинка")
-        return True
 
     except Exception as e:
         logger.error(f"Ошибка отправки медиа-альбома или редактирования статуса ({type(e).__name__}): {e}")
         await wait_msg.edit_text(format_styled_message(
             emoji="❌", title=API_NAME, message="Ошибка отрисовки изображений. Попробуйте еще раз."
         ))
-        return False

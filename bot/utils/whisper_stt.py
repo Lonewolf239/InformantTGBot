@@ -41,7 +41,7 @@ async def cmd_transcribe(message: types.Message):
             )
         )
         await message.reply(usage_msg)
-        return True
+        return
 
     reply_msg = message.reply_to_message
 
@@ -65,7 +65,7 @@ async def cmd_transcribe(message: types.Message):
             )
         )
         await message.reply(error_type)
-        return True
+        return
 
     status_msg = await message.reply(
         format_styled_message(
@@ -104,7 +104,7 @@ async def cmd_transcribe(message: types.Message):
                     )
                 )
             )
-            return True
+            return
 
         queue = get_queue()
 
@@ -161,7 +161,7 @@ async def cmd_transcribe(message: types.Message):
                     )
                 )
             )
-            return True
+            return
 
         text_chunks = split_text_to_chunks(transcribed_text, max_size=3700)
 
@@ -178,7 +178,6 @@ async def cmd_transcribe(message: types.Message):
         await db.increment_commands()
         await db.log_command("!расшифровка", message.from_user.id)
         await spend_tokens(message, "!расшифровка")
-        return True
 
     except Exception as e:
         logger.error(f"❌ Критическая ошибка в cmd_transcribe: {e}", exc_info=True)
@@ -201,7 +200,6 @@ async def cmd_transcribe(message: types.Message):
                 )
             )
         )
-        return True
 
 
 async def cmd_translate(message: types.Message):
@@ -215,7 +213,7 @@ async def cmd_translate(message: types.Message):
                 message="❌ <b>Ошибка использования!</b>\n📝 Ответьте командой <code>!перевести</code> на иностранное аудио, голосовое или видео."
             )
         )
-        return True
+        return
 
     reply_msg = message.reply_to_message
     has_media = any([reply_msg.voice, reply_msg.video_note, reply_msg.video, reply_msg.audio])
@@ -245,11 +243,11 @@ async def cmd_translate(message: types.Message):
 
             await db.increment_commands()
             await db.log_command("!перевести", message.from_user.id)
-            return True
+            return
         except Exception as e:
             logger.error(f"❌ Ошибка перевода текста: {e}")
             await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Ошибка перевода.</b>"))
-            return True
+            return
 
     if not has_media:
         await message.reply(
@@ -259,7 +257,7 @@ async def cmd_translate(message: types.Message):
                 message="❌ <b>Команда работает только для текста, голосовых, аудио и видео!</b>"
             )
         )
-        return True
+        return
 
     status_msg = await message.reply(
         format_styled_message(
@@ -287,7 +285,7 @@ async def cmd_translate(message: types.Message):
                     )
                 )
             )
-            return True
+            return
 
         queue = get_queue()
 
@@ -325,7 +323,7 @@ async def cmd_translate(message: types.Message):
 
         if not original_text:
             await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Не удалось распознать текст в медиа.</b>"))
-            return True
+            return
 
         await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="⏳ <b>Финальный перевод на русский...</b>"))
         translated_text = await translate_text(original_text, target_lang=target_lang)
@@ -335,7 +333,7 @@ async def cmd_translate(message: types.Message):
 
         if not await text_to_speech(translated_text, tts_path, lang_code=target_lang):
             await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Ошибка: Не удалось сгенерировать озвучку.</b>"))
-            return True
+            return
 
         original_duration = await get_duration(file_path)
         if original_duration > 0:
@@ -397,7 +395,7 @@ async def cmd_translate(message: types.Message):
                     media_sent_msg = await message.reply_video(video_file, caption=main_caption)
             else:
                 await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Ошибка при сборке видео-файла.</b>"))
-                return True
+                return
 
         if additional_chunks:
             for i, chunk in enumerate(additional_chunks, start=1):
@@ -414,12 +412,10 @@ async def cmd_translate(message: types.Message):
 
         await db.increment_commands()
         await db.log_command("!перевести", message.from_user.id)
-        return True
 
     except Exception as e:
         logger.error(f"❌ Критическая ошибка в cmd_translate: {e}", exc_info=True)
         await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Произошла внутренняя ошибка сервера.</b>"))
-        return True
 
     finally:
         for path in [file_path, tts_path, output_path]:

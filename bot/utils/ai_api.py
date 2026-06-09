@@ -111,7 +111,7 @@ async def cmd_ai(message: types.Message):
             message="❌ Не указан запрос.\n📝 Использование: <code>!ии [текст]</code>"
         )
         await message.reply(error_no_prompt)
-        return True
+        return
 
     user_prompt = parts[1].strip()
     if message.reply_to_message and message.reply_to_message.text:
@@ -172,7 +172,7 @@ async def cmd_ai(message: types.Message):
             message="❌ Не удалось поставить задачу в очередь."
         )
         await wait_msg.edit_text(error_queue)
-        return True
+        return
 
     try:
         answer = await task_future
@@ -190,7 +190,7 @@ async def cmd_ai(message: types.Message):
             await wait_msg.edit_text(error_api)
         except Exception:
             await message.reply(error_api)
-        return True
+        return
 
     chunks = split_text(answer)
 
@@ -212,7 +212,6 @@ async def cmd_ai(message: types.Message):
     await db.increment_commands()
     await db.log_command("!ии", message.from_user.id)
     await spend_tokens(message, "!ии")
-    return True
 
 
 async def cmd_ai_ham(message: types.Message):
@@ -226,7 +225,7 @@ async def cmd_ai_ham(message: types.Message):
             message="❌ Не указан запрос.\n📝 Использование: <code>!нейрохам [текст]</code>"
         )
         await message.reply(error_no_prompt)
-        return True
+        return
 
     raw_prompt = parts[1].strip()
     if message.reply_to_message and message.reply_to_message.text:
@@ -292,7 +291,7 @@ async def cmd_ai_ham(message: types.Message):
             message="❌ Не удалось поставить задачу в очередь."
         )
         await wait_msg.edit_text(error_queue)
-        return True
+        return
 
     try:
         answer = await task_future
@@ -310,7 +309,7 @@ async def cmd_ai_ham(message: types.Message):
             await wait_msg.edit_text(error_api)
         except Exception:
             await message.reply(error_api)
-        return True
+        return
 
     answer = answer.strip().strip('"').strip("'").strip("«").strip("»")
     chunks = split_text(answer)
@@ -333,4 +332,3 @@ async def cmd_ai_ham(message: types.Message):
     await db.increment_commands()
     await db.log_command("!нейрохам", message.from_user.id)
     await spend_tokens(message, "!нейрохам")
-    return True

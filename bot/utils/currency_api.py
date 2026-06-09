@@ -82,7 +82,7 @@ async def cmd_currency(message: types.Message):
             message="❌ <b>Не указан запрос.</b>\n📝 Пример: <code>!курс 100 баксов в рубли</code>\nИли просто: <code>!курс 500 тенге</code>"
         )
         await message.reply(error_msg)
-        return True
+        return
 
     amount, from_curr, to_curr = parse_currency_input(args[1])
 
@@ -93,7 +93,7 @@ async def cmd_currency(message: types.Message):
             message="❌ <b>Не удалось распознать валюты.</b>\nПоддерживаются: $, €, ₽, ₸, ₴, £, ¥ и их текстовые названия."
         )
         await message.reply(error_msg)
-        return True
+        return
 
     status_msg = await message.reply(
         format_styled_message(emoji="⏳", title=API_NAME, message="Запрашиваю свежий курс...")
@@ -105,7 +105,7 @@ async def cmd_currency(message: types.Message):
         await status_msg.edit_text(
             format_styled_message(emoji="❌", title=API_NAME, message="Ошибка получения курса с сервера.")
         )
-        return True
+        return
 
     rate = data["rates"][to_curr]
     result = amount * rate
@@ -127,4 +127,3 @@ async def cmd_currency(message: types.Message):
     await db.increment_commands()
     await db.log_command("!курс", message.from_user.id)
     await spend_tokens(message, "!курс")
-    return True

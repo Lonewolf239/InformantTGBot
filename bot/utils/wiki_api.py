@@ -63,7 +63,7 @@ async def cmd_wiki(message: types.Message):
             message="❌ <b>Не указан запрос.</b>\n📝 Использование: <code>!вики [запрос]</code> или ответом на сообщение."
         )
         await message.reply(error_msg)
-        return True
+        return
 
     wait_msg = await message.reply(
         format_styled_message(emoji="⏳", title=API_NAME, message="Ищу информацию...")
@@ -75,7 +75,7 @@ async def cmd_wiki(message: types.Message):
         await wait_msg.edit_text(
             format_styled_message(emoji="❌", title=API_NAME, message=f"По запросу «<b>{query}</b>» ничего не найдено.")
         )
-        return True
+        return
 
     result_msg = format_styled_message(
         emoji=API_ICON,
@@ -88,4 +88,3 @@ async def cmd_wiki(message: types.Message):
     await db.increment_commands()
     await db.log_command("!вики", message.from_user.id)
     await spend_tokens(message, "!вики")
-    return True

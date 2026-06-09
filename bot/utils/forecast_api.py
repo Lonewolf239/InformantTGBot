@@ -63,10 +63,9 @@ async def send_forecast(target, is_callback=False):
         await db.increment_commands()
         await db.log_command("!прогноз", user_id)
         await spend_tokens(message_obj, "!прогноз")
-        return True
+
     except Exception as e:
         logger.error(f"Ошибка отправки прогноза: {e}")
-        return False
 
 
 async def cmd_forecast(message: types.Message):

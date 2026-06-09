@@ -75,7 +75,7 @@ async def cmd_joke(message: types.Message):
             )
             await message.reply(joke_msg, reply_markup=get_joke_keyboard(message.from_user.id))
             await spend_tokens(message)
-            return True
+            return
 
         backup = get_backup_joke()
         backup_msg = format_styled_message(
@@ -85,7 +85,6 @@ async def cmd_joke(message: types.Message):
         )
         await message.reply(backup_msg)
         await spend_tokens(message)
-        return True
 
     except Exception as e:
         logger.error(f"Ошибка в !анекдот: {e}")
@@ -95,7 +94,6 @@ async def cmd_joke(message: types.Message):
             message="Не удалось получить анекдот. Попробуй позже!"
         )
         await message.reply(error_msg)
-        return True
 
 
 async def more_joke_callback(callback_query: types.CallbackQuery):

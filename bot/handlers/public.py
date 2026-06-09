@@ -357,9 +357,7 @@ async def process_public_commands(message: types.Message):
 
     handler = COMMAND_HANDLERS.get(base_command)
     if handler:
-        result = await handler(message)
-        if result is None:
-            return True
-        return result
+        await handler(message)
+        return True
 
     return False
