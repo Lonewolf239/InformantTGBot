@@ -1,6 +1,7 @@
 import aiohttp
 import os
 import json
+import uuid
 from urllib.parse import urlparse
 from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -14,6 +15,8 @@ API_NAME = COMMAND_METADATA["!мем"]["name"]
 
 logger = logging.getLogger(__name__)
 FAVORITES_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'favorite_memes.json')
+
+url_cache = {}
 
 
 def load_favorites():
@@ -81,7 +84,11 @@ def get_media_type(url: str) -> str:
 def get_meme_keyboard(meme_url, user_id: int, is_favorite=False):
     buttons = []
     if not is_favorite:
-        buttons.append(InlineKeyboardButton(text="❤️", callback_data=f"fav_meme|{meme_url}"))
+        meme_id = uuid.uuid4().hex[:8]
+        url_cache[short_id] = meme_id
+
+        buttons.append(InlineKeyboardButton(text="❤️", callback_data=f"fav_meme|{meme_id}"))
+
     buttons.append(InlineKeyboardButton(text="🎭 Ещё мем", callback_data="more_meme"))
     return create_user_keyboard([buttons], user_id)
 
@@ -164,7 +171,9 @@ async def more_meme_callback(callback_query: types.CallbackQuery):
 
 async def add_favorite_callback(callback_query: types.CallbackQuery):
     data = callback_query.data
-    meme_url = data.split("|", 1)[1] if "|" in data else None
+    meme_id = data.split("|", 1)[1] if "|" in data else None
+    meme_url = url_cache.pop(meme_id, None)
+
     if not meme_url:
         await callback_query.answer("❌ Ошибка: не удалось определить мем", show_alert=True)
         return
