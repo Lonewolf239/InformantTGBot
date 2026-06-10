@@ -85,7 +85,7 @@ def get_meme_keyboard(meme_url, user_id: int, is_favorite=False):
     buttons = []
     if not is_favorite:
         meme_id = uuid.uuid4().hex[:8]
-        url_cache[short_id] = meme_id
+        url_cache[meme_id] = meme_url
 
         buttons.append(InlineKeyboardButton(text="❤️", callback_data=f"fav_meme|{meme_id}"))
 
