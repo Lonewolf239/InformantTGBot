@@ -12,7 +12,7 @@ from bot.utils.helpers import its_me
 from bot.utils.joke_api import cmd_joke
 from bot.utils.meme_api import cmd_meme
 from bot.utils.weather_api import cmd_weather
-from bot.utils.ai_api import cmd_ai, cmd_ai_ham
+from bot.utils.ai_api import cmd_ai, cmd_ai_ham, cmd_ai_psycho, cmd_ai_summary
 from bot.utils.database import db
 from bot.handlers.nsfw_settings import cmd_nsfw_settings
 from bot.utils.whisper_stt import cmd_transcribe, cmd_translate
@@ -32,6 +32,10 @@ from bot.utils.games_api import cmd_roulette, cmd_duel
 from bot.utils.movie_api import cmd_movie
 from bot.utils.qr_api import cmd_qr
 from bot.utils.search_image_api import cmd_search_image
+from bot.utils.search_api import cmd_search
+from bot.utils.news_api import cmd_news
+from bot.utils.events_api import cmd_events
+from bot.utils.wallpaper_api import cmd_wallpaper
 from functools import lru_cache
 import logging
 
@@ -287,6 +291,8 @@ COMMAND_HANDLERS = {
     "!погода": cmd_weather,
     "!ии": cmd_ai,
     "!нейрохам": cmd_ai_ham,
+    "!психолог": cmd_ai_psycho,
+    "!пересказ": cmd_ai_summary,
     "!перевести": cmd_translate,
     "!скачать": cmd_download_yt,
     "!трек": cmd_music,
@@ -298,6 +304,10 @@ COMMAND_HANDLERS = {
     "!дуэль": cmd_duel,
     "!кино": cmd_movie,
     "!qr": cmd_qr,
+    "!поиск": cmd_search,
+    "!новости": cmd_news,
+    "!афиша": cmd_events,
+    "!обои": cmd_wallpaper,
 }
 
 if POLLINATIONS_ENABLED:
