@@ -20,7 +20,7 @@ from bot.utils.youtube_api import cmd_download_yt
 from bot.utils.tokens_database import tokens_db
 from bot.handlers.payments import cmd_balance
 from bot.utils.currency_api import cmd_currency
-from bot.utils.music_api import cmd_music
+from bot.utils.music_api import cmd_music, cmd_music_by_text
 from bot.utils.cat_api import cmd_cat
 from bot.utils.fact_api import cmd_fact
 from bot.utils.forecast_api import cmd_forecast
@@ -296,6 +296,7 @@ COMMAND_HANDLERS = {
     "!перевести": cmd_translate,
     "!скачать": cmd_download_yt,
     "!трек": cmd_music,
+    "!по_тексту": cmd_music_by_text,
     "!курс": cmd_currency,
     "!кот": cmd_cat,
     "!баланс": cmd_balance,

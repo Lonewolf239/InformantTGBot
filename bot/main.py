@@ -22,7 +22,7 @@ from bot.utils.youtube_api import download_worker, process_yt_callback
 from aiogram.types.message import ContentType
 from bot.handlers.payments import process_buy_tokens_callback, process_check_payment_callback
 from bot.webhooks.yookassa_webhook import setup_yookassa_routes
-from bot.utils.music_api import process_music_callback
+from bot.utils.music_api import process_music_callback, process_music_page_callback
 from bot.utils.cat_api import more_cat_callback
 from bot.utils.fact_api import more_fact_callback
 from bot.utils.forecast_api import more_forecast_callback
@@ -119,6 +119,8 @@ async def callback_handler(callback_query: types.CallbackQuery):
         await process_yt_callback(callback_query)
     elif data and data.startswith("mus_dl|"):
         await process_music_callback(callback_query)
+    elif data and data.startswith("mus_page|"):
+        await process_music_page_callback(callback_query)
 
     try:
         await callback_query.answer()

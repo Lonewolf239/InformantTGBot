@@ -1,6 +1,7 @@
 import logging
 import os
 from aiogram import types
+import html
 from aiogram.types import FSInputFile
 from config import WHISPER_MAX_DURATION_SECONDS, WHISPER_MAX_FILE_SIZE_MB, PAYMENTS_ENABLED, COMMAND_COSTS, VIP_IDS, COMMAND_METADATA
 from bot.utils.database import db
@@ -163,7 +164,8 @@ async def cmd_transcribe(message: types.Message):
             )
             return
 
-        text_chunks = split_text_to_chunks(transcribed_text, max_size=3700)
+        safe_text = html.escape(transcribed_text)
+        text_chunks = split_text_to_chunks(safe_text, max_size=3700)
 
         first_chunk = format_styled_message(
             emoji=API_ICON,
@@ -348,6 +350,7 @@ async def cmd_translate(message: types.Message):
 
         await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="⏳ <b>Собираю и отправляю файл...</b>"))
 
+        translated_text = html.escape(translated_text)
         orig_filename = None
         if reply_msg.audio and reply_msg.audio.file_name:
             orig_filename = reply_msg.audio.file_name
