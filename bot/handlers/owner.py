@@ -27,7 +27,11 @@ def get_owner_help_text():
 
 
 async def process_owner_commands(message: types.Message):
-    text = message.text.lower().strip()
+    raw_text = message.text or message.caption
+    if not raw_text:
+        return False
+
+    text = raw_text.lower().strip()
 
     commands = {
         "!отошёл": cmd_away_on,

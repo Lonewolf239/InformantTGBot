@@ -14,10 +14,13 @@ URL_PATTERN = re.compile(r'https?://[^\s]+')
 
 
 async def process_incoming_link(message: types.Message):
-    if not message.text:
+    raw_text = message.text or message.caption
+    if not raw_text:
         return False
 
-    urls = URL_PATTERN.findall(message.text)
+    text = raw_text.lower().strip()
+
+    urls = URL_PATTERN.findall(text)
     if not urls:
         return False
 

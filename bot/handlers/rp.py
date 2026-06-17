@@ -5,7 +5,12 @@ from config import SFW_RP_ACTIONS, NSFW_RP_ACTIONS
 
 
 async def process_rp_command(message: types.Message):
-    text = message.text.strip()
+    raw_text = message.text or message.caption
+    if not raw_text:
+        return False
+
+    text = raw_text.lower().strip()
+
     parts = text.split(maxsplit=1)
     command = parts[0].lower() if parts else ""
 

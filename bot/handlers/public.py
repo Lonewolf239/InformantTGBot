@@ -36,6 +36,8 @@ from bot.utils.search_api import cmd_search
 from bot.utils.news_api import cmd_news
 from bot.utils.events_api import cmd_events
 from bot.utils.wallpaper_api import cmd_wallpaper
+from bot.utils.shakal_api import cmd_shakal
+from bot.utils.replace_audio_api import cmd_replace_audio
 from functools import lru_cache
 import logging
 
@@ -309,6 +311,8 @@ COMMAND_HANDLERS = {
     "!новости": cmd_news,
     "!афиша": cmd_events,
     "!обои": cmd_wallpaper,
+    "!шакал": cmd_shakal,
+    "!звук": cmd_replace_audio,
 }
 
 if POLLINATIONS_ENABLED:
@@ -321,9 +325,11 @@ for base_cmd, aliases in COMMAND_ALIASES.items():
 
 
 async def process_public_commands(message: types.Message):
-    text = message.text.lower().strip()
-    if not text:
+    raw_text = message.text or message.caption
+    if not raw_text:
         return False
+
+    text = raw_text.lower().strip()
 
     command_trigger = text.split()[0]
 

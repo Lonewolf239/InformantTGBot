@@ -39,7 +39,7 @@ async def handle_all_messages(message: types.Message):
         await safe_reply(message, WELCOME_TEXT)
 
     try:
-        if message.text:
+        if message.text or message.caption:
             if its_me(user_id):
                 if await process_owner_commands(message):
                     return
