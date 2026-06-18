@@ -242,7 +242,12 @@ async def cmd_reset_timers(message: types.Message):
 
 async def cmd_clear_status(message: types.Message):
     try:
-        target_id = int(message.text.split()[1])
+        raw_text = message.text or message.caption
+        if not raw_text:
+            return False
+
+        text = raw_text.lower().strip()
+        target_id = int(text.split()[1])
         await state.clear_user_status(target_id)
         await message.reply(f"<b>┌─ ✅ Очистка статуса</b>\n└─ Статус пользователя {target_id} очищен!")
     except (IndexError, ValueError):

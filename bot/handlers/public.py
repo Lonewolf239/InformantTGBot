@@ -201,7 +201,12 @@ async def cmd_donut(message: types.Message):
 
 
 async def handle_keywords(message: types.Message):
-    text = message.text.strip().lower()
+    raw_text = message.text or message.caption
+    if not raw_text:
+        return False
+
+    text = raw_text.lower().strip()
+
     import re
     words = re.findall(r'\b\w+\b', text)
 
@@ -234,7 +239,12 @@ async def handle_keywords(message: types.Message):
 
 
 async def handle_simple_answers(message: types.Message):
-    text = message.text.strip().lower()
+    raw_text = message.text or message.caption
+    if not raw_text:
+        return False
+
+    text = raw_text.lower().strip()
+
     text_normalized = text.rstrip('?').rstrip('!').rstrip('.').strip()
 
     if text_normalized in SIMPLE_ANSWERS:
