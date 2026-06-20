@@ -5,12 +5,12 @@ import html
 from aiogram.types import FSInputFile
 from config import WHISPER_MAX_DURATION_SECONDS, WHISPER_MAX_FILE_SIZE_MB, PAYMENTS_ENABLED, COMMAND_COSTS, VIP_IDS, COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.ai_queue import get_queue, TaskType, ensure_queue_started
 from bot.utils.helpers import format_styled_message, spend_tokens
 from bot.utils.text_utils import split_text_to_chunks
 from bot.utils.translation_core import resolve_lang_code, translate_text, text_to_speech
 from bot.utils.media_core import download_media_file, get_duration, adjust_audio_duration, replace_audio_in_video
 from bot.utils.whisper_core import transcribe_audio
+from bot.utils.queue_wrapper import process_with_queue
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +20,16 @@ TRANS_ICON = COMMAND_METADATA["!перевести"]["icon"]
 TRANS_NAME = COMMAND_METADATA["!перевести"]["name"]
 
 
-async def cmd_transcribe(message: types.Message):
-    ensure_queue_started()
+async def _worker_transcribe(reply_msg, bot):
+    file_path, media_type = await download_media_file(reply_msg, bot)
+    if not file_path:
+        return None, None
 
+    text = await transcribe_audio(file_path=file_path, language="auto")
+    return text, file_path
+
+
+async def cmd_transcribe(message: types.Message):
     if not message.reply_to_message:
         usage_msg = format_styled_message(
             emoji=API_ICON,
@@ -45,13 +52,7 @@ async def cmd_transcribe(message: types.Message):
         return
 
     reply_msg = message.reply_to_message
-
-    has_media = any([
-        reply_msg.voice,
-        reply_msg.video_note,
-        reply_msg.video,
-        reply_msg.audio
-    ])
+    has_media = any([reply_msg.voice, reply_msg.video_note, reply_msg.video, reply_msg.audio])
 
     if not has_media:
         error_type = format_styled_message(
@@ -68,86 +69,48 @@ async def cmd_transcribe(message: types.Message):
         await message.reply(error_type)
         return
 
-    status_msg = await message.reply(
-        format_styled_message(
-            emoji=API_ICON,
-            title=API_NAME,
-            message="⏳ <b>Обработка сообщения...</b>\n📍 Позиция: вычисляется"
-        )
+    media_type_text = "медиа"
+    if reply_msg.voice:
+        media_type_text = "голосовое сообщение"
+    elif reply_msg.audio:
+        media_type_text = "аудиофайл"
+    elif reply_msg.video_note:
+        media_type_text = "кружок"
+    elif reply_msg.video:
+        media_type_text = "видео"
+
+    result, status_msg = await process_with_queue(
+        message=message,
+        queue_name="whisper",
+        icon=API_ICON,
+        title=API_NAME,
+        action_text=f"Скачиваю и распознаю ({media_type_text})",
+        func=_worker_transcribe,
+        reply_msg=reply_msg,
+        bot=message.bot
     )
 
-    file_path = None
-    media_type_text = ""
-
-    try:
-        if reply_msg.voice:
-            media_type_text = "голосовое сообщение"
-        elif reply_msg.audio:
-            media_type_text = "аудиофайл"
-        elif reply_msg.video_note:
-            media_type_text = "кружок"
-        elif reply_msg.video:
-            media_type_text = "видео"
-
-        file_path, media_type = await download_media_file(reply_msg, message.bot)
-
-        if not file_path:
+    if not result:
+        if status_msg:
             await status_msg.edit_text(
                 format_styled_message(
                     emoji=API_ICON,
                     title=API_NAME,
-                    message=(
-                        "❌ <b>Не удалось загрузить файл!</b>\n\n"
-                        "Возможные причины:\n"
-                        f"• Слишком длинное сообщение (>{WHISPER_MAX_DURATION_SECONDS} сек)\n"
-                        f"• Слишком большой файл (>{WHISPER_MAX_FILE_SIZE_MB} MB)\n"
-                        "• Ошибка доступа к файлу"
-                    )
+                    message="❌ <b>Не удалось загрузить или распознать файл!</b>\nУбедись, что файл не слишком большой."
                 )
             )
-            return
+        return
 
-        queue = get_queue()
+    transcribed_text, file_path = result
 
-        async def update_position(pos: int):
-            try:
-                if pos == 0:
-                    await status_msg.edit_text(
-                        format_styled_message(
-                            emoji=API_ICON,
-                            title=API_NAME,
-                            message=f"🔄 <b>Распознаю речь...</b>\n🎯 Тип: {media_type_text}"
-                        )
-                    )
-                else:
-                    await status_msg.edit_text(
-                        format_styled_message(
-                            emoji=API_ICON,
-                            title=API_NAME,
-                            message=f"⏳ <b>Очередь...</b>\n🎯 Тип: {media_type_text}\n📍 Позиция перед вами: {pos}"
-                        )
-                    )
-            except Exception:
-                pass
+    try:
+        if file_path and os.path.exists(file_path):
+            os.unlink(file_path)
+    except:
+        pass
 
-        task_future, queue_position = await queue.add_task(
-            task_type=TaskType.WHISPER,
-            data={"file_path": file_path, "language": "auto"},
-            user_id=message.from_user.id,
-            update_cb=update_position
-        )
-
-        await update_position(queue_position)
-
-        transcribed_text = await task_future
-
-        try:
-            if file_path and os.path.exists(file_path):
-                os.unlink(file_path)
-        except:
-            pass
-
-        if not transcribed_text:
+    if not transcribed_text:
+        if status_msg:
             await status_msg.edit_text(
                 format_styled_message(
                     emoji=API_ICON,
@@ -162,51 +125,40 @@ async def cmd_transcribe(message: types.Message):
                     )
                 )
             )
-            return
+        return
 
-        safe_text = html.escape(transcribed_text)
-        text_chunks = split_text_to_chunks(safe_text, max_size=3700)
+    safe_text = html.escape(transcribed_text)
+    text_chunks = split_text_to_chunks(safe_text, max_size=3700)
 
-        first_chunk = format_styled_message(
-            emoji=API_ICON,
-            title=f"{API_NAME} ({media_type_text})",
-            message=f"📝 <b>ТЕКСТ (Часть 1/{len(text_chunks)}):</b>\n<code>{text_chunks[0]}</code>"
-        )
+    first_chunk = format_styled_message(
+        emoji=API_ICON,
+        title=f"{API_NAME} ({media_type_text})",
+        message=f"📝 <b>ТЕКСТ (Часть 1/{len(text_chunks)}):</b>\n<code>{text_chunks[0]}</code>"
+    )
+
+    if status_msg:
         await status_msg.edit_text(first_chunk)
+    else:
+        await message.reply(first_chunk)
 
-        for i, chunk in enumerate(text_chunks[1:], start=2):
-            await message.reply(f"<b>📝 ТЕКСТ (Часть {i}/{len(text_chunks)}):</b>\n<code>{chunk}</code>")
+    for i, chunk in enumerate(text_chunks[1:], start=2):
+        await message.reply(f"<b>📝 ТЕКСТ (Часть {i}/{len(text_chunks)}):</b>\n<code>{chunk}</code>")
 
-        await db.increment_commands()
-        await db.log_command("!расшифровка", message.from_user.id)
-        await spend_tokens(message, "!расшифровка")
+    await db.increment_commands()
+    await db.log_command("!расшифровка", message.from_user.id)
+    await spend_tokens(message, "!расшифровка")
 
-    except Exception as e:
-        logger.error(f"❌ Критическая ошибка в cmd_transcribe: {e}", exc_info=True)
 
-        try:
-            if file_path and os.path.exists(file_path):
-                os.unlink(file_path)
-        except:
-            pass
+async def _worker_translate_stt(reply_msg, bot):
+    file_path, media_type = await download_media_file(reply_msg, bot)
+    if not file_path:
+        return None, None, None
 
-        await status_msg.edit_text(
-            format_styled_message(
-                emoji=API_ICON,
-                title=API_NAME,
-                message=(
-                    "❌ <b>Внутренняя ошибка сервера!</b>\n\n"
-                    "🔧 Попробуйте:\n"
-                    "• Повторить попытку позже\n"
-                    "• Отправить другое сообщение"
-                )
-            )
-        )
+    original_text = await transcribe_audio(file_path=file_path, language="auto", task="translate")
+    return original_text, file_path, media_type
 
 
 async def cmd_translate(message: types.Message):
-    ensure_queue_started()
-
     if not message.reply_to_message:
         await message.reply(
             format_styled_message(
@@ -239,7 +191,7 @@ async def cmd_translate(message: types.Message):
             from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
             if PAYMENTS_ENABLED:
                 from bot.utils.tokens_database import tokens_db
-                cost = 1
+                cost = COMMAND_COSTS.get("!перевести", 0)
                 if cost > 0 and message.from_user.id not in VIP_IDS:
                     await tokens_db.spend_tokens(message.from_user.id, cost)
 
@@ -261,80 +213,44 @@ async def cmd_translate(message: types.Message):
         )
         return
 
-    status_msg = await message.reply(
-        format_styled_message(
-            emoji=TRANS_ICON,
-            title=TRANS_NAME,
-            message="⏳ <b>Скачиваю и анализирую файл...</b>\n📍 Позиция: вычисляется"
-        )
+    result, status_msg = await process_with_queue(
+        message=message,
+        queue_name="heavyweights",
+        icon=TRANS_ICON,
+        title=TRANS_NAME,
+        action_text="Скачиваю и распознаю",
+        func=_worker_translate_stt,
+        reply_msg=reply_msg,
+        bot=message.bot
     )
 
-    file_path = tts_path = output_path = None
+    if not result or not result[1]:
+        if status_msg:
+            await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Не удалось загрузить или распознать файл!</b>"))
+        return
+
+    original_text, file_path, media_type = result
+    tts_path = output_path = None
 
     try:
-        file_path, media_type = await download_media_file(reply_msg, message.bot)
-        if not file_path:
-            await status_msg.edit_text(
-                format_styled_message(
-                    emoji=TRANS_ICON,
-                    title=TRANS_NAME,
-                    message=(
-                        "❌ <b>Не удалось загрузить файл!</b>\n\n"
-                        "Возможные причины:\n"
-                        f"• Слишком длинное сообщение (>{WHISPER_MAX_DURATION_SECONDS} сек)\n"
-                        f"• Слишком большой файл (>{WHISPER_MAX_FILE_SIZE_MB} MB)\n"
-                        "• Ошибка доступа к файлу"
-                    )
-                )
-            )
-            return
-
-        queue = get_queue()
-
-        async def update_position(pos: int):
-            try:
-                if pos == 0:
-                    await status_msg.edit_text(
-                        format_styled_message(
-                            emoji=TRANS_ICON,
-                            title=TRANS_NAME,
-                            message="🔄 <b>Распознаю и перевожу...</b>\nОжидайте ответа модели."
-                        )
-                    )
-                else:
-                    await status_msg.edit_text(
-                        format_styled_message(
-                            emoji=TRANS_ICON,
-                            title=TRANS_NAME,
-                            message=f"⏳ <b>Очередь...</b>\n📍 Позиция перед вами: {pos}"
-                        )
-                    )
-            except Exception:
-                pass
-
-        task_future, queue_position = await queue.add_task(
-            task_type=TaskType.WHISPER,
-            data={"file_path": file_path, "language": "auto", "task": "translate"},
-            user_id=message.from_user.id,
-            update_cb=update_position
-        )
-
-        await update_position(queue_position)
-
-        original_text = await task_future
-
         if not original_text:
-            await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Не удалось распознать текст в медиа.</b>"))
+            if status_msg:
+                await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Не удалось распознать текст в медиа.</b>"))
             return
 
-        await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="⏳ <b>Финальный перевод на русский...</b>"))
+        if status_msg:
+            await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="⏳ <b>Финальный перевод на русский...</b>"))
+
         translated_text = await translate_text(original_text, target_lang=target_lang)
 
-        await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="⏳ <b>Генерирую новую озвучку...</b>"))
+        if status_msg:
+            await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="⏳ <b>Генерирую новую озвучку...</b>"))
+
         tts_path = file_path + "_tts.mp3"
 
         if not await text_to_speech(translated_text, tts_path, lang_code=target_lang):
-            await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Ошибка: Не удалось сгенерировать озвучку.</b>"))
+            if status_msg:
+                await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Ошибка: Не удалось сгенерировать озвучку.</b>"))
             return
 
         original_duration = await get_duration(file_path)
@@ -348,7 +264,8 @@ async def cmd_translate(message: types.Message):
                     pass
                 tts_path = adjusted_tts_path
 
-        await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="⏳ <b>Собираю и отправляю файл...</b>"))
+        if status_msg:
+            await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="⏳ <b>Собираю и отправляю файл...</b>"))
 
         translated_text = html.escape(translated_text)
         orig_filename = None
@@ -366,7 +283,6 @@ async def cmd_translate(message: types.Message):
             additional_chunks = split_text_to_chunks(remaining_text, max_size=4000)
 
         main_caption = f"<b>📝 Перевод:</b> {caption_text}"
-        media_sent_msg = None
 
         if media_type in ["voice", "audio"]:
             if media_type == "audio" and orig_filename:
@@ -377,9 +293,9 @@ async def cmd_translate(message: types.Message):
                 audio_file = FSInputFile(tts_path)
 
             if media_type == "voice":
-                media_sent_msg = await message.reply_voice(voice=audio_file, caption=main_caption)
+                await message.reply_voice(voice=audio_file, caption=main_caption)
             else:
-                media_sent_msg = await message.reply_audio(audio=audio_file, caption=main_caption)
+                await message.reply_audio(audio=audio_file, caption=main_caption)
 
         elif media_type in ["video", "video_note"]:
             output_path = file_path + "_translated.mp4"
@@ -392,19 +308,21 @@ async def cmd_translate(message: types.Message):
                     video_file = FSInputFile(output_path)
 
                 if media_type == "video_note": 
-                    media_sent_msg = await message.reply_video_note(video_file)
+                    await message.reply_video_note(video_file)
                     additional_chunks = split_text_to_chunks(translated_text, max_size=4000)
                 else:
-                    media_sent_msg = await message.reply_video(video_file, caption=main_caption)
+                    await message.reply_video(video_file, caption=main_caption)
             else:
-                await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Ошибка при сборке видео-файла.</b>"))
+                if status_msg:
+                    await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Ошибка при сборке видео-файла.</b>"))
                 return
 
         if additional_chunks:
             for i, chunk in enumerate(additional_chunks, start=1):
                 await message.reply(f"<b>📝 Продолжение перевода (Часть {i}):</b>\n{chunk}")
 
-        await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="✅ <b>Успешно! Медиа отправлено ниже.</b>"))
+        if status_msg:
+            await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="✅ <b>Успешно! Медиа отправлено ниже.</b>"))
 
         from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
         if PAYMENTS_ENABLED:
@@ -418,7 +336,8 @@ async def cmd_translate(message: types.Message):
 
     except Exception as e:
         logger.error(f"❌ Критическая ошибка в cmd_translate: {e}", exc_info=True)
-        await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Произошла внутренняя ошибка сервера.</b>"))
+        if 'status_msg' in locals() and status_msg:
+            await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="❌ <b>Произошла внутренняя ошибка сервера.</b>"))
 
     finally:
         for path in [file_path, tts_path, output_path]:

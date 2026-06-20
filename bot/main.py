@@ -17,7 +17,6 @@ from bot.links.handlers import links_callback_handler
 from bot.utils.joke_api import more_joke_callback
 from bot.utils.meme_api import more_meme_callback, add_favorite_callback
 from bot.handlers.nsfw_settings import nsfw_callback_handler
-from bot.utils.ai_queue import get_queue
 from bot.utils.youtube_api import download_worker, process_yt_callback
 from aiogram.types.message import ContentType
 from bot.handlers.payments import process_buy_tokens_callback, process_check_payment_callback
@@ -29,6 +28,7 @@ from bot.utils.forecast_api import more_forecast_callback
 from bot.utils.quote_api import more_quote_callback
 from bot.utils.crypto_api import more_crypto_callback
 from bot.utils.games_api import accept_duel_callback, cancel_duel_callback
+from bot.utils.task_queue import queue_manager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -150,8 +150,8 @@ async def on_startup():
     logger.info(f"🤖 Автоответ: мгновенный при включённом режиме")
     await state.set_away_mode(False)
 
-    queue = get_queue()
-    queue.start()
+    queue_manager.register_queue("heavyweights", concurrency=1)
+    queue_manager.register_queue("lightweights", concurrency=1)
 
     asyncio.create_task(download_worker())
     logger.info("📥 Воркер очереди YouTube успешно запущен в фоне.")
@@ -159,8 +159,6 @@ async def on_startup():
 
 @dp.shutdown()
 async def on_shutdown():
-    queue = get_queue()
-    await queue.stop()
     logger.info("🛑 БОТ ОСТАНАВЛИВАЕТСЯ...")
 
 

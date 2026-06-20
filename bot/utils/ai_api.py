@@ -7,8 +7,8 @@ from config import (
     AI_REQUEST_TIMEOUT, AI_PERSONAS, COMMAND_METADATA
 )
 from bot.utils.database import db
-from bot.utils.ai_queue import get_queue, TaskType, ensure_queue_started
 from bot.utils.helpers import format_styled_message, spend_tokens
+from bot.utils.queue_wrapper import process_with_queue
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +72,6 @@ async def ask_local_ai(user_prompt: str, system_prompt: str, **kwargs) -> Option
 
 
 async def process_ai_request(message: types.Message, cmd_key: str):
-    ensure_queue_started()
-
     persona = AI_PERSONAS.get(cmd_key)
     meta = COMMAND_METADATA.get(cmd_key, {"icon": "🤖", "name": "ИИ"})
 
@@ -107,52 +105,21 @@ async def process_ai_request(message: types.Message, cmd_key: str):
 
     user_prompt = persona["prompt_template"].format(prompt=raw_prompt)
 
-    wait_msg_text = format_styled_message(
-        emoji=icon,
+    answer, wait_msg = await process_with_queue(
+        message=message,
+        queue_name="heavyweights",
+        icon=icon,
         title=name,
-        message="⏳ Анализ запроса...\n📍 Позиция: вычисляется"
+        action_text="Анализ запроса",
+        func=ask_local_ai,
+        user_prompt=user_prompt,
+        system_prompt=persona["system_prompt"],
+        temperature=persona["temperature"],
+        top_p=persona["top_p"],
+        repeat_penalty=persona["repeat_penalty"],
+        num_ctx=persona["num_ctx"],
+        num_predict=persona["num_predict"]
     )
-    wait_msg = await message.reply(wait_msg_text)
-
-    async def update_position(pos: int):
-        try:
-            if pos == 0:
-                msg_text = format_styled_message(emoji=icon, title=name, message="🔄 Генерирую ответ...\n⏳ Пожалуйста, подождите")
-            else:
-                msg_text = format_styled_message(emoji=icon, title=name, message=f"⏳ Запрос в очереди.\n📍 Позиция перед вами: {pos}")
-            await wait_msg.edit_text(msg_text)
-        except Exception:
-            pass
-
-    queue = get_queue()
-
-    try:
-        task_future, queue_position = await queue.add_task(
-            task_type=TaskType.AI,
-            data={
-                "prompt": user_prompt,
-                "system_prompt": persona["system_prompt"],
-                "temperature": persona["temperature"],
-                "top_p": persona["top_p"],
-                "repeat_penalty": persona["repeat_penalty"],
-                "num_ctx": persona["num_ctx"],
-                "num_predict": persona["num_predict"]
-            },
-            user_id=message.from_user.id,
-            update_cb=update_position
-        )
-        await update_position(queue_position)
-    except Exception as e:
-        logger.exception(f"Ошибка при добавлении задачи {cmd_key} в очередь")
-        error_queue = format_styled_message(emoji=icon, title=name, message="❌ Не удалось поставить задачу в очередь.")
-        await wait_msg.edit_text(error_queue)
-        return
-
-    try:
-        answer = await task_future
-    except Exception as e:
-        logger.exception("Ошибка при выполнении AI задачи воркером")
-        answer = None
 
     if not answer:
         error_api = format_styled_message(
@@ -160,10 +127,11 @@ async def process_ai_request(message: types.Message, cmd_key: str):
             title=name,
             message=f"❌ Нейросеть не ответила. Проверь, что Ollama запущена и модель <code>{OLLAMA_MODEL}</code> скачана."
         )
-        try:
-            await wait_msg.edit_text(error_api)
-        except Exception:
-            await message.reply(error_api)
+        if wait_msg:
+            try:
+                await wait_msg.edit_text(error_api)
+            except Exception:
+                await message.reply(error_api)
         return
 
     if persona.get("strip_quotes"):
@@ -192,10 +160,10 @@ async def process_ai_request(message: types.Message, cmd_key: str):
 
 
 def make_ai_handler(cmd_key: str):
-    """Фабрика для создания обработчиков AI команд в одну строку."""
     async def handler(message: types.Message):
         await process_ai_request(message, cmd_key)
     return handler
+
 
 cmd_ai = make_ai_handler("!ии")
 cmd_ai_ham = make_ai_handler("!нейрохам")
