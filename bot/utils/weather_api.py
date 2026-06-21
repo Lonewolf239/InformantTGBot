@@ -5,7 +5,7 @@ from datetime import datetime
 from aiogram import types
 from config import OPENWEATHER_API_KEY, WEATHER_GEO_URL, WEATHER_API_URL, WEATHER_FORECAST_URL, TRANSLATE_API_URL, COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens
+from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
 
 API_ICON = COMMAND_METADATA["!погода"]["icon"]
 API_NAME = COMMAND_METADATA["!погода"]["name"]
@@ -95,7 +95,9 @@ def format_weather_message(weather_data: dict, city_name: str, country: str):
 
 
 async def cmd_weather(message: types.Message):
-    args = message.text.split(maxsplit=1)
+    raw_text = get_raw_text(message)
+    args = raw_text.split(maxsplit=1) if raw_text else []
+
     if len(args) < 2:
         error_no_city = format_styled_message(
             emoji=API_ICON,

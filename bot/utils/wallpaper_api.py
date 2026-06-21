@@ -4,7 +4,7 @@ from urllib.parse import quote
 from aiogram import types
 from config import UNSPLASH_API_KEY, COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens
+from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
 
 API_ICON = COMMAND_METADATA["!обои"]["icon"]
 API_NAME = COMMAND_METADATA["!обои"]["name"]
@@ -45,7 +45,8 @@ async def get_wallpaper(query: str) -> dict | None:
 
 
 async def cmd_wallpaper(message: types.Message):
-    parts = message.text.split(maxsplit=1) if message.text else []
+    raw_text = get_raw_text(message)
+    parts = raw_text.split(maxsplit=1) if raw_text else []
     query = parts[1].strip() if len(parts) > 1 else ""
 
     wait_text = "Ищу крутые обои по твоему запросу..." if query else "Подбираю случайные крутые обои..."

@@ -4,7 +4,7 @@ from aiogram import types
 from config import COMMAND_METADATA
 from aiogram.types import InlineKeyboardButton
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, create_user_keyboard
+from bot.utils.helpers import format_styled_message, create_user_keyboard, get_raw_text
 from bot.utils.tokens_database import tokens_db
 
 API_ICON = COMMAND_METADATA["!рулетка"]["icon"]
@@ -16,8 +16,12 @@ logger = logging.getLogger(__name__)
 
 
 async def cmd_roulette(message: types.Message):
+    raw_text = get_raw_text(message)
+    if not raw_text:
+        return
+
     user_id = message.from_user.id
-    parts = message.text.split()
+    parts = raw_text.split()
 
     if len(parts) < 2:
         await message.reply(format_styled_message(
@@ -75,7 +79,11 @@ async def cmd_duel(message: types.Message):
         await message.reply(format_styled_message(emoji="⚔️", title=DUEL_NAME, message="❌ Нельзя вызвать на дуэль самого себя."))
         return
 
-    parts = message.text.split()
+    raw_text = get_raw_text(message)
+    if not raw_text:
+        return
+
+    parts = raw_text.split()
     try:
         amount = int(parts[1]) if len(parts) > 1 else 10
     except ValueError:

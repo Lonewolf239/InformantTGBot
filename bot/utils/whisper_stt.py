@@ -5,7 +5,7 @@ import html
 from aiogram.types import FSInputFile
 from config import WHISPER_MAX_DURATION_SECONDS, WHISPER_MAX_FILE_SIZE_MB, PAYMENTS_ENABLED, COMMAND_COSTS, VIP_IDS, COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens
+from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
 from bot.utils.text_utils import split_text_to_chunks
 from bot.utils.translation_core import resolve_lang_code, translate_text, text_to_speech
 from bot.utils.media_core import download_media_file, get_duration, adjust_audio_duration, replace_audio_in_video
@@ -173,7 +173,8 @@ async def cmd_translate(message: types.Message):
     has_media = any([reply_msg.voice, reply_msg.video_note, reply_msg.video, reply_msg.audio])
     has_text = bool(reply_msg.text)
 
-    args = message.text.split(maxsplit=1)
+    raw_text = get_raw_text(message)
+    args = raw_text.split(maxsplit=1) if raw_text else []
     target_lang = resolve_lang_code(args[1].strip().lower() if len(args) > 1 else "ru")
 
     if has_text and not has_media:

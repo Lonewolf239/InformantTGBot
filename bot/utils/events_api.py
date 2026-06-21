@@ -4,7 +4,7 @@ from urllib.parse import quote
 from aiogram import types
 from config import COMMAND_METADATA, TICKETMASTER_API_KEY
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens
+from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
 
 API_ICON = COMMAND_METADATA["!афиша"]["icon"]
 API_NAME = COMMAND_METADATA["!афиша"]["name"]
@@ -57,7 +57,8 @@ async def search_global_events(query: str) -> str | None:
 
 
 async def cmd_events(message: types.Message):
-    parts = message.text.split(maxsplit=1) if message.text else []
+    raw_text = get_raw_text(message)
+    parts = raw_text.split(maxsplit=1) if raw_text else []
     query = parts[1].strip() if len(parts) > 1 else ""
 
     if not query:

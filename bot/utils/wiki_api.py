@@ -4,7 +4,7 @@ from urllib.parse import quote
 from aiogram import types
 from config import COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens
+from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text, get_reply_raw_text
 
 API_ICON = COMMAND_METADATA["!вики"]["icon"]
 API_NAME = COMMAND_METADATA["!вики"]["name"]
@@ -48,13 +48,16 @@ async def search_wikipedia(query: str) -> str | None:
 
 
 async def cmd_wiki(message: types.Message):
-    parts = message.text.split(maxsplit=1) if message.text else []
+    raw_text = get_raw_text(message)
+    parts = raw_text.split(maxsplit=1) if raw_text else []
     query = ""
 
     if len(parts) > 1:
         query = parts[1].strip()
-    elif message.reply_to_message and message.reply_to_message.text:
-        query = message.reply_to_message.text.strip()
+    else:
+        raw_reply_text = get_reply_raw_text(message)
+        if raw_reply_text:
+            query = raw_reply_text
 
     if not query:
         error_msg = format_styled_message(

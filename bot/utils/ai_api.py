@@ -7,7 +7,7 @@ from config import (
     AI_REQUEST_TIMEOUT, AI_PERSONAS, COMMAND_METADATA
 )
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens
+from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text, get_reply_raw_text
 from bot.utils.queue_wrapper import process_with_queue
 
 logger = logging.getLogger(__name__)
@@ -82,8 +82,10 @@ async def process_ai_request(message: types.Message, cmd_key: str):
     icon = meta["icon"]
     name = meta["name"]
 
-    parts = message.text.split(maxsplit=1) if message.text else []
-    reply_text = message.reply_to_message.text if message.reply_to_message and message.reply_to_message.text else None
+
+    raw_text = get_raw_text(message)
+    parts = raw_text.split(maxsplit=1) if raw_text else []
+    reply_text = get_reply_raw_text(message)
 
     raw_prompt = None
     if len(parts) >= 2:
@@ -100,8 +102,8 @@ async def process_ai_request(message: types.Message, cmd_key: str):
         await message.reply(error_no_prompt)
         return
 
-    if message.reply_to_message and message.reply_to_message.text:
-        raw_prompt = f"Контекст: {message.reply_to_message.text}\n\nВопрос/запрос: {raw_prompt}"
+    if reply_text:
+        raw_prompt = f"Контекст: {reply_text}\n\nВопрос/запрос: {raw_prompt}"
 
     user_prompt = persona["prompt_template"].format(prompt=raw_prompt)
 

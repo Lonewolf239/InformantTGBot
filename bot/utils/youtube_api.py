@@ -12,7 +12,7 @@ from aiogram import types
 from aiogram.types import FSInputFile, InlineKeyboardButton
 from aiogram.exceptions import TelegramAPIError
 from config import YT_DOWNLOAD_DIR, YT_MAX_FILE_SIZE_MB, COOKIES_FILE, COMMAND_METADATA
-from bot.utils.helpers import create_user_keyboard, format_styled_message, spend_tokens
+from bot.utils.helpers import create_user_keyboard, format_styled_message, spend_tokens, get_raw_text
 
 logger = logging.getLogger(__name__)
 
@@ -283,7 +283,9 @@ async def download_worker():
 
 
 async def cmd_download_yt(message: types.Message):
-    args = message.text.split()
+    raw_text = get_raw_text(message)
+    args = raw_text.split() if raw_text else []
+
     if len(args) < 2:
         usage_text = (
             "<code>!скачать</code> [ссылка] [параметры]\n\n"

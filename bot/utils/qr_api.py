@@ -3,7 +3,7 @@ from urllib.parse import quote
 from aiogram import types
 from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED, COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens
+from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
 from bot.utils.tokens_database import tokens_db
 
 API_ICON = COMMAND_METADATA["!qr"]["icon"]
@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 async def cmd_qr(message: types.Message):
-    parts = message.text.split(maxsplit=1) if message.text else []
+    raw_text = get_raw_text(message)
+    parts = raw_text.split(maxsplit=1) if raw_text else []
     text_data = ""
 
     if len(parts) > 1:

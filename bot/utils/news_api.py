@@ -4,7 +4,7 @@ from urllib.parse import quote
 from aiogram import types
 from config import NEWS_API_KEY, COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens
+from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
 
 API_ICON = COMMAND_METADATA["!новости"]["icon"]
 API_NAME = COMMAND_METADATA["!новости"]["name"]
@@ -47,7 +47,8 @@ async def get_news(query: str = "") -> str | None:
 
 
 async def cmd_news(message: types.Message):
-    parts = message.text.split(maxsplit=1) if message.text else []
+    raw_text = get_raw_text(message)
+    parts = raw_text.split(maxsplit=1) if raw_text else []
     query = parts[1].strip() if len(parts) > 1 else ""
 
     wait_msg = await message.reply(

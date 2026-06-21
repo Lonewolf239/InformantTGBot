@@ -6,7 +6,7 @@ from aiogram import types
 from aiogram.types import BufferedInputFile, InputMediaPhoto
 from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED, COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens
+from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
 
 API_ICON = COMMAND_METADATA["!картинка"]["icon"]
 API_NAME = COMMAND_METADATA["!картинка"]["name"]
@@ -87,7 +87,8 @@ async def fetch_image_urls(query: str) -> list[str]:
 
 
 async def cmd_search_image(message: types.Message):
-    parts = message.text.split(maxsplit=1) if message.text else []
+    raw_text = get_raw_text(message)
+    parts = raw_text.split(maxsplit=1) if raw_text else []
     query = ""
 
     if len(parts) > 1:

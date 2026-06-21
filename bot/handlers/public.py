@@ -8,7 +8,7 @@ from config import (
 from bot.utils.keyword_handlers import KEYWORD_COMMANDS_REGISTRY
 from bot.utils.user_settings import user_settings_db
 from bot.state import state
-from bot.utils.helpers import its_me
+from bot.utils.helpers import its_me, get_raw_text
 from bot.utils.joke_api import cmd_joke
 from bot.utils.meme_api import cmd_meme
 from bot.utils.weather_api import cmd_weather
@@ -201,11 +201,11 @@ async def cmd_donut(message: types.Message):
 
 
 async def handle_keywords(message: types.Message):
-    raw_text = message.text or message.caption
+    raw_text = get_raw_text(message)
     if not raw_text:
         return False
 
-    text = raw_text.lower().strip()
+    text = raw_text
 
     import re
     words = re.findall(r'\b\w+\b', text)
@@ -239,11 +239,11 @@ async def handle_keywords(message: types.Message):
 
 
 async def handle_simple_answers(message: types.Message):
-    raw_text = message.text or message.caption
+    raw_text = get_raw_text(message)
     if not raw_text:
         return False
 
-    text = raw_text.lower().strip()
+    text = raw_text
 
     text_normalized = text.rstrip('?').rstrip('!').rstrip('.').strip()
 
@@ -335,11 +335,11 @@ for base_cmd, aliases in COMMAND_ALIASES.items():
 
 
 async def process_public_commands(message: types.Message):
-    raw_text = message.text or message.caption
+    raw_text = get_raw_text(message)
     if not raw_text:
         return False
 
-    text = raw_text.lower().strip()
+    text = raw_text
 
     command_trigger = text.split()[0]
 

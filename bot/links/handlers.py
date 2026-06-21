@@ -5,6 +5,7 @@ from bot.links.database import (
     get_unviewed_links_by_type, delete_link, get_stats
 )
 from bot.links.keyboard import create_submenu_keyboard, create_unviewed_list_keyboard
+from bot.utils.helpers import get_raw_text
 from config import OWNER_ID
 import logging
 
@@ -14,11 +15,11 @@ URL_PATTERN = re.compile(r'https?://[^\s]+')
 
 
 async def process_incoming_link(message: types.Message):
-    raw_text = message.text or message.caption
+    raw_text = get_raw_text(message)
     if not raw_text:
         return False
 
-    text = raw_text.lower().strip()
+    text = raw_text
 
     urls = URL_PATTERN.findall(text)
     if not urls:

@@ -5,6 +5,7 @@ from bot.utils.database import db
 from datetime import datetime
 from bot.links.handlers import cmd_links, cmd_links_stats
 from functools import lru_cache
+from bot.utils.helpers import get_raw_text
 
 
 @lru_cache(maxsize=1)
@@ -27,11 +28,11 @@ def get_owner_help_text():
 
 
 async def process_owner_commands(message: types.Message):
-    raw_text = message.text or message.caption
+    raw_text = get_raw_text(message)
     if not raw_text:
         return False
 
-    text = raw_text.lower().strip()
+    text = raw_text
 
     commands = {
         "!отошёл": cmd_away_on,
@@ -242,11 +243,11 @@ async def cmd_reset_timers(message: types.Message):
 
 async def cmd_clear_status(message: types.Message):
     try:
-        raw_text = message.text or message.caption
+        raw_text = get_raw_text(message)
         if not raw_text:
             return False
 
-        text = raw_text.lower().strip()
+        text = raw_text
         target_id = int(text.split()[1])
         await state.clear_user_status(target_id)
         await message.reply(f"<b>┌─ ✅ Очистка статуса</b>\n└─ Статус пользователя {target_id} очищен!")

@@ -8,6 +8,26 @@ def its_me(user_id: int) -> bool:
     return user_id == OWNER_ID
 
 
+def get_raw_text(message: types.Message, normalize: bool = True) -> str | None:
+    raw_text = message.text or message.caption
+    if not raw_text:
+        return None
+    if normalize:
+        raw_text = raw_text.lower().strip()
+    return raw_text
+
+
+def get_reply_raw_text(message: types.Message, normalize: bool = True) -> str | None:
+    if not message.reply_to_message:
+        return None
+    raw_reply_text = message.reply_to_message.text or message.reply_to_message.caption
+    if not raw_reply_text:
+        return None
+    if normalize:
+        raw_reply_text = raw_reply_text.lower().strip()
+    return raw_reply_text
+
+
 def create_user_keyboard(inline_keyboard: list, user_id: int) -> InlineKeyboardMarkup:
     for row in inline_keyboard:
         for btn in row:

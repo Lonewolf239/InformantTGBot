@@ -2,14 +2,15 @@ from aiogram import types
 from bot.utils.database import db
 from bot.utils.user_settings import user_settings_db
 from config import SFW_RP_ACTIONS, NSFW_RP_ACTIONS
+from bot.utils.helpers import get_raw_text
 
 
 async def process_rp_command(message: types.Message):
-    raw_text = message.text or message.caption
+    raw_text = get_raw_text(message)
     if not raw_text:
         return False
 
-    text = raw_text.lower().strip()
+    text = raw_text
 
     parts = text.split(maxsplit=1)
     command = parts[0].lower() if parts else ""

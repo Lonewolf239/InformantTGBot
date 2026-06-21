@@ -4,7 +4,7 @@ from urllib.parse import quote
 from aiogram import types
 from config import KINOPOISK_API_KEY, COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED, COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens
+from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
 from bot.utils.tokens_database import tokens_db
 
 API_ICON = COMMAND_METADATA["!кино"]["icon"]
@@ -33,7 +33,8 @@ async def search_movie(query: str) -> dict | None:
 
 
 async def cmd_movie(message: types.Message):
-    parts = message.text.split(maxsplit=1) if message.text else []
+    raw_text = get_raw_text(message)
+    parts = raw_text.split(maxsplit=1) if raw_text else []
     if len(parts) < 2:
         await message.reply(format_styled_message(
             emoji=API_ICON, title=API_NAME,

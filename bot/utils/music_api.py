@@ -8,7 +8,7 @@ import yt_dlp
 from aiogram import types
 from aiogram.types import FSInputFile, InlineKeyboardButton
 from config import YT_DOWNLOAD_DIR, YT_MAX_FILE_SIZE_MB, COOKIES_FILE, COMMAND_METADATA
-from bot.utils.helpers import format_styled_message, create_user_keyboard, spend_tokens
+from bot.utils.helpers import format_styled_message, create_user_keyboard, spend_tokens, get_raw_text
 from bot.utils.database import db
 
 API_ICON = COMMAND_METADATA["!трек"]["icon"]
@@ -173,7 +173,8 @@ def generate_music_keyboard(request_id: str, page: int, user_id: int):
 
 
 async def cmd_music(message: types.Message):
-    args = message.text.split(maxsplit=1)
+    raw_text = get_raw_text(message)
+    args = raw_text.split(maxsplit=1) if raw_text else []
 
     if len(args) < 2:
         error_msg = format_styled_message(
@@ -220,7 +221,8 @@ async def cmd_music(message: types.Message):
 
 
 async def cmd_music_by_text(message: types.Message):
-    args = message.text.split(maxsplit=1)
+    raw_text = get_raw_text(message)
+    args = raw_text.split(maxsplit=1) if raw_text else []
 
     cmd_icon = COMMAND_METADATA["!по_тексту"]["icon"]
     cmd_name = COMMAND_METADATA["!по_тексту"]["name"]
