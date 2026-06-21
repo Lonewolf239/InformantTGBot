@@ -3,7 +3,7 @@ import os
 from aiogram import types
 import html
 from aiogram.types import FSInputFile
-from config import WHISPER_MAX_DURATION_SECONDS, WHISPER_MAX_FILE_SIZE_MB, PAYMENTS_ENABLED, COMMAND_COSTS, VIP_IDS, COMMAND_METADATA
+from config import WHISPER_MAX_DURATION_SECONDS, WHISPER_MAX_FILE_SIZE_MB, COMMAND_COSTS, VIP_IDS, COMMAND_METADATA
 from bot.utils.database import db
 from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
 from bot.utils.text_utils import split_text_to_chunks
@@ -11,6 +11,7 @@ from bot.utils.translation_core import resolve_lang_code, translate_text, text_t
 from bot.utils.media_core import download_media_file, get_duration, adjust_audio_duration, replace_audio_in_video
 from bot.utils.whisper_core import transcribe_audio
 from bot.utils.queue_wrapper import process_with_queue
+from bot.owner_settings.config_getters import is_payments_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +170,7 @@ async def cmd_translate(message: types.Message):
         )
         return
 
+    payments_enabled = await is_payments_enabled()
     reply_msg = message.reply_to_message
     has_media = any([reply_msg.voice, reply_msg.video_note, reply_msg.video, reply_msg.audio])
     has_text = bool(reply_msg.text)
@@ -189,8 +191,7 @@ async def cmd_translate(message: types.Message):
                 )
             )
 
-            from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
-            if PAYMENTS_ENABLED:
+            if payments_enabled:
                 from bot.utils.tokens_database import tokens_db
                 cost = COMMAND_COSTS.get("!перевести", 0)
                 if cost > 0 and message.from_user.id not in VIP_IDS:
@@ -325,8 +326,7 @@ async def cmd_translate(message: types.Message):
         if status_msg:
             await status_msg.edit_text(format_styled_message(emoji=TRANS_ICON, title=TRANS_NAME, message="✅ <b>Успешно! Медиа отправлено ниже.</b>"))
 
-        from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
-        if PAYMENTS_ENABLED:
+        if payments_enabled:
             from bot.utils.tokens_database import tokens_db
             cost = COMMAND_COSTS.get("!перевести", 0)
             if cost > 0 and message.from_user.id not in VIP_IDS:

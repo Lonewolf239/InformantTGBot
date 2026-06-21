@@ -4,7 +4,7 @@ import logging
 from aiogram import types
 from aiogram.types import FSInputFile
 from langdetect import detect, LangDetectException
-from config import PAYMENTS_ENABLED, COMMAND_COSTS, VIP_IDS, COMMAND_METADATA
+from config import COMMAND_COSTS, VIP_IDS, COMMAND_METADATA
 from bot.utils.database import db
 from bot.utils.helpers import format_styled_message, spend_tokens
 from bot.utils.translation_core import text_to_speech

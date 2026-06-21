@@ -4,7 +4,7 @@ import random
 from urllib.parse import quote
 from aiogram import types
 from aiogram.types import BufferedInputFile
-from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED, POLLINATIONS_API_KEY, COMMAND_METADATA
+from config import POLLINATIONS_API_KEY, COMMAND_METADATA
 from bot.utils.database import db
 from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
 from bot.utils.tokens_database import tokens_db

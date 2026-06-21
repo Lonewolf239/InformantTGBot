@@ -1,18 +1,21 @@
 from aiogram import types
 from config import (
-    COMMAND_COSTS, COMMAND_ALIASES, VIP_IDS, PAYMENTS_ENABLED,
+    COMMAND_COSTS, COMMAND_ALIASES, VIP_IDS,
     WELCOME_TEXT, KEYWORD_REACTIONS, SIMPLE_ANSWERS, COMMAND_METADATA,
-    SFW_RP_ACTIONS, NSFW_RP_ACTIONS, AUTO_REPLY_ENABLED, REPLY_TO_OWNER, DEFAULT_DAILY_TOKENS,
+    SFW_RP_ACTIONS, NSFW_RP_ACTIONS, DEFAULT_DAILY_TOKENS,
     POLLINATIONS_ENABLED
 )
 from bot.utils.keyword_handlers import KEYWORD_COMMANDS_REGISTRY
 from bot.utils.user_settings import user_settings_db
 from bot.state import state
-from bot.utils.helpers import its_me, get_raw_text
+from bot.utils.helpers import its_me, get_raw_text, format_styled_message
 from bot.utils.joke_api import cmd_joke
 from bot.utils.meme_api import cmd_meme
 from bot.utils.weather_api import cmd_weather
-from bot.utils.ai_api import cmd_ai, cmd_ai_ham, cmd_ai_psycho, cmd_ai_summary
+from bot.utils.ai_api import (
+    cmd_ai, cmd_ai_ham, cmd_ai_psycho, cmd_ai_summary,
+    cmd_ai_nerd, cmd_ai_senior, cmd_ai_gopnik
+)
 from bot.utils.database import db
 from bot.handlers.nsfw_settings import cmd_nsfw_settings
 from bot.utils.whisper_stt import cmd_transcribe, cmd_translate
@@ -38,7 +41,9 @@ from bot.utils.events_api import cmd_events
 from bot.utils.wallpaper_api import cmd_wallpaper
 from bot.utils.shakal_api import cmd_shakal
 from bot.utils.replace_audio_api import cmd_replace_audio
+from bot.utils.myinstants_api import cmd_myinstants
 from functools import lru_cache
+from bot.owner_settings.config_getters import is_payments_enabled, is_auto_reply_enabled, is_reply_to_owner
 import logging
 
 if POLLINATIONS_ENABLED:
@@ -48,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
-def get_public_help_text(is_away_mode: bool = False):
+def get_public_help_text(is_away_mode: bool = False, payments_enabled: bool = True):
     status_emoji = "🚶‍♂️" if is_away_mode else "🟢"
     status_text = "режим ОТОШЁЛ активен" if is_away_mode else "режим ОНЛАЙН"
 
@@ -56,13 +61,11 @@ def get_public_help_text(is_away_mode: bool = False):
     exclude_from_main = {"!старт", "!помощь", "!прайс", "!баланс", "!настройки", "!о_боте", "!donut"}
 
     for cmd, data in COMMAND_METADATA.items():
-        if cmd not in exclude_from_main:
-
+        if cmd not in exclude_from_main and not data.get("disabled", False):
             args_str = f" {data['args']}" if "args" in data else ""
-
             commands.append(f"<b>├─ {data['icon']}</b> <code>{cmd}</code>{args_str} — {data['desc']}")
 
-    if PAYMENTS_ENABLED:
+    if payments_enabled:
         commands.append(f"<b>├─ {COMMAND_METADATA['!прайс']['icon']}</b> <code>!прайс</code> — {COMMAND_METADATA['!прайс']['desc']}")
         commands.append(f"<b>├─ {COMMAND_METADATA['!баланс']['icon']}</b> <code>!баланс</code> — {COMMAND_METADATA['!баланс']['desc']}")
 
@@ -90,6 +93,9 @@ async def cmd_prices(message: types.Message):
     )
 
     for cmd, cost in sorted(COMMAND_COSTS.items(), key=lambda x: x[1], reverse=True):
+        if COMMAND_METADATA.get(cmd, {}).get("disabled", False):
+            continue
+
         emoji = COMMAND_METADATA.get(cmd, {}).get("icon", "🔹")
 
         if cost % 10 == 1 and cost % 100 != 11:
@@ -109,6 +115,27 @@ async def cmd_prices(message: types.Message):
     await message.reply(price_text)
     await db.increment_commands()
     await db.log_command("!прайс", message.from_user.id)
+    return True
+
+
+async def cmd_disabled_list(message: types.Message):
+    disabled_cmds = []
+
+    for cmd, data in COMMAND_METADATA.items():
+        if data.get("disabled", False):
+            reason = data.get("disabled_reason", "Причина не указана")
+            icon = data.get("icon", "🚫")
+            disabled_cmds.append(f"<b>{icon}</b> <code>{cmd}</code> — {reason}")
+
+    if not disabled_cmds:
+        text = "В данный момент все команды работают в штатном режиме!"
+        await message.reply(format_styled_message("✅", "ВСЕ РАБОТАЕТ", text))
+    else:
+        text = "\n".join(disabled_cmds)
+        await message.reply(format_styled_message("🚫", "ОТКЛЮЧЕННЫЕ КОМАНДЫ", text))
+
+    await db.increment_commands()
+    await db.log_command("!отключенные", message.from_user.id)
     return True
 
 
@@ -142,7 +169,8 @@ async def cmd_start(message: types.Message):
 
 async def cmd_help(message: types.Message):
     is_away = await state.is_away_mode
-    help_text = get_public_help_text(is_away)
+    payments_on = await is_payments_enabled()
+    help_text = await get_public_help_text(is_away, payments_on)
     await message.reply(help_text)
     await db.increment_commands()
     await db.log_command("!помощь", message.from_user.id)
@@ -294,7 +322,6 @@ COMMAND_HANDLERS = {
     "!рп": cmd_rp_commands,
     "!настройки": cmd_nsfw_settings,
     "!расшифровка": cmd_transcribe,
-    "!прайс": cmd_prices,
     "!прогноз": cmd_forecast,
     "!цитата": cmd_quote,
     "!курс_крипты": cmd_crypto,
@@ -305,13 +332,15 @@ COMMAND_HANDLERS = {
     "!нейрохам": cmd_ai_ham,
     "!психолог": cmd_ai_psycho,
     "!пересказ": cmd_ai_summary,
+    "!душнила": cmd_ai_nerd,
+    "!синьор": cmd_ai_senior,
+    "!гопник": cmd_ai_gopnik,
     "!перевести": cmd_translate,
     "!скачать": cmd_download_yt,
     "!трек": cmd_music,
     "!по_тексту": cmd_music_by_text,
     "!курс": cmd_currency,
     "!кот": cmd_cat,
-    "!баланс": cmd_balance,
     "!алиасы": cmd_aliases,
     "!рулетка": cmd_roulette,
     "!дуэль": cmd_duel,
@@ -323,6 +352,8 @@ COMMAND_HANDLERS = {
     "!обои": cmd_wallpaper,
     "!шакал": cmd_shakal,
     "!звук": cmd_replace_audio,
+    "!инстант": cmd_myinstants,
+    "!отключенные": cmd_disabled_list,
 }
 
 if POLLINATIONS_ENABLED:
@@ -346,8 +377,8 @@ async def process_public_commands(message: types.Message):
     base_command = ALIAS_TO_BASE.get(command_trigger)
 
     if not base_command:
-        if AUTO_REPLY_ENABLED:
-            if not its_me(message.from_user.id) or REPLY_TO_OWNER:
+        if await is_auto_reply_enabled():
+            if not its_me(message.from_user.id) or await is_reply_to_owner():
                 if await handle_simple_answers(message):
                     return True
 
@@ -355,7 +386,23 @@ async def process_public_commands(message: types.Message):
                     return True
         return False
 
-    if PAYMENTS_ENABLED:
+    if COMMAND_METADATA.get(base_command, {}).get("disabled", False):
+        await message.reply(format_styled_message(
+            emoji="❌",
+            title="ОШИБКА",
+            message="Данная команда временно отключена администратором."
+        ))
+        return True
+
+    if await is_payments_enabled():
+        if base_command == "!прайс":
+            await cmd_prices(message)
+            return True
+
+        if base_command == "!баланс":
+            await cmd_balance(message)
+            return True
+
         user_id = message.from_user.id
         cost = COMMAND_COSTS.get(base_command, 0)
 
@@ -368,6 +415,16 @@ async def process_public_commands(message: types.Message):
                     cost = 1
             else:
                 cost = 0
+
+        elif base_command in ["!ии", "!нейрохам", "!психолог", "!пересказ", "!душнила", "!синьор", "!гопник"]:
+            reply = message.reply_to_message
+            if reply:
+                if any([reply.voice, reply.audio, reply.video_note, reply.video]):
+                    from config import AI_AUDIO_EXTRA_COST
+                    cost += AI_AUDIO_EXTRA_COST
+                elif reply.photo:
+                    from config import AI_VISION_EXTRA_COST
+                    cost += AI_VISION_EXTRA_COST
 
         if cost > 0 and user_id not in VIP_IDS:
             has_tokens = await tokens_db.has_enough_tokens(user_id, cost)

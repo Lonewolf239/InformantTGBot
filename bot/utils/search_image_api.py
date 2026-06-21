@@ -4,7 +4,7 @@ import aiohttp
 import logging
 from aiogram import types
 from aiogram.types import BufferedInputFile, InputMediaPhoto
-from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED, COMMAND_METADATA
+from config import COMMAND_METADATA
 from bot.utils.database import db
 from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
 

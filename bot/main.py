@@ -15,7 +15,7 @@ from bot.utils.tokens_database import tokens_db
 from bot.utils.user_settings import user_settings_db
 from bot.links.handlers import links_callback_handler
 from bot.utils.joke_api import more_joke_callback
-from bot.utils.meme_api import more_meme_callback, add_favorite_callback
+from bot.utils.meme_api import more_meme_callback, add_favorite_callback, dislike_meme_callback
 from bot.handlers.nsfw_settings import nsfw_callback_handler
 from bot.utils.youtube_api import download_worker, process_yt_callback
 from aiogram.types.message import ContentType
@@ -29,6 +29,8 @@ from bot.utils.quote_api import more_quote_callback
 from bot.utils.crypto_api import more_crypto_callback
 from bot.utils.games_api import accept_duel_callback, cancel_duel_callback
 from bot.utils.task_queue import queue_manager
+from bot.owner_settings.database import owner_settings_db
+from bot.owner_settings.handlers import system_settings_callback
 
 logging.basicConfig(
     level=logging.INFO,
@@ -98,6 +100,8 @@ async def callback_handler(callback_query: types.CallbackQuery):
         await more_crypto_callback(callback_query)
     elif data and data.startswith("fav_meme"):
         await add_favorite_callback(callback_query)
+    elif data and data.startswith("dislike_meme|"):
+        await dislike_meme_callback(callback_query)
     elif data and data.startswith("nsfw_"):
         await nsfw_callback_handler(callback_query)
     elif data and data.startswith("yt_dl|"):
@@ -121,6 +125,17 @@ async def callback_handler(callback_query: types.CallbackQuery):
         await process_music_callback(callback_query)
     elif data and data.startswith("mus_page|"):
         await process_music_page_callback(callback_query)
+    elif data and data.startswith("inst_dl|"):
+        from bot.utils.myinstants_api import process_instants_download_callback
+        await process_instants_download_callback(callback_query)
+    elif data and data.startswith("inst_pg|"):
+        from bot.utils.myinstants_api import process_instants_page_callback
+        await process_instants_page_callback(callback_query)
+    elif data and data.startswith("inst_more|"):
+        from bot.utils.myinstants_api import process_instants_more_callback
+        await process_instants_more_callback(callback_query)
+    elif data and data.startswith("sys_set:"):
+        await system_settings_callback(callback_query)
 
     try:
         await callback_query.answer()
@@ -134,6 +149,7 @@ async def on_startup():
     await db.init_db()
     await tokens_db.init_db()
     await user_settings_db.init_db()
+    await owner_settings_db.init_db()
 
     logger.info("🚀 БОТ ЗАПУСКАЕТСЯ...")
 

@@ -353,18 +353,21 @@ async def cmd_download_yt(message: types.Message):
         temp_playlist_dir = os.path.join(YT_DOWNLOAD_DIR, f"playlist_{uuid.uuid4().hex[:8]}")
         os.makedirs(temp_playlist_dir, exist_ok=True)
 
-        from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
+        from config import COMMAND_COSTS, VIP_IDS
+        from bot.owner_settings.config_getters import is_payments_enabled
+        payments_enabled = await is_payments_enabled()
+
         user_id = message.from_user.id
         is_vip = user_id in VIP_IDS
         cost = COMMAND_COSTS.get("!скачать", 0)
         insufficient_funds = False
 
-        if PAYMENTS_ENABLED:
+        if payments_enabled:
             from bot.utils.tokens_database import tokens_db
 
         downloaded_files = []
         for idx, entry in enumerate(entries, 1):
-            if PAYMENTS_ENABLED and not is_vip and cost > 0:
+            if payments_enabled and not is_vip and cost > 0:
                 has_tokens = await tokens_db.has_enough_tokens(user_id, cost)
                 if not has_tokens:
                     insufficient_funds = True
@@ -380,7 +383,7 @@ async def cmd_download_yt(message: types.Message):
             if media_data and os.path.exists(media_data["file_path"]):
                 downloaded_files.append(media_data)
 
-                if PAYMENTS_ENABLED and not is_vip and cost > 0:
+                if payments_enabled and not is_vip and cost > 0:
                     await tokens_db.spend_tokens(user_id, cost)
 
         if not downloaded_files:

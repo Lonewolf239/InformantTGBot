@@ -52,8 +52,9 @@ def get_joke_keyboard(user_id: int):
 
 
 async def spend_tokens(message: types.Message):
-    from config import COMMAND_COSTS, VIP_IDS, PAYMENTS_ENABLED
-    if PAYMENTS_ENABLED:
+    from bot.owner_settings.config_getters import is_payments_enabled
+    from config import COMMAND_COSTS, VIP_IDS
+    if await is_payments_enabled():
         from bot.utils.tokens_database import tokens_db
         cost = COMMAND_COSTS.get("!анекдот", 0)
         if cost > 0 and message.from_user.id not in VIP_IDS:

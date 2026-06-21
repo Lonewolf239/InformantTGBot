@@ -6,6 +6,7 @@ from datetime import datetime
 from bot.links.handlers import cmd_links, cmd_links_stats
 from functools import lru_cache
 from bot.utils.helpers import get_raw_text
+from bot.owner_settings.handlers import cmd_system_settings
 
 
 @lru_cache(maxsize=1)
@@ -22,6 +23,7 @@ def get_owner_help_text():
         "<b>├─</b> <code>!линкстат</code>\n"
         "<b>├─</b> <code>!ждущие</code>\n"
         "<b>├─</b> <code>!nsfw</code>\n"
+        "<b>├─</b> <code>!система</code>\n"
         "<b>│</b>\n"
         "<b>└─ 📖 Публичная справка:</b> <code>!помощь</code>"
     )
@@ -46,6 +48,7 @@ async def process_owner_commands(message: types.Message):
         "!линкстат": cmd_links_stats,
         "!ждущие": cmd_waiting,
         "!nsfw": cmd_nsfw_stats,
+        "!система": cmd_system_settings,
     }
 
     if text.startswith("!очистить_статус"):

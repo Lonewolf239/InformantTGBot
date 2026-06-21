@@ -3,13 +3,14 @@ from aiogram import types
 from aiogram.types import InlineKeyboardButton
 from bot.utils.tokens_database import tokens_db
 from bot.utils.helpers import create_user_keyboard, format_styled_message
-from config import TOKEN_PRICE_RUB, MIN_TOKENS_BUY, MAX_TOKENS_BUY, TOKEN_PACKAGES, YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY, PAYMENTS_ENABLED, USE_WEBHOOKS
+from config import TOKEN_PRICE_RUB, MIN_TOKENS_BUY, MAX_TOKENS_BUY, TOKEN_PACKAGES, YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY, USE_WEBHOOKS
 from bot.payments.yookassa_provider import YookassaProvider
 import logging
+from bot.owner_settings.config_getters import is_payments_enabled
 
 logger = logging.getLogger(__name__)
 
-payment_provider = YookassaProvider(YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY) if PAYMENTS_ENABLED else None
+payment_provider = YookassaProvider(YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY)
 
 async def cmd_balance(message: types.Message):
     user_id = message.from_user.id
@@ -24,7 +25,7 @@ async def cmd_balance(message: types.Message):
     keyboard = []
     current_row = []
 
-    if PAYMENTS_ENABLED:
+    if await is_payments_enabled():
         for amount in TOKEN_PACKAGES:
             if MIN_TOKENS_BUY <= amount <= MAX_TOKENS_BUY:
                 price_rub = amount * TOKEN_PRICE_RUB
@@ -46,7 +47,7 @@ async def cmd_balance(message: types.Message):
 
 
 async def process_buy_tokens_callback(callback_query: types.CallbackQuery, amount: int):
-    if not PAYMENTS_ENABLED or not payment_provider:
+    if not await is_payments_enabled() or not payment_provider:
         await callback_query.answer("❌ Оплата временно недоступна (не настроена касса)", show_alert=True)
         return
 
@@ -85,7 +86,7 @@ async def process_buy_tokens_callback(callback_query: types.CallbackQuery, amoun
     await callback_query.answer()
 
 async def process_check_payment_callback(callback_query: types.CallbackQuery, payment_id: str, amount: int):
-    if not PAYMENTS_ENABLED or not payment_provider:
+    if not await is_payments_enabled() or not payment_provider:
         await callback_query.answer("❌ Оплата временно недоступна", show_alert=True)
         return
 
