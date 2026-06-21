@@ -86,17 +86,8 @@ async def ask_local_ai(user_prompt: str, system_prompt: str, images: list[str] =
             return None
 
 
-async def unified_ai_worker(
-    reply_msg: Optional[types.Message],
-    bot,
-    raw_prompt: Optional[str],
-    reply_text: Optional[str],
-    persona: dict
-) -> Optional[str]:
-    """
-    Единый тяжелый воркер. Вызывается строго внутри очереди process_with_queue.
-    Здесь происходит скачивание файлов, Whisper, кодирование Vision и запрос к ИИ.
-    """
+async def unified_ai_worker(reply_msg: Optional[types.Message], bot,
+                            raw_prompt: Optional[str], reply_text: Optional[str], persona: dict) -> Optional[str]:
     base64_images = None
 
     if reply_msg:
