@@ -170,7 +170,7 @@ async def cmd_start(message: types.Message):
 async def cmd_help(message: types.Message):
     is_away = await state.is_away_mode
     payments_on = await is_payments_enabled()
-    help_text = await get_public_help_text(is_away, payments_on)
+    help_text = get_public_help_text(is_away, payments_on)
     await message.reply(help_text)
     await db.increment_commands()
     await db.log_command("!помощь", message.from_user.id)
