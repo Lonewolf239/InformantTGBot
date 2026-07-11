@@ -14,7 +14,8 @@ from bot.utils.meme_api import cmd_meme
 from bot.utils.weather_api import cmd_weather
 from bot.utils.ai_api import (
     cmd_ai, cmd_ai_ham, cmd_ai_psycho, cmd_ai_summary,
-    cmd_ai_nerd, cmd_ai_senior, cmd_ai_gopnik
+    cmd_ai_nerd, cmd_ai_senior, cmd_ai_gopnik,
+    cmd_ai_joker, cmd_ai_tale, cmd_ai_babka, cmd_ai_drunk
 )
 from bot.utils.database import db
 from bot.handlers.nsfw_settings import cmd_nsfw_settings
@@ -335,6 +336,10 @@ COMMAND_HANDLERS = {
     "!душнила": cmd_ai_nerd,
     "!синьор": cmd_ai_senior,
     "!гопник": cmd_ai_gopnik,
+    "!шутник": cmd_ai_joker,
+    "!сказка": cmd_ai_tale,
+    "!бабка": cmd_ai_babka,
+    "!алкаш": cmd_ai_drunk,
     "!перевести": cmd_translate,
     "!скачать": cmd_download_yt,
     "!трек": cmd_music,

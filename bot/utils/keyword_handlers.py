@@ -43,8 +43,8 @@ def extract_audio_metadata(file_path: str) -> dict:
     return metadata
 
 
-async def send_party_track(message: types.Message):
-    file_path = os.path.join(ASSETS_DIR, "red_sun.mp3")
+async def send_track(message: types.Message, file_name: str, title: str, performer: str):
+    file_path = os.path.join(ASSETS_DIR, file_name)
 
     if not os.path.exists(file_path):
         logger.error(f"Файл не найден: {file_path}")
@@ -58,18 +58,26 @@ async def send_party_track(message: types.Message):
     if metadata.get("cover_bytes"):
         thumbnail = BufferedInputFile(metadata["cover_bytes"], filename="cover.jpg")
 
-    title = metadata.get("title") or "Red Sun in the Sky"
-    performer = metadata.get("artist") or "Mao Ze Dong"
+    audio_title = metadata.get("title") or title
+    audio_performer = metadata.get("artist") or performer
     duration = metadata.get("duration") or 0
 
     await message.answer_audio(
         audio=audio_file,
-        title=title,
-        performer=performer,
+        title=audio_title,
+        performer=audio_performer,
         thumbnail=thumbnail,
         duration=duration
     )
     return True
+
+
+async def send_party_track(message: types.Message):
+    return await send_track(message, "red_sun.mp3", "Red Sun in the Sky", "Mao Ze Dong")
+
+
+async def send_cool_ringtone(message: types.Message):
+    return await send_track(message, "cool_ringtone.mp3", "Cool Ringtone", "Unknown")
 
 
 async def send_social_credit_plus(message: types.Message):
@@ -120,4 +128,5 @@ KEYWORD_COMMANDS_REGISTRY = {
     "send_party_track": send_party_track,
     "send_social_credit_plus": send_social_credit_plus,
     "send_social_credit_minus": send_social_credit_minus,
+    "send_cool_ringtone": send_cool_ringtone,
 }
