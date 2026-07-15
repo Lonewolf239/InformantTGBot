@@ -15,11 +15,17 @@ from bot.utils.tokens_database import tokens_db
 from bot.utils.user_settings import user_settings_db
 from bot.links.handlers import links_callback_handler
 from bot.utils.joke_api import more_joke_callback
-from bot.utils.meme_api import more_meme_callback, add_favorite_callback, dislike_meme_callback
+from bot.utils.meme_api import (
+    more_meme_callback,
+    add_favorite_callback,
+    dislike_meme_callback,
+)
 from bot.handlers.nsfw_settings import nsfw_callback_handler
 from bot.utils.youtube_api import download_worker, process_yt_callback
-from aiogram.types.message import ContentType
-from bot.handlers.payments import process_buy_tokens_callback, process_check_payment_callback
+from bot.handlers.payments import (
+    process_buy_tokens_callback,
+    process_check_payment_callback,
+)
 from bot.webhooks.yookassa_webhook import setup_yookassa_routes
 from bot.utils.music_api import process_music_callback, process_music_page_callback
 from bot.utils.cat_api import more_cat_callback
@@ -33,8 +39,7 @@ from bot.owner_settings.database import owner_settings_db
 from bot.owner_settings.handlers import system_settings_callback
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -56,7 +61,9 @@ async def business_message_handler(message: types.Message):
 
 @dp.business_connection()
 async def business_connect(connection: types.BusinessConnection):
-    logger.info(f"🔗 Бизнес подключение: {connection.id} от {connection.user.first_name}")
+    logger.info(
+        f"🔗 Бизнес подключение: {connection.id} от {connection.user.first_name}"
+    )
 
 
 @dp.callback_query()
@@ -69,7 +76,10 @@ async def callback_handler(callback_query: types.CallbackQuery):
         try:
             allowed_user_id = int(allowed_user_part)
             if user_id != allowed_user_id:
-                await callback_query.answer("❌ Эта панель управления создана другим пользователем и недоступна для вас!", show_alert=True)
+                await callback_query.answer(
+                    "❌ Эта панель управления создана другим пользователем и недоступна для вас!",
+                    show_alert=True,
+                )
                 return
 
         except ValueError:
@@ -115,7 +125,9 @@ async def callback_handler(callback_query: types.CallbackQuery):
     elif data and data.startswith("cp|"):
         try:
             _, payment_id, amount_str = data.split("|")
-            await process_check_payment_callback(callback_query, payment_id, int(amount_str))
+            await process_check_payment_callback(
+                callback_query, payment_id, int(amount_str)
+            )
         except (IndexError, ValueError) as e:
             logger.error(f"Ошибка парсинга callback проверки платежа: {e}")
             await callback_query.answer("❌ Ошибка данных проверки", show_alert=True)
@@ -127,12 +139,15 @@ async def callback_handler(callback_query: types.CallbackQuery):
         await process_music_page_callback(callback_query)
     elif data and data.startswith("inst_dl|"):
         from bot.utils.myinstants_api import process_instants_download_callback
+
         await process_instants_download_callback(callback_query)
     elif data and data.startswith("inst_pg|"):
         from bot.utils.myinstants_api import process_instants_page_callback
+
         await process_instants_page_callback(callback_query)
     elif data and data.startswith("inst_more|"):
         from bot.utils.myinstants_api import process_instants_more_callback
+
         await process_instants_more_callback(callback_query)
     elif data and data.startswith("sys_set:"):
         await system_settings_callback(callback_query)
@@ -157,13 +172,15 @@ async def on_startup():
         logger.warning("=" * 60)
         logger.warning(f"⚠️ ВНИМАНИЕ: Файл '{COOKIES_FILE}' не найден!")
         logger.warning("Для корректной работы скачивания видео (обход 403 и 18+)")
-        logger.warning(f"пожалуйста, положите файл '{COOKIES_FILE}' в корневую папку бота.")
+        logger.warning(
+            f"пожалуйста, положите файл '{COOKIES_FILE}' в корневую папку бота."
+        )
         logger.warning("=" * 60)
     else:
         logger.info(f"✅ Файл '{COOKIES_FILE}' обнаружен и будет использоваться.")
 
     logger.info(f"👑 Владелец ID: {OWNER_ID}")
-    logger.info(f"🤖 Автоответ: мгновенный при включённом режиме")
+    logger.info("🤖 Автоответ: мгновенный при включённом режиме")
     await state.set_away_mode(False)
 
     queue_manager.register_queue("heavyweights", concurrency=1)
@@ -185,7 +202,7 @@ async def start_web_app(bot_instance: Bot):
     runner = web.AppRunner(app)
     await runner.setup()
 
-    site = web.TCPSite(runner, '0.0.0.0', 8080)
+    site = web.TCPSite(runner, "0.0.0.0", 8080)
     await site.start()
     logger.info("🌐 Web-сервер для ЮKassa запущен на порту 8080")
 

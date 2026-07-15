@@ -15,7 +15,9 @@ logger = logging.getLogger(__name__)
 async def get_random_cat():
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get("https://api.thecatapi.com/v1/images/search") as response:
+            async with session.get(
+                "https://api.thecatapi.com/v1/images/search"
+            ) as response:
                 if response.status == 200:
                     data = await response.json()
                     if data and isinstance(data, list) and "url" in data[0]:
@@ -26,9 +28,10 @@ async def get_random_cat():
 
 
 def get_cat_keyboard(user_id: int):
-    return create_user_keyboard([
-        [InlineKeyboardButton(text="🐱 Ещё котика", callback_data="more_cat")]
-    ], user_id)
+    return create_user_keyboard(
+        [[InlineKeyboardButton(text="🐱 Ещё котика", callback_data="more_cat")]],
+        user_id,
+    )
 
 
 async def send_cat(target, is_callback=False):
@@ -36,9 +39,7 @@ async def send_cat(target, is_callback=False):
 
     if not url:
         error_msg = format_styled_message(
-            emoji="❌",
-            title=API_NAME,
-            message="Котики спрятались! Попробуй позже."
+            emoji="❌", title=API_NAME, message="Котики спрятались! Попробуй позже."
         )
         if is_callback:
             await target.message.answer(error_msg)
@@ -47,9 +48,7 @@ async def send_cat(target, is_callback=False):
         return
 
     caption = format_styled_message(
-        emoji=API_ICON,
-        title=API_NAME,
-        message="Держи пушистого!"
+        emoji=API_ICON, title=API_NAME, message="Держи пушистого!"
     )
     reply_markup = get_cat_keyboard(target.from_user.id)
 
@@ -57,9 +56,13 @@ async def send_cat(target, is_callback=False):
         message_obj = target.message if is_callback else target
 
         if url.endswith(".gif"):
-            await message_obj.reply_animation(animation=url, caption=caption, reply_markup=reply_markup)
+            await message_obj.reply_animation(
+                animation=url, caption=caption, reply_markup=reply_markup
+            )
         else:
-            await message_obj.reply_photo(photo=url, caption=caption, reply_markup=reply_markup)
+            await message_obj.reply_photo(
+                photo=url, caption=caption, reply_markup=reply_markup
+            )
 
         await db.increment_commands()
         await db.log_command("!кот", target.from_user.id)

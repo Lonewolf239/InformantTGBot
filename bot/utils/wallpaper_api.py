@@ -34,7 +34,7 @@ async def get_wallpaper(query: str) -> dict | None:
                         "url": photo["urls"]["regular"],
                         "full_url": photo["urls"]["full"],
                         "author": photo["user"].get("name", "Неизвестен"),
-                        "link": photo["links"]["html"]
+                        "link": photo["links"]["html"],
                     }
                 else:
                     logger.error(f"Ошибка Unsplash API: HTTP {response.status}")
@@ -49,7 +49,11 @@ async def cmd_wallpaper(message: types.Message):
     parts = raw_text.split(maxsplit=1) if raw_text else []
     query = parts[1].strip() if len(parts) > 1 else ""
 
-    wait_text = "Ищу крутые обои по твоему запросу..." if query else "Подбираю случайные крутые обои..."
+    wait_text = (
+        "Ищу крутые обои по твоему запросу..."
+        if query
+        else "Подбираю случайные крутые обои..."
+    )
     wait_msg = await message.reply(
         format_styled_message(emoji="⏳", title=API_NAME, message=wait_text)
     )
@@ -58,21 +62,33 @@ async def cmd_wallpaper(message: types.Message):
 
     if not wallpaper_data:
         await wait_msg.edit_text(
-            format_styled_message(emoji="❌", title=API_NAME, message=f"Обои по запросу «<b>{query}</b>» не найдены." if query else "Не удалось получить случайные обои.")
+            format_styled_message(
+                emoji="❌",
+                title=API_NAME,
+                message=(
+                    f"Обои по запросу «<b>{query}</b>» не найдены."
+                    if query
+                    else "Не удалось получить случайные обои."
+                ),
+            )
         )
         return
 
     caption = format_styled_message(
         emoji=API_ICON,
         title=API_NAME,
-        message=f"🎨 <b>Автор:</b> {wallpaper_data['author']}\n🔗 <a href='{wallpaper_data['full_url']}'>Скачать оригинал</a>"
+        message=f"🎨 <b>Автор:</b> {wallpaper_data['author']}\n🔗 <a href='{wallpaper_data['full_url']}'>Скачать оригинал</a>",
     )
 
     try:
         await message.reply_photo(photo=wallpaper_data["url"], caption=caption)
 
         await wait_msg.edit_text(
-            format_styled_message(emoji="✅", title=API_NAME, message="Обои успешно подобраны и отправлены ниже!")
+            format_styled_message(
+                emoji="✅",
+                title=API_NAME,
+                message="Обои успешно подобраны и отправлены ниже!",
+            )
         )
 
         await db.increment_commands()
@@ -82,5 +98,9 @@ async def cmd_wallpaper(message: types.Message):
     except Exception as e:
         logger.error(f"Ошибка отправки фото (!обои): {e}")
         await wait_msg.edit_text(
-            format_styled_message(emoji="❌", title=API_NAME, message="Не удалось загрузить картинку в Telegram. Возможно, файл слишком большой.")
+            format_styled_message(
+                emoji="❌",
+                title=API_NAME,
+                message="Не удалось загрузить картинку в Telegram. Возможно, файл слишком большой.",
+            )
         )

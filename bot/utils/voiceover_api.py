@@ -4,7 +4,7 @@ import logging
 from aiogram import types
 from aiogram.types import FSInputFile
 from langdetect import detect, LangDetectException
-from config import COMMAND_COSTS, VIP_IDS, COMMAND_METADATA
+from config import COMMAND_METADATA
 from bot.utils.database import db
 from bot.utils.helpers import format_styled_message, spend_tokens
 from bot.utils.translation_core import text_to_speech
@@ -24,7 +24,7 @@ async def cmd_voiceover(message: types.Message):
                 "❌ <b>Ошибка использования!</b>\n\n"
                 "📝 <b>Как использовать:</b>\n"
                 "Ответь командой <code>!озвучка</code> на любое текстовое сообщение."
-            )
+            ),
         )
         await message.reply(usage_msg)
         return
@@ -37,7 +37,7 @@ async def cmd_voiceover(message: types.Message):
         error_msg = format_styled_message(
             emoji=VOICE_ICON,
             title=VOICE_NAME,
-            message="❌ <b>В сообщении нет текста для озвучки!</b>"
+            message="❌ <b>В сообщении нет текста для озвучки!</b>",
         )
         await message.reply(error_msg)
         return
@@ -46,7 +46,7 @@ async def cmd_voiceover(message: types.Message):
         format_styled_message(
             emoji=VOICE_ICON,
             title=VOICE_NAME,
-            message="⏳ <b>Анализирую текст и генерирую озвучку...</b>"
+            message="⏳ <b>Анализирую текст и генерирую озвучку...</b>",
         )
     )
 
@@ -60,30 +60,34 @@ async def cmd_voiceover(message: types.Message):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
             output_path = tmp_file.name
 
-        success = await text_to_speech(target_text, output_path, lang_code=detected_lang)
+        success = await text_to_speech(
+            target_text, output_path, lang_code=detected_lang
+        )
 
         if not success:
             await status_msg.edit_text(
                 format_styled_message(
                     emoji=VOICE_ICON,
                     title=VOICE_NAME,
-                    message=f"❌ <b>Не удалось сгенерировать озвучку.</b> Возможно, язык ({detected_lang}) не поддерживается."
+                    message=f"❌ <b>Не удалось сгенерировать озвучку.</b> Возможно, язык ({detected_lang}) не поддерживается.",
                 )
             )
             return
 
         voice_file = FSInputFile(output_path)
-        caption_text = target_text[:50] + "..." if len(target_text) > 50 else target_text
+        caption_text = (
+            target_text[:50] + "..." if len(target_text) > 50 else target_text
+        )
         await message.reply_voice(
             voice=voice_file,
-            caption=f"<b>🗣️ Озвучено ({detected_lang}):</b>\n<i>{caption_text}</i>"
+            caption=f"<b>🗣️ Озвучено ({detected_lang}):</b>\n<i>{caption_text}</i>",
         )
 
         await status_msg.edit_text(
             format_styled_message(
                 emoji=VOICE_ICON,
                 title=VOICE_NAME,
-                message="✅ <b>Успешно! Голосовое сообщение отправлено ниже.</b>"
+                message="✅ <b>Успешно! Голосовое сообщение отправлено ниже.</b>",
             )
         )
 
@@ -97,7 +101,7 @@ async def cmd_voiceover(message: types.Message):
             format_styled_message(
                 emoji=VOICE_ICON,
                 title=VOICE_NAME,
-                message="❌ <b>Произошла внутренняя ошибка при озвучке.</b>"
+                message="❌ <b>Произошла внутренняя ошибка при озвучке.</b>",
             )
         )
 
@@ -105,5 +109,5 @@ async def cmd_voiceover(message: types.Message):
         if output_path and os.path.exists(output_path):
             try:
                 os.unlink(output_path)
-            except:
+            except Exception:
                 pass

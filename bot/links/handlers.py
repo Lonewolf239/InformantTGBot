@@ -1,8 +1,13 @@
 import re
 from aiogram import types
 from bot.links.database import (
-    save_link, get_link, detect_link_type, get_unviewed_links_grouped,
-    get_unviewed_links_by_type, delete_link, get_stats
+    save_link,
+    get_link,
+    detect_link_type,
+    get_unviewed_links_grouped,
+    get_unviewed_links_by_type,
+    delete_link,
+    get_stats,
 )
 from bot.links.keyboard import create_submenu_keyboard, create_unviewed_list_keyboard
 from bot.utils.helpers import get_raw_text
@@ -11,7 +16,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-URL_PATTERN = re.compile(r'https?://[^\s]+')
+URL_PATTERN = re.compile(r"https?://[^\s]+")
 
 
 async def process_incoming_link(message: types.Message):
@@ -37,7 +42,7 @@ async def process_incoming_link(message: types.Message):
             from_user_id=user.id,
             from_username=user.username or "",
             from_first_name=user.first_name or "",
-            chat_id=chat_id
+            chat_id=chat_id,
         ):
             saved_count += 1
 
@@ -55,7 +60,9 @@ async def process_incoming_link(message: types.Message):
 
 async def cmd_links(message: types.Message):
     if message.from_user.id != OWNER_ID:
-        await message.reply("<b>┌─ ❌ Ошибка</b>\n└─ Эта команда только для владельца бота.")
+        await message.reply(
+            "<b>┌─ ❌ Ошибка</b>\n└─ Эта команда только для владельца бота."
+        )
         return True
 
     grouped = await get_unviewed_links_grouped()
@@ -95,19 +102,13 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
         links = await get_unviewed_links_by_type(link_type)
         text, reply_markup = create_unviewed_list_keyboard(links, link_type)
 
-        await callback_query.message.edit_text(
-            text,
-            reply_markup=reply_markup
-        )
+        await callback_query.message.edit_text(text, reply_markup=reply_markup)
 
     elif data == "links_back":
         grouped = await get_unviewed_links_grouped()
         text, reply_markup = create_submenu_keyboard(grouped)
 
-        await callback_query.message.edit_text(
-            text,
-            reply_markup=reply_markup
-        )
+        await callback_query.message.edit_text(text, reply_markup=reply_markup)
 
     elif data.startswith("links_typepage|"):
         parts = data.split("|")
@@ -116,10 +117,7 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
         links = await get_unviewed_links_by_type(link_type)
         text, reply_markup = create_unviewed_list_keyboard(links, link_type, page)
 
-        await callback_query.message.edit_text(
-            text,
-            reply_markup=reply_markup
-        )
+        await callback_query.message.edit_text(text, reply_markup=reply_markup)
 
     elif data.startswith("links_open|"):
         link_id = int(data.split("|")[1])
@@ -136,8 +134,7 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
                 if grouped:
                     text, reply_markup = create_submenu_keyboard(grouped)
                     await callback_query.message.edit_text(
-                        text,
-                        reply_markup=reply_markup
+                        text, reply_markup=reply_markup
                     )
                 else:
                     await callback_query.message.edit_text(
@@ -163,10 +160,7 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
         grouped = await get_unviewed_links_grouped()
         if grouped:
             text, reply_markup = create_submenu_keyboard(grouped)
-            await callback_query.message.edit_text(
-                text,
-                reply_markup=reply_markup
-            )
+            await callback_query.message.edit_text(text, reply_markup=reply_markup)
         else:
             await callback_query.message.edit_text(
                 f"<b>┌─ ✅ ОТМЕЧЕНО</b>\n"
@@ -179,10 +173,7 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
         text, reply_markup = create_submenu_keyboard(grouped)
 
         if reply_markup:
-            await callback_query.message.edit_text(
-                text,
-                reply_markup=reply_markup
-            )
+            await callback_query.message.edit_text(text, reply_markup=reply_markup)
         else:
             await callback_query.message.edit_text(text)
 

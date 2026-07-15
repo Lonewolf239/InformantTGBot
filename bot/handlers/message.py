@@ -7,7 +7,6 @@ from bot.handlers.auto_reply import check_auto_reply
 from bot.links.handlers import process_incoming_link
 from bot.utils.helpers import its_me
 from config import WELCOME_TEXT
-from bot.stats import stats
 from bot.utils.database import db
 import logging
 
@@ -18,7 +17,9 @@ async def safe_reply(message: types.Message, text: str, **kwargs):
     try:
         return await message.reply(text, **kwargs)
     except Exception as e:
-        logger.error(f"Ошибка при отправке сообщения пользователю {message.from_user.id}: {e}")
+        logger.error(
+            f"Ошибка при отправке сообщения пользователю {message.from_user.id}: {e}"
+        )
         return None
 
 

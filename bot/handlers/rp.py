@@ -16,7 +16,9 @@ async def process_rp_command(message: types.Message):
     command = parts[0].lower() if parts else ""
 
     if command in SFW_RP_ACTIONS:
-        return await execute_rp_action(message, command, SFW_RP_ACTIONS[command], parts, is_nsfw=False)
+        return await execute_rp_action(
+            message, command, SFW_RP_ACTIONS[command], parts, is_nsfw=False
+        )
 
     if command in NSFW_RP_ACTIONS:
         sender_id = message.from_user.id
@@ -43,12 +45,20 @@ async def process_rp_command(message: types.Message):
             )
             return True
 
-        return await execute_rp_action(message, command, NSFW_RP_ACTIONS[command], parts, is_nsfw=True)
+        return await execute_rp_action(
+            message, command, NSFW_RP_ACTIONS[command], parts, is_nsfw=True
+        )
 
     return False
 
 
-async def execute_rp_action(message: types.Message, command: str, action: str, parts: list, is_nsfw: bool = False):
+async def execute_rp_action(
+    message: types.Message,
+    command: str,
+    action: str,
+    parts: list,
+    is_nsfw: bool = False,
+):
     target = message.reply_to_message.from_user
 
     if target.id == message.from_user.id:

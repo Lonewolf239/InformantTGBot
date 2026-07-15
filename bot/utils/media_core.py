@@ -9,27 +9,43 @@ from config import WHISPER_MAX_DURATION_SECONDS, WHISPER_MAX_FILE_SIZE_MB
 logger = logging.getLogger(__name__)
 
 
-async def download_media_file(message: types.Message, bot) -> Tuple[Optional[str], Optional[str]]:
+async def download_media_file(
+    message: types.Message, bot
+) -> Tuple[Optional[str], Optional[str]]:
     media_obj = message.voice or message.video_note or message.video or message.audio
     if not media_obj:
         return None, None
 
-    media_type = "voice" if message.voice else "video_note" if message.video_note else "video" if message.video else "audio"
+    media_type = (
+        "voice"
+        if message.voice
+        else (
+            "video_note"
+            if message.video_note
+            else "video" if message.video else "audio"
+        )
+    )
     file_id = media_obj.file_id
 
-    extension = ".ogg" if media_type == "voice" else ".mp4" if media_type in ["video_note", "video"] else ".mp3"
+    extension = (
+        ".ogg"
+        if media_type == "voice"
+        else ".mp4" if media_type in ["video_note", "video"] else ".mp3"
+    )
     if media_type == "audio" and message.audio.file_name:
         _, ext = os.path.splitext(message.audio.file_name)
         extension = ext or ".mp3"
 
-    duration = getattr(media_obj, 'duration', 0)
+    duration = getattr(media_obj, "duration", 0)
     if duration and duration > WHISPER_MAX_DURATION_SECONDS:
-        logger.warning(f"⚠️ Слишком длинное сообщение: {duration} сек (макс {WHISPER_MAX_DURATION_SECONDS})")
+        logger.warning(
+            f"⚠️ Слишком длинное сообщение: {duration} сек (макс {WHISPER_MAX_DURATION_SECONDS})"
+        )
         return None, None
 
-    file_size = getattr(media_obj, 'file_size', 0)
+    file_size = getattr(media_obj, "file_size", 0)
     if file_size and file_size > WHISPER_MAX_FILE_SIZE_MB * 1024 * 1024:
-        logger.warning(f"⚠️ Слишком большой файл: {file_size // (1024*1024)} MB")
+        logger.warning(f"⚠️ Слишком большой файл: {file_size // (1024 * 1024)} MB")
         return None, None
 
     try:
@@ -49,8 +65,19 @@ async def download_media_file(message: types.Message, bot) -> Tuple[Optional[str
 
 async def get_duration(file_path: str) -> float:
     try:
-        cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', file_path]
-        process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        cmd = [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            file_path,
+        ]
+        process = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
         stdout, _ = await process.communicate()
         return float(stdout.decode().strip())
     except Exception as e:
@@ -58,7 +85,9 @@ async def get_duration(file_path: str) -> float:
         return 0.0
 
 
-async def adjust_audio_duration(audio_path: str, target_duration: float, output_path: str) -> bool:
+async def adjust_audio_duration(
+    audio_path: str, target_duration: float, output_path: str
+) -> bool:
     current_duration = await get_duration(audio_path)
     if current_duration == 0 or target_duration == 0:
         return False
@@ -81,8 +110,20 @@ async def adjust_audio_duration(audio_path: str, target_duration: float, output_
     filters.append("apad")
 
     try:
-        cmd = ['ffmpeg', '-y', '-i', audio_path, '-filter:a', ",".join(filters), '-t', str(target_duration), output_path]
-        process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            audio_path,
+            "-filter:a",
+            ",".join(filters),
+            "-t",
+            str(target_duration),
+            output_path,
+        ]
+        process = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
         await process.communicate()
         return process.returncode == 0
     except Exception as e:
@@ -90,10 +131,31 @@ async def adjust_audio_duration(audio_path: str, target_duration: float, output_
         return False
 
 
-async def replace_audio_in_video(video_path: str, audio_path: str, output_path: str) -> bool:
+async def replace_audio_in_video(
+    video_path: str, audio_path: str, output_path: str
+) -> bool:
     try:
-        cmd = ['ffmpeg', '-y', '-i', video_path, '-i', audio_path, '-c:v', 'copy', '-c:a', 'aac', '-map', '0:v:0', '-map', '1:a:0', '-shortest', output_path]
-        process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            video_path,
+            "-i",
+            audio_path,
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-shortest",
+            output_path,
+        ]
+        process = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
         await process.communicate()
         return process.returncode == 0
     except Exception as e:

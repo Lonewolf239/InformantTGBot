@@ -8,7 +8,12 @@ import yt_dlp
 from aiogram import types
 from aiogram.types import FSInputFile, InlineKeyboardButton
 from config import YT_DOWNLOAD_DIR, YT_MAX_FILE_SIZE_MB, COOKIES_FILE, COMMAND_METADATA
-from bot.utils.helpers import format_styled_message, create_user_keyboard, spend_tokens, get_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    create_user_keyboard,
+    spend_tokens,
+    get_raw_text,
+)
 from bot.utils.database import db
 
 API_ICON = COMMAND_METADATA["!трек"]["icon"]
@@ -21,9 +26,9 @@ music_search_cache = {}
 
 
 def extract_audio_tags(media_data: dict) -> tuple:
-    artist = media_data.get('artist')
-    track = media_data.get('track')
-    raw_title = media_data.get('title', 'Unknown Media')
+    artist = media_data.get("artist")
+    track = media_data.get("track")
+    raw_title = media_data.get("title", "Unknown Media")
 
     if not artist or not track:
         if " - " in raw_title:
@@ -31,10 +36,12 @@ def extract_audio_tags(media_data: dict) -> tuple:
             artist = parts[0].strip()
             track = parts[1].strip()
         else:
-            artist = media_data.get('uploader', media_data.get('channel', 'Unknown Artist'))
+            artist = media_data.get(
+                "uploader", media_data.get("channel", "Unknown Artist")
+            )
             track = raw_title
 
-    track = re.sub(r'\s*[\(\[].*?[\)\]]', '', track).strip().strip('"\'').strip()
+    track = re.sub(r"\s*[\(\[].*?[\)\]]", "", track).strip().strip("\"'").strip()
 
     if artist and artist.endswith(" - Topic"):
         artist = artist.replace(" - Topic", "")
@@ -44,35 +51,39 @@ def extract_audio_tags(media_data: dict) -> tuple:
 
 def get_yt_search_opts() -> dict:
     opts = {
-        'quiet': True,
-        'extract_flat': 'in_playlist',
-        'skip_download': True,
-        'no_warnings': True,
-        'source_address': '0.0.0.0',
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        "quiet": True,
+        "extract_flat": "in_playlist",
+        "skip_download": True,
+        "no_warnings": True,
+        "source_address": "0.0.0.0",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     }
     if os.path.exists(COOKIES_FILE):
-        opts['cookiefile'] = COOKIES_FILE
+        opts["cookiefile"] = COOKIES_FILE
     return opts
 
 
 def get_yt_audio_opts(output_path: str) -> dict:
     opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'format': 'm4a/bestaudio/best',
-        'outtmpl': output_path,
-        'writethumbnail': True,
-        'source_address': '0.0.0.0',
-        'extractor_args': {'youtube': {'player_client': ['android', 'web', 'mweb', 'ios']}},
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
+        "quiet": True,
+        "no_warnings": True,
+        "format": "m4a/bestaudio/best",
+        "outtmpl": output_path,
+        "writethumbnail": True,
+        "source_address": "0.0.0.0",
+        "extractor_args": {
+            "youtube": {"player_client": ["android", "web", "mweb", "ios"]}
+        },
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192",
+            }
+        ],
     }
     if os.path.exists(COOKIES_FILE):
-        opts['cookiefile'] = COOKIES_FILE
+        opts["cookiefile"] = COOKIES_FILE
     return opts
 
 
@@ -81,7 +92,7 @@ def _sync_search_music(query: str, limit: int = 25) -> list:
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(f"ytsearch{limit}:{query}", download=False)
-            entries = info.get('entries', [])
+            entries = info.get("entries", [])
             return [e for e in entries if e]
     except Exception as e:
         logger.error(f"Ошибка поиска: {e}")
@@ -103,7 +114,7 @@ def _sync_download_audio(url: str, request_id: str) -> dict:
             final_path = base_path + ".mp3"
 
             thumbnail_path = None
-            for ext in ['.jpg', '.webp', '.png']:
+            for ext in [".jpg", ".webp", ".png"]:
                 if os.path.exists(base_path + ext):
                     thumbnail_path = base_path + ext
                     break
@@ -115,7 +126,7 @@ def _sync_download_audio(url: str, request_id: str) -> dict:
                 "thumbnail_path": thumbnail_path,
                 "track": track,
                 "artist": artist,
-                "raw_title": info.get("title", "Unknown Track")
+                "raw_title": info.get("title", "Unknown Track"),
             }
     except Exception as e:
         logger.error(f"Ошибка скачивания трека: {e}")
@@ -123,7 +134,8 @@ def _sync_download_audio(url: str, request_id: str) -> dict:
 
 
 def format_duration(seconds: int) -> str:
-    if not seconds: return "?:??"
+    if not seconds:
+        return "?:??"
     return f"{int(seconds // 60)}:{int(seconds % 60):02d}"
 
 
@@ -145,26 +157,42 @@ def generate_music_keyboard(request_id: str, page: int, user_id: int):
     for i, entry in enumerate(page_results):
         global_idx = start_idx + i
         track_name, artist_name = extract_audio_tags(entry)
-        duration = format_duration(entry.get('duration', 0))
+        duration = format_duration(entry.get("duration", 0))
 
         display_name = f"{artist_name} — {track_name}"
         btn_text = f"⬇️ {display_name} [{duration}]"
         if len(btn_text) > 60:
             btn_text = btn_text[:57] + "..."
 
-        inline_keyboard.append([
-            InlineKeyboardButton(text=btn_text, callback_data=f"mus_dl|{request_id}|{global_idx}")
-        ])
+        inline_keyboard.append(
+            [
+                InlineKeyboardButton(
+                    text=btn_text, callback_data=f"mus_dl|{request_id}|{global_idx}"
+                )
+            ]
+        )
 
     nav_row = []
     if page > 0:
-        nav_row.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"mus_page|{request_id}|{page-1}"))
+        nav_row.append(
+            InlineKeyboardButton(
+                text="⬅️ Назад", callback_data=f"mus_page|{request_id}|{page - 1}"
+            )
+        )
 
     if total_pages > 1:
-        nav_row.append(InlineKeyboardButton(text=f"📄 {page+1}/{total_pages}", callback_data="ignore"))
+        nav_row.append(
+            InlineKeyboardButton(
+                text=f"📄 {page + 1}/{total_pages}", callback_data="ignore"
+            )
+        )
 
     if page < total_pages - 1:
-        nav_row.append(InlineKeyboardButton(text="Вперед ➡️", callback_data=f"mus_page|{request_id}|{page+1}"))
+        nav_row.append(
+            InlineKeyboardButton(
+                text="Вперед ➡️", callback_data=f"mus_page|{request_id}|{page + 1}"
+            )
+        )
 
     if nav_row:
         inline_keyboard.append(nav_row)
@@ -180,14 +208,16 @@ async def cmd_music(message: types.Message):
         error_msg = format_styled_message(
             emoji=API_ICON,
             title=API_NAME,
-            message="❌ <b>Не указано название.</b>\n📝 Пример: <code>!трек Bring Me The Horizon</code>"
+            message="❌ <b>Не указано название.</b>\n📝 Пример: <code>!трек Bring Me The Horizon</code>",
         )
         await message.reply(error_msg)
         return
 
     query = args[1].strip()
     status_msg = await message.reply(
-        format_styled_message(emoji="🔍", title=API_NAME, message=f"Ищу трек: <b>{query}</b>...")
+        format_styled_message(
+            emoji="🔍", title=API_NAME, message=f"Ищу трек: <b>{query}</b>..."
+        )
     )
 
     loop = asyncio.get_running_loop()
@@ -195,7 +225,11 @@ async def cmd_music(message: types.Message):
 
     if not results:
         await status_msg.edit_text(
-            format_styled_message(emoji="❌", title=API_NAME, message="По вашему запросу ничего не найдено.")
+            format_styled_message(
+                emoji="❌",
+                title=API_NAME,
+                message="По вашему запросу ничего не найдено.",
+            )
         )
         return
 
@@ -204,15 +238,17 @@ async def cmd_music(message: types.Message):
     music_search_cache[request_id] = {
         "query": query,
         "results": results,
-        "total_pages": math.ceil(len(results) / 5)
+        "total_pages": math.ceil(len(results) / 5),
     }
 
     keyboard = generate_music_keyboard(request_id, 0, message.from_user.id)
-    result_text = f"🔎 <b>Результаты по запросу:</b> <i>{query}</i>\n\nВыберите нужный трек ниже:"
+    result_text = (
+        f"🔎 <b>Результаты по запросу:</b> <i>{query}</i>\n\nВыберите нужный трек ниже:"
+    )
 
     await status_msg.edit_text(
         format_styled_message(emoji=API_ICON, title=API_NAME, message=result_text),
-        reply_markup=keyboard
+        reply_markup=keyboard,
     )
 
     await db.increment_commands()
@@ -231,7 +267,7 @@ async def cmd_music_by_text(message: types.Message):
         error_msg = format_styled_message(
             emoji=cmd_icon,
             title=cmd_name,
-            message="❌ <b>Не указан текст песни.</b>\n📝 Пример: <code>!по_тексту я помню белые обои</code>"
+            message="❌ <b>Не указан текст песни.</b>\n📝 Пример: <code>!по_тексту я помню белые обои</code>",
         )
         await message.reply(error_msg)
         return
@@ -239,52 +275,82 @@ async def cmd_music_by_text(message: types.Message):
     raw_query = args[1].strip()
 
     status_msg = await message.reply(
-        format_styled_message(emoji="🔍", title=cmd_name, message=f"Провожу разведку по тексту: <b>{raw_query}</b>...")
+        format_styled_message(
+            emoji="🔍",
+            title=cmd_name,
+            message=f"Провожу разведку по тексту: <b>{raw_query}</b>...",
+        )
     )
 
     loop = asyncio.get_running_loop()
 
-    probe_query = f'"{raw_query}" текст песни' if bool(re.search('[а-яА-Я]', raw_query)) else f'"{raw_query}" lyrics'
+    probe_query = (
+        f'"{raw_query}" текст песни'
+        if bool(re.search("[а-яА-Я]", raw_query))
+        else f'"{raw_query}" lyrics'
+    )
     probe_results = await loop.run_in_executor(None, _sync_search_music, probe_query, 5)
 
     if not probe_results:
-        probe_query_fallback = probe_query.replace('"', '')
-        probe_results = await loop.run_in_executor(None, _sync_search_music, probe_query_fallback, 5)
+        probe_query_fallback = probe_query.replace('"', "")
+        probe_results = await loop.run_in_executor(
+            None, _sync_search_music, probe_query_fallback, 5
+        )
 
     best_artist = None
     best_track = None
 
     if probe_results:
-        trash_pattern = re.compile(r'(?i)(remix|slowed|reverb|sped up|speed up|bass|phonk|8d|cover|mashup|хайтек|ремикс|кавер)')
+        trash_pattern = re.compile(
+            r"(?i)(remix|slowed|reverb|sped up|speed up|bass|phonk|8d|cover|mashup|хайтек|ремикс|кавер)"
+        )
 
         for res in probe_results:
             artist, track = extract_audio_tags(res)
-            raw_title = res.get('title', '')
+            raw_title = res.get("title", "")
 
-            if artist and track and artist != 'Unknown Artist':
-                if not trash_pattern.search(raw_title) and not trash_pattern.search(track):
-                    clean_pattern = re.compile(r'(?i)\b(lyrics|lyric video|lyric|official audio|official video|official|audio|video|music video)\b')
+            if artist and track and artist != "Unknown Artist":
+                if not trash_pattern.search(raw_title) and not trash_pattern.search(
+                    track
+                ):
+                    clean_pattern = re.compile(
+                        r"(?i)\b(lyrics|lyric video|lyric|official audio|official video|official|audio|video|music video)\b"
+                    )
 
-                    best_artist = clean_pattern.sub('', artist).strip(' -|/.,')
-                    best_track = clean_pattern.sub('', track).strip(' -|/.,')
+                    best_artist = clean_pattern.sub("", artist).strip(" -|/.,")
+                    best_track = clean_pattern.sub("", track).strip(" -|/.,")
                     break
 
     if best_artist and best_track:
-        final_query = f'{best_artist} - {best_track} official audio'
+        final_query = f"{best_artist} - {best_track} official audio"
         await status_msg.edit_text(
-            format_styled_message(emoji="🎯", title=cmd_name, message=f"Распознал трек: <b>{best_artist} — {best_track}</b>\nИщу оригинальное аудио...")
+            format_styled_message(
+                emoji="🎯",
+                title=cmd_name,
+                message=f"Распознал трек: <b>{best_artist} — {best_track}</b>\nИщу оригинальное аудио...",
+            )
         )
     else:
         final_query = f'"{raw_query}" official audio -remix -slowed -phonk'
         await status_msg.edit_text(
-            format_styled_message(emoji="🔍", title=cmd_name, message="Точное название вытянуть не вышло, ищу по тексту с жестким фильтром...")
+            format_styled_message(
+                emoji="🔍",
+                title=cmd_name,
+                message="Точное название вытянуть не вышло, ищу по тексту с жестким фильтром...",
+            )
         )
 
-    final_results = await loop.run_in_executor(None, _sync_search_music, final_query, 25)
+    final_results = await loop.run_in_executor(
+        None, _sync_search_music, final_query, 25
+    )
 
     if not final_results:
         await status_msg.edit_text(
-            format_styled_message(emoji="❌", title=cmd_name, message="По вашему запросу ничего не найдено.")
+            format_styled_message(
+                emoji="❌",
+                title=cmd_name,
+                message="По вашему запросу ничего не найдено.",
+            )
         )
         return
 
@@ -293,7 +359,7 @@ async def cmd_music_by_text(message: types.Message):
     music_search_cache[request_id] = {
         "query": f"Текст: {raw_query}",
         "results": final_results,
-        "total_pages": math.ceil(len(final_results) / 5)
+        "total_pages": math.ceil(len(final_results) / 5),
     }
 
     keyboard = generate_music_keyboard(request_id, 0, message.from_user.id)
@@ -305,7 +371,7 @@ async def cmd_music_by_text(message: types.Message):
 
     await status_msg.edit_text(
         format_styled_message(emoji=cmd_icon, title=cmd_name, message=result_text),
-        reply_markup=keyboard
+        reply_markup=keyboard,
     )
 
     await db.increment_commands()
@@ -322,16 +388,20 @@ async def process_music_page_callback(callback: types.CallbackQuery):
 
     keyboard = generate_music_keyboard(req_id, page, callback.from_user.id)
     if not keyboard:
-        await callback.answer("⏳ Время поиска истекло. Введите команду заново.", show_alert=True)
+        await callback.answer(
+            "⏳ Время поиска истекло. Введите команду заново.", show_alert=True
+        )
         return
 
     query = music_search_cache[req_id]["query"]
-    result_text = f"🔎 <b>Результаты по запросу:</b> <i>{query}</i>\n\nВыберите нужный трек ниже:"
+    result_text = (
+        f"🔎 <b>Результаты по запросу:</b> <i>{query}</i>\n\nВыберите нужный трек ниже:"
+    )
 
     try:
         await callback.message.edit_text(
             format_styled_message(emoji=API_ICON, title=API_NAME, message=result_text),
-            reply_markup=keyboard
+            reply_markup=keyboard,
         )
     except Exception:
         pass
@@ -346,7 +416,11 @@ async def process_music_callback(callback: types.CallbackQuery):
     cache_data = music_search_cache.get(req_id)
     if not cache_data or track_idx >= len(cache_data["results"]):
         await callback.message.edit_text(
-            format_styled_message(emoji="❌", title=API_NAME, message="Время поиска истекло. Пожалуйста, введите команду заново.")
+            format_styled_message(
+                emoji="❌",
+                title=API_NAME,
+                message="Время поиска истекло. Пожалуйста, введите команду заново.",
+            )
         )
         return
 
@@ -359,7 +433,11 @@ async def process_music_callback(callback: types.CallbackQuery):
     display_title = f"{artist_name} — {track_name}"
 
     await callback.message.edit_text(
-        format_styled_message(emoji="⏳", title=API_NAME, message=f"Загружаю трек: <b>{display_title}</b>...")
+        format_styled_message(
+            emoji="⏳",
+            title=API_NAME,
+            message=f"Загружаю трек: <b>{display_title}</b>...",
+        )
     )
 
     loop = asyncio.get_running_loop()
@@ -367,7 +445,11 @@ async def process_music_callback(callback: types.CallbackQuery):
 
     if not media_info or not os.path.exists(media_info["file_path"]):
         await callback.message.edit_text(
-            format_styled_message(emoji="❌", title=API_NAME, message="Не удалось загрузить аудио (возможно, видео имеет возрастные ограничения или заблокировано).")
+            format_styled_message(
+                emoji="❌",
+                title=API_NAME,
+                message="Не удалось загрузить аудио (возможно, видео имеет возрастные ограничения или заблокировано).",
+            )
         )
         return
 
@@ -377,7 +459,11 @@ async def process_music_callback(callback: types.CallbackQuery):
 
     if file_size > YT_MAX_FILE_SIZE_MB * 1024 * 1024:
         await callback.message.edit_text(
-            format_styled_message(emoji="❌", title=API_NAME, message=f"Файл слишком большой (> {YT_MAX_FILE_SIZE_MB}MB).")
+            format_styled_message(
+                emoji="❌",
+                title=API_NAME,
+                message=f"Файл слишком большой (> {YT_MAX_FILE_SIZE_MB}MB).",
+            )
         )
         os.remove(file_path)
         if thumbnail_path and os.path.exists(thumbnail_path):
@@ -385,13 +471,15 @@ async def process_music_callback(callback: types.CallbackQuery):
         return
 
     await callback.message.edit_text(
-        format_styled_message(emoji="⏳", title=API_NAME, message="Отправка в Telegram...")
+        format_styled_message(
+            emoji="⏳", title=API_NAME, message="Отправка в Telegram..."
+        )
     )
 
     caption = format_styled_message(
         emoji=API_ICON,
         title=API_NAME,
-        message=f"<b>{media_info['artist']} — {media_info['track']}</b>"
+        message=f"<b>{media_info['artist']} — {media_info['track']}</b>",
     )
 
     tg_file = FSInputFile(file_path)
@@ -402,26 +490,32 @@ async def process_music_callback(callback: types.CallbackQuery):
             await callback.message.reply_to_message.reply_audio(
                 audio=tg_file,
                 caption=caption,
-                title=media_info['track'],
-                performer=media_info['artist'],
-                thumbnail=tg_thumb
+                title=media_info["track"],
+                performer=media_info["artist"],
+                thumbnail=tg_thumb,
             )
         else:
             await callback.message.answer_audio(
                 audio=tg_file,
                 caption=caption,
-                title=media_info['track'],
-                performer=media_info['artist'],
-                thumbnail=tg_thumb
+                title=media_info["track"],
+                performer=media_info["artist"],
+                thumbnail=tg_thumb,
             )
 
         await callback.message.edit_text(
-            format_styled_message(emoji="✅", title=API_NAME, message=f"Трек <b>{display_title}</b> успешно отправлен!")
+            format_styled_message(
+                emoji="✅",
+                title=API_NAME,
+                message=f"Трек <b>{display_title}</b> успешно отправлен!",
+            )
         )
     except Exception as e:
         logger.error(f"Ошибка отправки аудио: {e}")
         await callback.message.edit_text(
-            format_styled_message(emoji="❌", title=API_NAME, message="Ошибка при отправке аудио в чат.")
+            format_styled_message(
+                emoji="❌", title=API_NAME, message="Ошибка при отправке аудио в чат."
+            )
         )
     finally:
         if os.path.exists(file_path):

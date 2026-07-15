@@ -12,10 +12,7 @@ API_NAME = COMMAND_METADATA["!курс_крипты"]["name"]
 
 logger = logging.getLogger(__name__)
 
-_cache = {
-    "rates": None,
-    "timestamp": 0
-}
+_cache = {"rates": None, "timestamp": 0}
 CACHE_TTL = 30
 
 
@@ -31,7 +28,7 @@ async def get_top_crypto_rates(limit=5):
         "order": "market_cap_desc",
         "per_page": 250,
         "page": 1,
-        "sparkline": "false"
+        "sparkline": "false",
     }
 
     async with aiohttp.ClientSession() as session:
@@ -40,7 +37,16 @@ async def get_top_crypto_rates(limit=5):
                 if response.status == 200:
                     data = await response.json()
 
-                    exclude_symbols = {'usdt', 'usdc', 'dai', 'fdusd', 'wbtc', 'steth', 'reth', 'cbeth'}
+                    exclude_symbols = {
+                        "usdt",
+                        "usdc",
+                        "dai",
+                        "fdusd",
+                        "wbtc",
+                        "steth",
+                        "reth",
+                        "cbeth",
+                    }
 
                     valid_assets = []
                     for item in data:
@@ -48,18 +54,22 @@ async def get_top_crypto_rates(limit=5):
                         price = item.get("current_price")
 
                         if price and symbol not in exclude_symbols:
-                            valid_assets.append({
-                                "name": item.get("name", "Unknown"),
-                                "symbol": symbol.upper(),
-                                "price": float(price)
-                            })
+                            valid_assets.append(
+                                {
+                                    "name": item.get("name", "Unknown"),
+                                    "symbol": symbol.upper(),
+                                    "price": float(price),
+                                }
+                            )
 
-                    valid_assets.sort(key=lambda x: x['price'], reverse=True)
+                    valid_assets.sort(key=lambda x: x["price"], reverse=True)
 
                     rates_text = []
                     for item in valid_assets[:limit]:
-                        price_str = f"{item['price']:,.2f}".replace(',', ' ')
-                        rates_text.append(f"<b>{item['name']} [{item['symbol']}]</b> ➔ <code>${price_str}</code>")
+                        price_str = f"{item['price']:,.2f}".replace(",", " ")
+                        rates_text.append(
+                            f"<b>{item['name']} [{item['symbol']}]</b> ➔ <code>${price_str}</code>"
+                        )
 
                     _cache["rates"] = rates_text
                     _cache["timestamp"] = current_time
@@ -79,9 +89,10 @@ async def get_top_crypto_rates(limit=5):
 
 
 def get_crypto_keyboard(user_id: int):
-    return create_user_keyboard([
-        [InlineKeyboardButton(text="🔄 Обновить курсы", callback_data="more_crypto")]
-    ], user_id)
+    return create_user_keyboard(
+        [[InlineKeyboardButton(text="🔄 Обновить курсы", callback_data="more_crypto")]],
+        user_id,
+    )
 
 
 async def send_crypto(target, is_callback=False):
@@ -89,9 +100,9 @@ async def send_crypto(target, is_callback=False):
 
     if not rates_lines:
         error_msg = format_styled_message(
-            emoji="❌", 
-            title="Ошибка", 
-            message="Не удалось получить данные. API временно недоступно."
+            emoji="❌",
+            title="Ошибка",
+            message="Не удалось получить данные. API временно недоступно.",
         )
         if is_callback:
             await target.message.answer(error_msg)
@@ -101,11 +112,7 @@ async def send_crypto(target, is_callback=False):
 
     text = "\n".join(rates_lines)
 
-    msg_text = format_styled_message(
-        emoji=API_ICON,
-        title=API_NAME,
-        message=text
-    )
+    msg_text = format_styled_message(emoji=API_ICON, title=API_NAME, message=text)
 
     user_id = target.from_user.id
     keyboard = get_crypto_keyboard(user_id)

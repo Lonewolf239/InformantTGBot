@@ -15,7 +15,7 @@ async def check_auto_reply(message):
         await state.add_awaiting_user(
             user_id,
             message.from_user.first_name or "Неизвестный",
-            message.from_user.username
+            message.from_user.username,
         )
 
         if await state.should_send_auto_reply(user_id):

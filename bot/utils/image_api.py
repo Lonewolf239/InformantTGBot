@@ -7,7 +7,6 @@ from aiogram.types import BufferedInputFile
 from config import POLLINATIONS_API_KEY, COMMAND_METADATA
 from bot.utils.database import db
 from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
-from bot.utils.tokens_database import tokens_db
 
 API_ICON = COMMAND_METADATA["!рис"]["icon"]
 API_NAME = COMMAND_METADATA["!рис"]["name"]
@@ -43,26 +42,38 @@ async def cmd_render(message: types.Message):
     if len(parts) > 1:
         prompt = parts[1].strip()
     elif message.reply_to_message:
-        prompt = (message.reply_to_message.text or message.reply_to_message.caption or "").strip()
+        prompt = (
+            message.reply_to_message.text or message.reply_to_message.caption or ""
+        ).strip()
 
     if not prompt:
-        await message.reply(format_styled_message(
-            emoji=API_ICON,
-            title=API_NAME,
-            message="❌ <b>Не указан промпт для генерации.</b>\n📝 Пример: <code>!рис неоновый самурай, киберпанк, 8k</code> или ответом на текст."
-        ))
+        await message.reply(
+            format_styled_message(
+                emoji=API_ICON,
+                title=API_NAME,
+                message="❌ <b>Не указан промпт для генерации.</b>\n📝 Пример: <code>!рис неоновый самурай, киберпанк, 8k</code> или ответом на текст.",
+            )
+        )
         return
 
-    wait_msg = await message.reply(format_styled_message(
-        emoji="⏳", title=API_NAME, message="Рисую шедевр (модель <b>FLUX</b>)... Это займет около 10-20 секунд."
-    ))
+    wait_msg = await message.reply(
+        format_styled_message(
+            emoji="⏳",
+            title=API_NAME,
+            message="Рисую шедевр (модель <b>FLUX</b>)... Это займет около 10-20 секунд.",
+        )
+    )
 
     image_bytes = await generate_flux_image(prompt)
 
     if not image_bytes:
-        await wait_msg.edit_text(format_styled_message(
-            emoji="❌", title=API_NAME, message="Не удалось сгенерировать картинку. Сервер временно перегружен."
-        ))
+        await wait_msg.edit_text(
+            format_styled_message(
+                emoji="❌",
+                title=API_NAME,
+                message="Не удалось сгенерировать картинку. Сервер временно перегружен.",
+            )
+        )
         return
 
     try:
@@ -70,14 +81,18 @@ async def cmd_render(message: types.Message):
         caption = format_styled_message(
             emoji=API_ICON,
             title=API_NAME,
-            message=f"Результат по запросу:\n«<code>{prompt}</code>»"
+            message=f"Результат по запросу:\n«<code>{prompt}</code>»",
         )
 
         await message.reply_photo(photo=photo_file, caption=caption)
 
-        await wait_msg.edit_text(format_styled_message(
-            emoji="✨", title=API_NAME, message="Шедевр успешно готов и отправлен ниже! 👇"
-        ))
+        await wait_msg.edit_text(
+            format_styled_message(
+                emoji="✨",
+                title=API_NAME,
+                message="Шедевр успешно готов и отправлен ниже! 👇",
+            )
+        )
 
         await db.increment_commands()
         await db.log_command("!рис", message.from_user.id)
@@ -85,6 +100,10 @@ async def cmd_render(message: types.Message):
 
     except Exception as e:
         logger.error(f"Ошибка при отправке готового фото: {e}")
-        await wait_msg.edit_text(format_styled_message(
-            emoji="❌", title=API_NAME, message="Ошибка отправки готового файла. Попробуйте еще раз."
-        ))
+        await wait_msg.edit_text(
+            format_styled_message(
+                emoji="❌",
+                title=API_NAME,
+                message="Ошибка отправки готового файла. Попробуйте еще раз.",
+            )
+        )

@@ -8,7 +8,12 @@ logger = logging.getLogger(__name__)
 
 
 class LoggingMiddleware(BaseMiddleware):
-    async def __call__(self, handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]], event: Message, data: Dict[str, Any]) -> Any:
+    async def __call__(
+        self,
+        handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
+        event: Message,
+        data: Dict[str, Any],
+    ) -> Any:
         user = event.from_user
         start_time = time.time()
         logger.info(f"📨 {user.id} ({user.first_name}): {event.text}")

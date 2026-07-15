@@ -36,9 +36,9 @@ async def get_random_fact():
 
 
 def get_fact_keyboard(user_id: int):
-    return create_user_keyboard([
-        [InlineKeyboardButton(text="📖 Ещё факт", callback_data="more_fact")]
-    ], user_id)
+    return create_user_keyboard(
+        [[InlineKeyboardButton(text="📖 Ещё факт", callback_data="more_fact")]], user_id
+    )
 
 
 async def cmd_fact(message: types.Message):
@@ -48,16 +48,12 @@ async def cmd_fact(message: types.Message):
         error_msg = format_styled_message(
             emoji="❌",
             title="Ошибка",
-            message="Не удалось загрузить факт. Попробуй позже!"
+            message="Не удалось загрузить факт. Попробуй позже!",
         )
         await message.reply(error_msg)
         return
 
-    fact_msg = format_styled_message(
-        emoji=API_ICON,
-        title=API_NAME,
-        message=fact_text
-    )
+    fact_msg = format_styled_message(emoji=API_ICON, title=API_NAME, message=fact_text)
 
     await message.reply(fact_msg, reply_markup=get_fact_keyboard(message.from_user.id))
 
@@ -72,18 +68,17 @@ async def more_fact_callback(callback_query: types.CallbackQuery):
     fact_text = await get_random_fact()
     if fact_text:
         fact_msg = format_styled_message(
-            emoji=API_ICON,
-            title=API_NAME,
-            message=fact_text
+            emoji=API_ICON, title=API_NAME, message=fact_text
         )
         await callback_query.message.edit_text(
-            fact_msg,
-            reply_markup=get_fact_keyboard(callback_query.from_user.id)
+            fact_msg, reply_markup=get_fact_keyboard(callback_query.from_user.id)
         )
 
-        await spend_tokens(message, "!факт")
+        await spend_tokens(callback_query.message, "!факт")
     else:
         await callback_query.message.edit_text(
-            format_styled_message(emoji="❌", title="Ошибка", message="API Википедии недоступен."),
-            reply_markup=get_fact_keyboard(callback_query.from_user.id)
+            format_styled_message(
+                emoji="❌", title="Ошибка", message="API Википедии недоступен."
+            ),
+            reply_markup=get_fact_keyboard(callback_query.from_user.id),
         )

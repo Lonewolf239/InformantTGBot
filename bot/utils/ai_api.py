@@ -6,12 +6,24 @@ from typing import Optional
 import aiohttp
 from aiogram import types
 from config import (
-    OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_VISION_MODEL, AI_MAX_REPLY_LEN,
-    AI_REQUEST_TIMEOUT, AI_PERSONAS, COMMAND_METADATA,
-    VIP_IDS, COMMAND_COSTS, AI_AUDIO_EXTRA_COST, AI_VISION_EXTRA_COST
+    OLLAMA_BASE_URL,
+    OLLAMA_MODEL,
+    OLLAMA_VISION_MODEL,
+    AI_MAX_REPLY_LEN,
+    AI_REQUEST_TIMEOUT,
+    AI_PERSONAS,
+    COMMAND_METADATA,
+    VIP_IDS,
+    COMMAND_COSTS,
+    AI_AUDIO_EXTRA_COST,
+    AI_VISION_EXTRA_COST,
 )
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text, get_reply_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    get_raw_text,
+    get_reply_raw_text,
+)
 from bot.utils.queue_wrapper import process_with_queue
 from bot.utils.media_core import download_media_file
 from bot.utils.whisper_core import transcribe_audio
@@ -42,7 +54,9 @@ def split_text(text: str, limit: int = AI_MAX_REPLY_LEN) -> list[str]:
     return [chunk for chunk in chunks if chunk.strip()]
 
 
-async def ask_local_ai(user_prompt: str, system_prompt: str, images: list[str] = None, **kwargs) -> Optional[str]:
+async def ask_local_ai(
+    user_prompt: str, system_prompt: str, images: list[str] = None, **kwargs
+) -> Optional[str]:
     url = f"{OLLAMA_BASE_URL.rstrip('/')}/api/chat"
     user_message = {"role": "user", "content": user_prompt}
 
@@ -64,11 +78,13 @@ async def ask_local_ai(user_prompt: str, system_prompt: str, images: list[str] =
             "top_p": kwargs.get("top_p", 0.75),
             "repeat_penalty": kwargs.get("repeat_penalty", 1.1),
             "num_ctx": kwargs.get("num_ctx", 1024),
-            "num_predict": kwargs.get("num_predict", 256)
-        }
+            "num_predict": kwargs.get("num_predict", 256),
+        },
     }
 
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=AI_REQUEST_TIMEOUT)) as session:
+    async with aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(total=AI_REQUEST_TIMEOUT)
+    ) as session:
         try:
             async with session.post(url, json=payload) as response:
                 if response.status != 200:
@@ -86,26 +102,37 @@ async def ask_local_ai(user_prompt: str, system_prompt: str, images: list[str] =
             return None
 
 
-async def unified_ai_worker(reply_msg: Optional[types.Message], bot,
-                            raw_prompt: Optional[str], reply_text: Optional[str], persona: dict) -> Optional[str]:
+async def unified_ai_worker(
+    reply_msg: Optional[types.Message],
+    bot,
+    raw_prompt: Optional[str],
+    reply_text: Optional[str],
+    persona: dict,
+) -> Optional[str]:
     base64_images = None
 
     if reply_msg:
-        has_audio_video = any([reply_msg.voice, reply_msg.audio, reply_msg.video_note, reply_msg.video])
+        has_audio_video = any(
+            [reply_msg.voice, reply_msg.audio, reply_msg.video_note, reply_msg.video]
+        )
         has_photo = bool(reply_msg.photo)
 
         if has_audio_video:
             try:
                 file_path, _ = await download_media_file(reply_msg, bot)
                 if file_path:
-                    transcribed = await transcribe_audio(file_path=file_path, language="auto")
+                    transcribed = await transcribe_audio(
+                        file_path=file_path, language="auto"
+                    )
                     if transcribed:
-                        reply_text = transcribed + (f"\n\nПодпись к медиа: {reply_text}" if reply_text else "")
+                        reply_text = transcribed + (
+                            f"\n\nПодпись к медиа: {reply_text}" if reply_text else ""
+                        )
                     else:
                         return "ERROR:❌ Не удалось извлечь текст из медиафайла."
                     try:
                         os.unlink(file_path)
-                    except:
+                    except Exception:
                         pass
             except Exception as e:
                 logger.error(f"Ошибка Whisper внутри очереди: {e}")
@@ -116,7 +143,7 @@ async def unified_ai_worker(reply_msg: Optional[types.Message], bot,
                 photo = reply_msg.photo[-1]
                 img_bytes = io.BytesIO()
                 await bot.download(photo, destination=img_bytes)
-                img_base64 = base64.b64encode(img_bytes.getvalue()).decode('utf-8')
+                img_base64 = base64.b64encode(img_bytes.getvalue()).decode("utf-8")
                 base64_images = [img_base64]
             except Exception as e:
                 logger.error(f"Ошибка Vision внутри очереди: {e}")
@@ -130,7 +157,9 @@ async def unified_ai_worker(reply_msg: Optional[types.Message], bot,
 
     if reply_text:
         if raw_prompt and raw_prompt != reply_text:
-            final_prompt = f"Контекст:\n{reply_text}\n\nЗапрос пользователя: {raw_prompt}"
+            final_prompt = (
+                f"Контекст:\n{reply_text}\n\nЗапрос пользователя: {raw_prompt}"
+            )
         else:
             final_prompt = reply_text
     else:
@@ -146,7 +175,7 @@ async def unified_ai_worker(reply_msg: Optional[types.Message], bot,
         top_p=persona["top_p"],
         repeat_penalty=persona["repeat_penalty"],
         num_ctx=persona["num_ctx"],
-        num_predict=persona["num_predict"]
+        num_predict=persona["num_predict"],
     )
 
 
@@ -173,7 +202,9 @@ async def process_ai_request(message: types.Message, cmd_key: str):
 
     action_text = "Анализ запроса"
     if reply_msg:
-        if any([reply_msg.voice, reply_msg.audio, reply_msg.video_note, reply_msg.video]):
+        if any(
+            [reply_msg.voice, reply_msg.audio, reply_msg.video_note, reply_msg.video]
+        ):
             action_text = "Распознавание речи и анализ"
         elif reply_msg.photo:
             action_text = "Анализ изображения (Vision)"
@@ -189,18 +220,20 @@ async def process_ai_request(message: types.Message, cmd_key: str):
         bot=message.bot,
         raw_prompt=raw_prompt,
         reply_text=reply_text,
-        persona=persona
+        persona=persona,
     )
 
     if not answer:
         error_api = format_styled_message(
             emoji=icon,
             title=name,
-            message=f"❌ Нейросеть не ответила. Проверь, что Ollama запущена и скачаны модели <code>{OLLAMA_MODEL}</code> и <code>{OLLAMA_VISION_MODEL}</code>."
+            message=f"❌ Нейросеть не ответила. Проверь, что Ollama запущена и скачаны модели <code>{OLLAMA_MODEL}</code> и <code>{OLLAMA_VISION_MODEL}</code>.",
         )
         if wait_msg:
-            try: await wait_msg.edit_text(error_api)
-            except Exception: await message.reply(error_api)
+            try:
+                await wait_msg.edit_text(error_api)
+            except Exception:
+                await message.reply(error_api)
         return
 
     if answer.startswith("ERROR:"):
@@ -212,8 +245,10 @@ async def process_ai_request(message: types.Message, cmd_key: str):
 
         formatted_error = format_styled_message(emoji=icon, title=name, message=err_msg)
         if wait_msg:
-            try: await wait_msg.edit_text(formatted_error)
-            except Exception: await message.reply(formatted_error)
+            try:
+                await wait_msg.edit_text(formatted_error)
+            except Exception:
+                await message.reply(formatted_error)
         return
 
     if persona.get("strip_quotes"):
@@ -225,7 +260,7 @@ async def process_ai_request(message: types.Message, cmd_key: str):
         emoji=icon,
         title=name,
         message=f"{chunks[0]}{persona['disclaimer']}",
-        html=False
+        html=False,
     )
 
     try:
@@ -240,14 +275,22 @@ async def process_ai_request(message: types.Message, cmd_key: str):
     final_cost = base_cost
 
     if reply_msg:
-        if any([reply_msg.voice, reply_msg.audio, reply_msg.video_note, reply_msg.video]):
+        if any(
+            [reply_msg.voice, reply_msg.audio, reply_msg.video_note, reply_msg.video]
+        ):
             final_cost += AI_AUDIO_EXTRA_COST
         elif reply_msg.photo:
             final_cost += AI_VISION_EXTRA_COST
 
-    if await is_payments_enabled() and message.from_user.id not in VIP_IDS and final_cost > 0:
+    if (
+        await is_payments_enabled()
+        and message.from_user.id not in VIP_IDS
+        and final_cost > 0
+    ):
         await tokens_db.spend_tokens(message.from_user.id, final_cost)
-        logger.info(f"Пользователь {message.from_user.id} потратил {final_cost} токенов на {cmd_key}")
+        logger.info(
+            f"Пользователь {message.from_user.id} потратил {final_cost} токенов на {cmd_key}"
+        )
 
     await db.increment_commands()
     await db.log_command(cmd_key, message.from_user.id)
@@ -256,6 +299,7 @@ async def process_ai_request(message: types.Message, cmd_key: str):
 def make_ai_handler(cmd_key: str):
     async def handler(message: types.Message):
         await process_ai_request(message, cmd_key)
+
     return handler
 
 

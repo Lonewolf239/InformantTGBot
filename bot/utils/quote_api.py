@@ -21,7 +21,7 @@ BACKUP_QUOTES = [
     "Чем умнее человек, тем легче он признает себя дураком. © Альберт Эйнштейн",
     "Если вы думаете, что на что-то способны, вы правы; если думаете, что ни на что не способны — вы тоже правы. © Генри Форд",
     "Лучший способ предсказать будущее — создать его. © Питер Друкер",
-    "Сложнее всего начать действовать, все остальное зависит только от упорства. © Амелия Эрхарт"
+    "Сложнее всего начать действовать, все остальное зависит только от упорства. © Амелия Эрхарт",
 ]
 
 
@@ -46,19 +46,16 @@ async def get_random_quote():
 
 
 def get_quote_keyboard(user_id: int):
-    return create_user_keyboard([
-        [InlineKeyboardButton(text="💭 Ещё цитата", callback_data="more_quote")]
-    ], user_id)
+    return create_user_keyboard(
+        [[InlineKeyboardButton(text="💭 Ещё цитата", callback_data="more_quote")]],
+        user_id,
+    )
 
 
 async def send_quote(target, is_callback=False):
     quote_text = await get_random_quote()
 
-    msg_text = format_styled_message(
-        emoji=API_ICON,
-        title=API_NAME,
-        message=quote_text
-    )
+    msg_text = format_styled_message(emoji=API_ICON, title=API_NAME, message=quote_text)
 
     user_id = target.from_user.id
     keyboard = get_quote_keyboard(user_id)

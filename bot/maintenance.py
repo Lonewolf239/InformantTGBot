@@ -6,15 +6,16 @@ from aiogram.enums import ParseMode
 from config import BOT_TOKEN, COMMAND_ALIASES, SFW_RP_ACTIONS, NSFW_RP_ACTIONS
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("maintenance_bot")
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-ALL_COMMANDS = {alias.lower() for aliases in COMMAND_ALIASES.values() for alias in aliases}
+ALL_COMMANDS = {
+    alias.lower() for aliases in COMMAND_ALIASES.values() for alias in aliases
+}
 ALL_COMMANDS.update(cmd.lower() for cmd in SFW_RP_ACTIONS.keys())
 ALL_COMMANDS.update(cmd.lower() for cmd in NSFW_RP_ACTIONS.keys())
 
@@ -35,7 +36,9 @@ async def send_maintenance_reply(message: types.Message):
     if command_trigger in ALL_COMMANDS:
         try:
             await message.reply(MAINTENANCE_TEXT)
-            logger.info(f"Отправлена заглушка пользователю {message.from_user.id} на команду {command_trigger}")
+            logger.info(
+                f"Отправлена заглушка пользователю {message.from_user.id} на команду {command_trigger}"
+            )
         except Exception as e:
             logger.error(f"Ошибка при отправке ответа: {e}")
 

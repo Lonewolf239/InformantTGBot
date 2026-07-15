@@ -4,7 +4,6 @@ from aiogram import types
 from config import COMMAND_METADATA
 from bot.utils.database import db
 from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
-from bot.utils.tokens_database import tokens_db
 
 API_ICON = COMMAND_METADATA["!qr"]["icon"]
 API_NAME = COMMAND_METADATA["!qr"]["name"]
@@ -20,17 +19,26 @@ async def cmd_qr(message: types.Message):
     if len(parts) > 1:
         text_data = parts[1].strip()
     elif message.reply_to_message:
-        text_data = (message.reply_to_message.text or message.reply_to_message.caption or "").strip()
+        text_data = (
+            message.reply_to_message.text or message.reply_to_message.caption or ""
+        ).strip()
 
     if not text_data:
-        await message.reply(format_styled_message(
-            emoji=API_ICON, title=API_NAME, 
-            message="❌ <b>Не указан текст или ссылка.</b>\n📝 Пример: <code>!qr https://google.com</code> или ответом на сообщение."
-        ))
+        await message.reply(
+            format_styled_message(
+                emoji=API_ICON,
+                title=API_NAME,
+                message="❌ <b>Не указан текст или ссылка.</b>\n📝 Пример: <code>!qr https://google.com</code> или ответом на сообщение.",
+            )
+        )
         return
 
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=450x450&data={quote(text_data)}"
-    caption = format_styled_message(emoji=API_ICON, title=API_NAME, message=f"Готово! Твой QR-код для:\n<code>{text_data}</code>")
+    caption = format_styled_message(
+        emoji=API_ICON,
+        title=API_NAME,
+        message=f"Готово! Твой QR-код для:\n<code>{text_data}</code>",
+    )
 
     try:
         try:

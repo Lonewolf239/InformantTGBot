@@ -4,7 +4,12 @@ from urllib.parse import quote
 from aiogram import types
 from config import COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text, get_reply_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    spend_tokens,
+    get_raw_text,
+    get_reply_raw_text,
+)
 
 API_ICON = COMMAND_METADATA["!вики"]["icon"]
 API_NAME = COMMAND_METADATA["!вики"]["name"]
@@ -28,14 +33,20 @@ async def search_wikipedia(query: str) -> str | None:
                     return None
                 title = data[1][0]
 
-            summary_url = f"https://ru.wikipedia.org/api/rest_v1/page/summary/{quote(title)}"
+            summary_url = (
+                f"https://ru.wikipedia.org/api/rest_v1/page/summary/{quote(title)}"
+            )
             async with session.get(summary_url) as summary_resp:
                 if summary_resp.status != 200:
                     return None
                 summary_data = await summary_resp.json()
 
                 extract = summary_data.get("extract", "")
-                page_url = summary_data.get("content_urls", {}).get("desktop", {}).get("page", "")
+                page_url = (
+                    summary_data.get("content_urls", {})
+                    .get("desktop", {})
+                    .get("page", "")
+                )
 
                 if not extract:
                     return None
@@ -63,7 +74,7 @@ async def cmd_wiki(message: types.Message):
         error_msg = format_styled_message(
             emoji=API_ICON,
             title=API_NAME,
-            message="❌ <b>Не указан запрос.</b>\n📝 Использование: <code>!вики [запрос]</code> или ответом на сообщение."
+            message="❌ <b>Не указан запрос.</b>\n📝 Использование: <code>!вики [запрос]</code> или ответом на сообщение.",
         )
         await message.reply(error_msg)
         return
@@ -76,14 +87,16 @@ async def cmd_wiki(message: types.Message):
 
     if not wiki_text:
         await wait_msg.edit_text(
-            format_styled_message(emoji="❌", title=API_NAME, message=f"По запросу «<b>{query}</b>» ничего не найдено.")
+            format_styled_message(
+                emoji="❌",
+                title=API_NAME,
+                message=f"По запросу «<b>{query}</b>» ничего не найдено.",
+            )
         )
         return
 
     result_msg = format_styled_message(
-        emoji=API_ICON,
-        title=API_NAME,
-        message=wiki_text
+        emoji=API_ICON, title=API_NAME, message=wiki_text
     )
 
     await wait_msg.edit_text(result_msg, disable_web_page_preview=True)

@@ -1,6 +1,8 @@
-import json
 from aiohttp import web
-from yookassa.domain.notification import WebhookNotificationEventType, WebhookNotificationFactory
+from yookassa.domain.notification import (
+    WebhookNotificationEventType,
+    WebhookNotificationFactory,
+)
 from bot.utils.tokens_database import tokens_db
 from bot.utils.helpers import format_styled_message
 import logging
@@ -22,12 +24,12 @@ async def yookassa_handler(request: web.Request):
             await tokens_db.add_tokens(user_id, amount)
             new_balance = await tokens_db.get_balance(user_id)
 
-            bot = request.app['bot']
+            bot = request.app["bot"]
 
             success_text = format_styled_message(
                 emoji="✅",
                 title="Оплата успешно прошла!",
-                message=f"Начислено: {amount} токенов.\nТвой новый баланс: {new_balance} шт.\nСпасибо за поддержку бота!"
+                message=f"Начислено: {amount} токенов.\nТвой новый баланс: {new_balance} шт.\nСпасибо за поддержку бота!",
             )
             await bot.send_message(user_id, success_text)
 
@@ -39,5 +41,5 @@ async def yookassa_handler(request: web.Request):
 
 
 def setup_yookassa_routes(app: web.Application, bot):
-    app['bot'] = bot
-    app.router.add_post('/webhooks/yookassa', yookassa_handler)
+    app["bot"] = bot
+    app.router.add_post("/webhooks/yookassa", yookassa_handler)

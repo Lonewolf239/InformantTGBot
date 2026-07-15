@@ -1,14 +1,16 @@
 import aiosqlite
 import os
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'bot_links.db')
+DB_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "bot_links.db"
+)
 
 
 async def init_links_db():
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute('''
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS saved_links (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 url TEXT NOT NULL,
@@ -21,37 +23,70 @@ async def init_links_db():
                 is_viewed BOOLEAN DEFAULT 0,
                 viewed_at TIMESTAMP
             )
-        ''')
-        await db.execute('CREATE INDEX IF NOT EXISTS idx_links_type ON saved_links(type)')
-        await db.execute('CREATE INDEX IF NOT EXISTS idx_links_viewed ON saved_links(is_viewed)')
+        """)
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_links_type ON saved_links(type)"
+        )
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_links_viewed ON saved_links(is_viewed)"
+        )
         await db.commit()
 
 
 def detect_link_type(url: str) -> str:
     url_lower = url.lower()
-    if any(domain in url_lower for domain in ['music.youtube.com', 'youtube.com/music', 'music.youtu.be']):
+    if any(
+        domain in url_lower
+        for domain in ["music.youtube.com", "youtube.com/music", "music.youtu.be"]
+    ):
         return "youtube_music"
-    elif any(domain in url_lower for domain in ['youtube.com/watch', 'youtu.be/', 'youtube.com/shorts', 'youtube.com/playlist']):
+    elif any(
+        domain in url_lower
+        for domain in [
+            "youtube.com/watch",
+            "youtu.be/",
+            "youtube.com/shorts",
+            "youtube.com/playlist",
+        ]
+    ):
         return "youtube"
-    elif 'music.yandex' in url_lower:
+    elif "music.yandex" in url_lower:
         return "yandex_music"
-    elif 'spotify.com' in url_lower or 'open.spotify.com' in url_lower:
+    elif "spotify.com" in url_lower or "open.spotify.com" in url_lower:
         return "spotify"
-    elif 'music.apple.com' in url_lower:
+    elif "music.apple.com" in url_lower:
         return "apple_music"
-    elif 'soundcloud.com' in url_lower:
+    elif "soundcloud.com" in url_lower:
         return "soundcloud"
     else:
         return "other"
 
 
-async def save_link(url: str, link_type: str, from_user_id: int, from_username: str, from_first_name: str, chat_id: int) -> bool:
+async def save_link(
+    url: str,
+    link_type: str,
+    from_user_id: int,
+    from_username: str,
+    from_first_name: str,
+    chat_id: int,
+) -> bool:
     try:
         async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute('''
+            await db.execute(
+                """
                 INSERT INTO saved_links (url, type, from_user_id, from_username, from_first_name, chat_id, added_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (url, link_type, from_user_id, from_username, from_first_name, chat_id, datetime.now()))
+            """,
+                (
+                    url,
+                    link_type,
+                    from_user_id,
+                    from_username,
+                    from_first_name,
+                    chat_id,
+                    datetime.now(),
+                ),
+            )
             await db.commit()
         return True
     except Exception as e:
@@ -61,7 +96,9 @@ async def save_link(url: str, link_type: str, from_user_id: int, from_username: 
 
 async def get_link(link_id: int) -> str | None:
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT url FROM saved_links WHERE id = ?", (link_id,)) as cursor:
+        async with db.execute(
+            "SELECT url FROM saved_links WHERE id = ?", (link_id,)
+        ) as cursor:
             result = await cursor.fetchone()
             return result[0] if result else None
 
@@ -69,18 +106,18 @@ async def get_link(link_id: int) -> str | None:
 async def get_all_links(only_unviewed: bool = False) -> List:
     async with aiosqlite.connect(DB_PATH) as db:
         if only_unviewed:
-            async with db.execute('''
+            async with db.execute("""
                 SELECT id, url, type, from_username, from_first_name, added_at, is_viewed
                 FROM saved_links WHERE is_viewed = 0
                 ORDER BY added_at DESC
-            ''') as cursor:
+            """) as cursor:
                 return await cursor.fetchall()
         else:
-            async with db.execute('''
+            async with db.execute("""
                 SELECT id, url, type, from_username, from_first_name, added_at, is_viewed
                 FROM saved_links
                 ORDER BY added_at DESC
-            ''') as cursor:
+            """) as cursor:
                 return await cursor.fetchall()
 
 
@@ -88,7 +125,7 @@ async def mark_as_viewed(link_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             "UPDATE saved_links SET is_viewed = 1, viewed_at = ? WHERE id = ?",
-            (datetime.now(), link_id)
+            (datetime.now(), link_id),
         )
         await db.commit()
 
@@ -103,13 +140,13 @@ async def delete_link(link_id: int) -> bool:
 
 async def get_unviewed_links_grouped() -> Dict[str, int]:
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute('''
+        async with db.execute("""
             SELECT type, COUNT(*)
             FROM saved_links
             WHERE is_viewed = 0
             GROUP BY type
             ORDER BY COUNT(*) DESC
-        ''') as cursor:
+        """) as cursor:
             grouped = {}
             for link_type, count in await cursor.fetchall():
                 grouped[link_type] = count
@@ -118,41 +155,44 @@ async def get_unviewed_links_grouped() -> Dict[str, int]:
 
 async def get_unviewed_links_by_type(link_type: str) -> List:
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute('''
+        async with db.execute(
+            """
             SELECT id, url, type, from_username, from_first_name, added_at
             FROM saved_links
             WHERE is_viewed = 0 AND type = ?
             ORDER BY added_at DESC
-        ''', (link_type,)) as cursor:
+        """,
+            (link_type,),
+        ) as cursor:
             return await cursor.fetchall()
 
 
 async def get_stats() -> dict:
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute('''
+        async with db.execute("""
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN is_viewed = 0 THEN 1 ELSE 0 END) as unviewed,
                 COUNT(DISTINCT type) as types_count,
                 COUNT(DISTINCT from_user_id) as senders_count
             FROM saved_links
-        ''') as cursor:
+        """) as cursor:
             result = await cursor.fetchone()
             return {
-                'total': result[0] or 0,
-                'unviewed': result[1] or 0,
-                'types_count': result[2] or 0,
-                'senders_count': result[3] or 0
+                "total": result[0] or 0,
+                "unviewed": result[1] or 0,
+                "types_count": result[2] or 0,
+                "senders_count": result[3] or 0,
             }
 
 
 def format_date(date_str: str) -> str:
     try:
-        dt = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S.%f')
-    except:
+        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S.%f")
+    except Exception:
         try:
-            dt = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
-        except:
+            dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+        except Exception:
             return date_str
 
     now = datetime.now()
@@ -181,6 +221,6 @@ def get_type_emoji_and_name(link_type: str) -> tuple:
         "spotify": ("🟢", "Spotify"),
         "apple_music": ("🍎", "Apple Music"),
         "soundcloud": ("☁️", "SoundCloud"),
-        "other": ("🔗", "Другое")
+        "other": ("🔗", "Другое"),
     }
     return type_info.get(link_type, ("🔗", "Другое"))

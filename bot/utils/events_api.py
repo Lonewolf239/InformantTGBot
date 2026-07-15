@@ -30,7 +30,11 @@ async def search_global_events(query: str) -> str | None:
                     for ev in events:
                         title = ev.get("name", "Без названия")
                         url_link = ev.get("url", "")
-                        dates = ev.get("dates", {}).get("start", {}).get("localDate", "Дата неизвестна")
+                        dates = (
+                            ev.get("dates", {})
+                            .get("start", {})
+                            .get("localDate", "Дата неизвестна")
+                        )
 
                         venues = ev.get("_embedded", {}).get("venues", [])
                         location_str = ""
@@ -65,13 +69,15 @@ async def cmd_events(message: types.Message):
         error_msg = format_styled_message(
             emoji=API_ICON,
             title=API_NAME,
-            message="❌ <b>Укажи город или артиста.</b>\n📝 Пример: <code>!афиша London</code> или <code>!афиша Rammstein</code>"
+            message="❌ <b>Укажи город или артиста.</b>\n📝 Пример: <code>!афиша London</code> или <code>!афиша Rammstein</code>",
         )
         await message.reply(error_msg)
         return
 
     wait_msg = await message.reply(
-        format_styled_message(emoji="⏳", title=API_NAME, message="Ищу события по всему миру...")
+        format_styled_message(
+            emoji="⏳", title=API_NAME, message="Ищу события по всему миру..."
+        )
     )
 
     events_text = await search_global_events(query)
@@ -79,17 +85,15 @@ async def cmd_events(message: types.Message):
     if not events_text:
         await wait_msg.edit_text(
             format_styled_message(
-                emoji="❌", 
-                title=API_NAME, 
-                message=f"По запросу «<b>{query}</b>» ничего не найдено.\n💡 <i>Попробуй написать название города или группы на английском.</i>"
+                emoji="❌",
+                title=API_NAME,
+                message=f"По запросу «<b>{query}</b>» ничего не найдено.\n💡 <i>Попробуй написать название города или группы на английском.</i>",
             )
         )
         return
 
     result_msg = format_styled_message(
-        emoji=API_ICON,
-        title=API_NAME,
-        message=events_text
+        emoji=API_ICON, title=API_NAME, message=events_text
     )
 
     await wait_msg.edit_text(result_msg, disable_web_page_preview=True)

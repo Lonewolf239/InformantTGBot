@@ -4,7 +4,12 @@ import html
 from aiogram import types
 from config import COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text, get_reply_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    spend_tokens,
+    get_raw_text,
+    get_reply_raw_text,
+)
 
 try:
     from duckduckgo_search import DDGS
@@ -19,7 +24,9 @@ logger = logging.getLogger(__name__)
 
 def _sync_search(query: str, limit: int = 6):
     with DDGS() as ddgs:
-        return list(ddgs.text(query, region='ru-ru', safesearch='moderate', max_results=limit))
+        return list(
+            ddgs.text(query, region="ru-ru", safesearch="moderate", max_results=limit)
+        )
 
 
 async def search_internet(query: str, limit: int = 6) -> str | None:
@@ -33,10 +40,7 @@ async def search_internet(query: str, limit: int = 6) -> str | None:
         if not results:
             return None
 
-        results_text = [
-            "Результаты по запросу:",
-            f"«<code>{query}</code>»\n"
-        ]
+        results_text = ["Результаты по запросу:", f"«<code>{query}</code>»\n"]
 
         for idx, res in enumerate(results, 1):
             title = html.escape(res.get("title", "Без названия"))
@@ -46,10 +50,12 @@ async def search_internet(query: str, limit: int = 6) -> str | None:
             if len(body) > 120:
                 body = body[:117] + "..."
 
-            item_text = f"<b>{idx}.</b> <a href='{link}'><b>{title}</b></a>\n<i>{body}</i>\n"
+            item_text = (
+                f"<b>{idx}.</b> <a href='{link}'><b>{title}</b></a>\n<i>{body}</i>\n"
+            )
             results_text.append(item_text)
 
-        return "\n".join(results_text).rstrip('\n')
+        return "\n".join(results_text).rstrip("\n")
 
     except Exception as e:
         logger.error(f"Ошибка API DuckDuckGo: {e}")
@@ -72,13 +78,17 @@ async def cmd_search(message: types.Message):
         error_msg = format_styled_message(
             emoji=API_ICON,
             title=API_NAME,
-            message="❌ <b>Не указан запрос.</b>\n📝 Использование: <code>!поиск</code> [запрос] или ответом на сообщение."
+            message="❌ <b>Не указан запрос.</b>\n📝 Использование: <code>!поиск</code> [запрос] или ответом на сообщение.",
         )
         await message.reply(error_msg)
         return
 
     wait_msg = await message.reply(
-        format_styled_message(emoji="⏳", title=API_NAME, message=f"Ищу информацию по запросу: <b>{query}</b>...")
+        format_styled_message(
+            emoji="⏳",
+            title=API_NAME,
+            message=f"Ищу информацию по запросу: <b>{query}</b>...",
+        )
     )
 
     search_text = await search_internet(query)
@@ -86,20 +96,24 @@ async def cmd_search(message: types.Message):
     if not search_text:
         if not DDGS:
             await wait_msg.edit_text(
-                format_styled_message(emoji="❌", title="Ошибка", message="Не установлена библиотека <code>duckduckgo-search</code>.")
+                format_styled_message(
+                    emoji="❌",
+                    title="Ошибка",
+                    message="Не установлена библиотека <code>duckduckgo-search</code>.",
+                )
             )
         else:
             await wait_msg.edit_text(
-                format_styled_message(emoji="❌", title=API_NAME, message=f"По запросу «<b>{query}</b>» ничего не найдено.")
+                format_styled_message(
+                    emoji="❌",
+                    title=API_NAME,
+                    message=f"По запросу «<b>{query}</b>» ничего не найдено.",
+                )
             )
         return
 
-    short_query = query if len(query) <= 25 else query[:22] + "..."
-
     result_msg = format_styled_message(
-        emoji=API_ICON,
-        title=API_NAME,
-        message=search_text
+        emoji=API_ICON, title=API_NAME, message=search_text
     )
 
     await wait_msg.edit_text(result_msg, disable_web_page_preview=True)

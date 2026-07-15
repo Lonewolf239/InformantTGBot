@@ -2,8 +2,8 @@ from aiogram import types
 from bot.state import state
 from bot.stats import stats
 from bot.utils.database import db
-from datetime import datetime
 from bot.links.handlers import cmd_links, cmd_links_stats
+from config import OWNER_COMMAND_METADATA
 from functools import lru_cache
 from bot.utils.helpers import get_raw_text
 from bot.owner_settings.handlers import cmd_system_settings
@@ -11,22 +11,16 @@ from bot.owner_settings.handlers import cmd_system_settings
 
 @lru_cache(maxsize=1)
 def get_owner_help_text():
-    return (
-        "<b>┌─ 👑 КОМАНДЫ ВЛАДЕЛЬЦА</b>\n"
-        "<b>├─</b> <code>!отошёл</code>\n"
-        "<b>├─</b> <code>!вернулся</code>\n"
-        "<b>├─</b> <code>!статус</code>\n"
-        "<b>├─</b> <code>!статистика</code>\n"
-        "<b>├─</b> <code>!сброс_таймеров</code>\n"
-        "<b>├─</b> <code>!очистить_статус [id]</code>\n"
-        "<b>├─</b> <code>!ссылки</code>\n"
-        "<b>├─</b> <code>!линкстат</code>\n"
-        "<b>├─</b> <code>!ждущие</code>\n"
-        "<b>├─</b> <code>!nsfw</code>\n"
-        "<b>├─</b> <code>!система</code>\n"
-        "<b>│</b>\n"
-        "<b>└─ 📖 Публичная справка:</b> <code>!помощь</code>"
-    )
+    lines = ["<b>┌─ 👑 КОМАНДЫ ВЛАДЕЛЬЦА</b>"]
+
+    for cmd, data in OWNER_COMMAND_METADATA.items():
+        args = f" {data['args']}" if "args" in data else ""
+        lines.append(f"<b>├─</b> <code>{cmd}{args}</code>")
+
+    lines.append("<b>│</b>")
+    lines.append("<b>└─ 📖 Публичная справка:</b> <code>!помощь</code>")
+
+    return "\n".join(lines)
 
 
 async def process_owner_commands(message: types.Message):
@@ -71,7 +65,9 @@ async def cmd_away_on(message: types.Message):
         )
         await db.increment_away_toggled()
     else:
-        await message.reply("<b>┌─ ⚠️ Ошибка</b>\n└─ Режим «отошёл» уже включён! Чтобы выключить — напиши <code>!вернулся</code>")
+        await message.reply(
+            "<b>┌─ ⚠️ Ошибка</b>\n└─ Режим «отошёл» уже включён! Чтобы выключить — напиши <code>!вернулся</code>"
+        )
     return True
 
 
@@ -113,13 +109,19 @@ async def cmd_away_off(message: types.Message):
         await message.reply(report, disable_web_page_preview=True)
         await db.increment_away_toggled()
     else:
-        await message.reply("<b>┌─ ✅ Информация</b>\n└─ Ты и так в режиме онлайн! Чтобы включить «отошёл» — напиши <code>!отошёл</code>")
+        await message.reply(
+            "<b>┌─ ✅ Информация</b>\n└─ Ты и так в режиме онлайн! Чтобы включить «отошёл» — напиши <code>!отошёл</code>"
+        )
     return True
 
 
 async def cmd_status(message: types.Message):
     state_info = state.get_stats()
-    status_text = "🚶‍♂️ ОТОШЁЛ (автоответ включён)" if state_info["is_away"] else "🟢 ОНЛАЙН (автоответ выключен)"
+    status_text = (
+        "🚶‍♂️ ОТОШЁЛ (автоответ включён)"
+        if state_info["is_away"]
+        else "🟢 ОНЛАЙН (автоответ выключен)"
+    )
 
     await message.reply(
         "<b>┌─ 📊 Текущий статус</b>\n"
@@ -133,14 +135,18 @@ async def cmd_status(message: types.Message):
 
 async def cmd_waiting(message: types.Message):
     if not await state.is_away_mode:
-        await message.reply("<b>┌─ ℹ️ Инфо</b>\n└─ Режим «отошёл» не активен, список ожидающих пуст.")
+        await message.reply(
+            "<b>┌─ ℹ️ Инфо</b>\n└─ Режим «отошёл» не активен, список ожидающих пуст."
+        )
         return True
 
     awaiting_users = await state.get_awaiting_users()
     count = len(awaiting_users)
 
     if count == 0:
-        await message.reply("<b>┌─ 📭 Пусто</b>\n└─ Пока никто не написал в твоё отсутствие.")
+        await message.reply(
+            "<b>┌─ 📭 Пусто</b>\n└─ Пока никто не написал в твоё отсутствие."
+        )
         return True
 
     users_list = []
@@ -163,7 +169,9 @@ async def cmd_waiting(message: types.Message):
         "<b>┌─ 📋 КТО ЖДЁТ ОТВЕТА</b>\n"
         f"<b>├─ Всего:</b> {count}\n"
         f"<b>│</b>\n"
-        + "\n".join(users_list[:20]) + ("\n<b>├─</b> ...и другие" if count > 20 else "") + "\n"
+        + "\n".join(users_list[:20])
+        + ("\n<b>├─</b> ...и другие" if count > 20 else "")
+        + "\n"
         "<b>│</b>\n"
         "<b>└─ 💡 Напиши !вернулся, чтобы очистить список</b>"
     )
@@ -188,7 +196,7 @@ async def cmd_stats(message: types.Message):
 
     top_users_lines = []
     for index, user in enumerate(full_stats.get("top_users", []), 1):
-        if user['username'] and not user['username'].startswith('user_'):
+        if user["username"] and not user["username"].startswith("user_"):
             name = f"@{user['username']}"
         else:
             name = f"<a href='{user['user_link']}'>{user['username']}</a>"
@@ -196,20 +204,22 @@ async def cmd_stats(message: types.Message):
         top_users_lines.append(f"├─ {index}. {name}: {user['messages']} сообщений")
     top_users_text = "\n".join(top_users_lines)
 
-    top_commands_lines = [f"<b>├─</b> {cmd['command']}: {cmd['count']}" 
-                          for cmd in full_stats.get("top_commands", [])]
+    top_commands_lines = [
+        f"<b>├─</b> {cmd['command']}: {cmd['count']}"
+        for cmd in full_stats.get("top_commands", [])
+    ]
     top_commands_text = "\n".join(top_commands_lines)
 
     metrics = {
-        "total_messages": full_stats.get('total_messages', 0),
-        "auto_replies_total": full_stats.get('auto_replies_sent', 0),
-        "auto_replies_session": state_info['auto_replied_count'],
-        "rp_actions": full_stats.get('rp_actions_used', 0),
-        "jokes": full_stats.get('jokes_sent', 0),
-        "memes": full_stats.get('memes_sent', 0),
-        "commands": full_stats.get('commands_used', 0),
-        "away_toggles": full_stats.get('away_mode_toggled', 0),
-        "users": full_stats.get('users_count', 0),
+        "total_messages": full_stats.get("total_messages", 0),
+        "auto_replies_total": full_stats.get("auto_replies_sent", 0),
+        "auto_replies_session": state_info["auto_replied_count"],
+        "rp_actions": full_stats.get("rp_actions_used", 0),
+        "jokes": full_stats.get("jokes_sent", 0),
+        "memes": full_stats.get("memes_sent", 0),
+        "commands": full_stats.get("commands_used", 0),
+        "away_toggles": full_stats.get("away_mode_toggled", 0),
+        "users": full_stats.get("users_count", 0),
     }
 
     reply_text = (
@@ -239,7 +249,9 @@ async def cmd_stats(message: types.Message):
 
 async def cmd_reset_timers(message: types.Message):
     await state.reset_session()
-    await message.reply("<b>┌─ ✅ Сброс</b>\n└─ Все таймеры и статусы автоответа сброшены!")
+    await message.reply(
+        "<b>┌─ ✅ Сброс</b>\n└─ Все таймеры и статусы автоответа сброшены!"
+    )
     await db.increment_commands()
     return True
 
@@ -253,9 +265,13 @@ async def cmd_clear_status(message: types.Message):
         text = raw_text
         target_id = int(text.split()[1])
         await state.clear_user_status(target_id)
-        await message.reply(f"<b>┌─ ✅ Очистка статуса</b>\n└─ Статус пользователя {target_id} очищен!")
+        await message.reply(
+            f"<b>┌─ ✅ Очистка статуса</b>\n└─ Статус пользователя {target_id} очищен!"
+        )
     except (IndexError, ValueError):
-        await message.reply("<b>┌─ ❌ Ошибка</b>\n└─ Используй: <code>!очистить_статус [user_id]</code>")
+        await message.reply(
+            "<b>┌─ ❌ Ошибка</b>\n└─ Используй: <code>!очистить_статус [user_id]</code>"
+        )
     await db.increment_commands()
     return True
 

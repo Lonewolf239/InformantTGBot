@@ -24,14 +24,16 @@ class BotState:
                 self._users_received_auto_reply.clear()
                 self._awaiting_users.clear()
 
-    async def add_awaiting_user(self, user_id: int, first_name: str, username: Optional[str] = None):
+    async def add_awaiting_user(
+        self, user_id: int, first_name: str, username: Optional[str] = None
+    ):
         async with self._lock:
             if user_id not in self._awaiting_users:
                 self._awaiting_users[user_id] = {
                     "user_id": user_id,
                     "name": first_name,
                     "username": username,
-                    "first_msg_time": datetime.now()
+                    "first_msg_time": datetime.now(),
                 }
 
     async def remove_awaiting_user(self, user_id: int):
@@ -76,7 +78,7 @@ class BotState:
             return {
                 "is_away": self._is_away_mode,
                 "auto_replied_count": len(self._users_received_auto_reply),
-                "awaiting_count": len(self._awaiting_users)
+                "awaiting_count": len(self._awaiting_users),
             }
 
 

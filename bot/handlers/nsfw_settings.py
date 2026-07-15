@@ -11,15 +11,21 @@ async def get_nsfw_settings_keyboard(user_id: int) -> InlineKeyboardMarkup:
 
     button = []
     if current:
-        button.append([InlineKeyboardButton(
-            text="🔞 ВЫКЛЮЧИТЬ NSFW", 
-            callback_data=f"nsfw_disable_{user_id}"
-        )])
+        button.append(
+            [
+                InlineKeyboardButton(
+                    text="🔞 ВЫКЛЮЧИТЬ NSFW", callback_data=f"nsfw_disable_{user_id}"
+                )
+            ]
+        )
     else:
-        button.append([InlineKeyboardButton(
-            text="✅ ВКЛЮЧИТЬ NSFW", 
-            callback_data=f"nsfw_enable_{user_id}"
-        )])
+        button.append(
+            [
+                InlineKeyboardButton(
+                    text="✅ ВКЛЮЧИТЬ NSFW", callback_data=f"nsfw_enable_{user_id}"
+                )
+            ]
+        )
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=button)
     return keyboard
@@ -75,7 +81,9 @@ async def nsfw_callback_handler(callback_query: types.CallbackQuery):
     target_user_id = int(parts[2])
 
     if user_id != target_user_id:
-        await callback_query.answer("❌ Ты не можешь менять чужие настройки!", show_alert=True)
+        await callback_query.answer(
+            "❌ Ты не можешь менять чужие настройки!", show_alert=True
+        )
         return
 
     if action == "enable":
@@ -85,7 +93,9 @@ async def nsfw_callback_handler(callback_query: types.CallbackQuery):
         await user_settings_db.set_nsfw_setting(target_user_id, False)
         await callback_query.answer("🔞 NSFW команды ВЫКЛЮЧЕНЫ!")
 
-    new_text = await get_nsfw_status_text(target_user_id, callback_query.message.from_user.username)
+    new_text = await get_nsfw_status_text(
+        target_user_id, callback_query.message.from_user.username
+    )
     new_keyboard = await get_nsfw_settings_keyboard(target_user_id)
     try:
         await callback_query.message.edit_text(new_text, reply_markup=new_keyboard)

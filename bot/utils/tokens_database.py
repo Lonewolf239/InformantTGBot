@@ -6,7 +6,9 @@ from config import DEFAULT_DAILY_TOKENS
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'bot_tokens.db')
+DB_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "bot_tokens.db"
+)
 
 
 class TokensDB:
@@ -31,13 +33,16 @@ class TokensDB:
         today = self._get_today_str()
 
         async with aiosqlite.connect(DB_PATH) as db:
-            async with db.execute("SELECT tokens, last_reset_date FROM users WHERE user_id = ?", (user_id,)) as cursor:
+            async with db.execute(
+                "SELECT tokens, last_reset_date FROM users WHERE user_id = ?",
+                (user_id,),
+            ) as cursor:
                 row = await cursor.fetchone()
 
             if not row:
                 await db.execute(
                     "INSERT INTO users (user_id, tokens, last_reset_date) VALUES (?, ?, ?)",
-                    (user_id, self.default_tokens, today)
+                    (user_id, self.default_tokens, today),
                 )
                 await db.commit()
                 return self.default_tokens
@@ -48,7 +53,7 @@ class TokensDB:
                 new_balance = max(tokens, self.default_tokens)
                 await db.execute(
                     "UPDATE users SET tokens = ?, last_reset_date = ? WHERE user_id = ?",
-                    (new_balance, today, user_id)
+                    (new_balance, today, user_id),
                 )
                 await db.commit()
                 return new_balance
@@ -63,8 +68,8 @@ class TokensDB:
 
         async with aiosqlite.connect(DB_PATH) as db:
             cursor = await db.execute(
-                "UPDATE users SET tokens = tokens - ? WHERE user_id = ? AND tokens >= ?", 
-                (amount, user_id, amount)
+                "UPDATE users SET tokens = tokens - ? WHERE user_id = ? AND tokens >= ?",
+                (amount, user_id, amount),
             )
             await db.commit()
 
@@ -77,7 +82,10 @@ class TokensDB:
     async def add_tokens(self, user_id: int, amount: int):
         await self.get_balance(user_id)
         async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute("UPDATE users SET tokens = tokens + ? WHERE user_id = ?", (amount, user_id))
+            await db.execute(
+                "UPDATE users SET tokens = tokens + ? WHERE user_id = ?",
+                (amount, user_id),
+            )
             await db.commit()
 
 

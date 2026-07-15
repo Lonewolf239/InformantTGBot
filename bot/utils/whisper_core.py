@@ -16,20 +16,29 @@ async def get_whisper_model():
         if _model_instance is None:
             logger.info(f"🔄 Загрузка модели Whisper: {WHISPER_MODEL}...")
             loop = asyncio.get_event_loop()
-            _model_instance = await loop.run_in_executor(None, lambda: whisper.load_model(WHISPER_MODEL))
+            _model_instance = await loop.run_in_executor(
+                None, lambda: whisper.load_model(WHISPER_MODEL)
+            )
             logger.info(f"✅ Модель Whisper ({WHISPER_MODEL}) загружена!")
         return _model_instance
 
 
-async def transcribe_audio(file_path: str, language: str = "auto", task: str = "transcribe") -> Optional[str]:
+async def transcribe_audio(
+    file_path: str, language: str = "auto", task: str = "transcribe"
+) -> Optional[str]:
     try:
         model = await get_whisper_model()
-        options = {"language": language if language != "auto" else None, "task": task, "fp16": False, "verbose": False}
+        options = {
+            "language": language if language != "auto" else None,
+            "task": task,
+            "fp16": False,
+            "verbose": False,
+        }
         loop = asyncio.get_event_loop()
 
         result = await asyncio.wait_for(
             loop.run_in_executor(None, lambda: model.transcribe(file_path, **options)),
-            timeout=WHISPER_TIMEOUT
+            timeout=WHISPER_TIMEOUT,
         )
         transcribed_text = result.get("text", "").strip()
 

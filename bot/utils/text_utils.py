@@ -1,5 +1,6 @@
 from typing import List
 
+
 def split_text_to_chunks(text: str, max_size: int = 4000) -> List[str]:
     chunks = []
     while len(text) > max_size:

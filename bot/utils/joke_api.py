@@ -1,7 +1,6 @@
 import random
-import aiohttp
 from aiogram import types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton
 from config import USER_PROFILE, API_SETTINGS, BACKUP_JOKES, COMMAND_METADATA
 from bot.utils.database import db
 from bot.utils.helpers import format_styled_message, create_user_keyboard
@@ -20,8 +19,7 @@ async def get_joke_from_api():
 
         loop = asyncio.get_event_loop()
         reply = await loop.run_in_executor(
-            None, 
-            lambda: acalib.RandomItemApi.get_reply(USER_PROFILE, API_SETTINGS)
+            None, lambda: acalib.RandomItemApi.get_reply(USER_PROFILE, API_SETTINGS)
         )
 
         if reply.is_error():
@@ -46,16 +44,19 @@ def get_backup_joke():
 
 
 def get_joke_keyboard(user_id: int):
-    return create_user_keyboard([
-        [InlineKeyboardButton(text="🎭 Ещё анекдот", callback_data=f"more_joke")]
-    ], user_id)
+    return create_user_keyboard(
+        [[InlineKeyboardButton(text="🎭 Ещё анекдот", callback_data="more_joke")]],
+        user_id,
+    )
 
 
 async def spend_tokens(message: types.Message):
     from bot.owner_settings.config_getters import is_payments_enabled
     from config import COMMAND_COSTS, VIP_IDS
+
     if await is_payments_enabled():
         from bot.utils.tokens_database import tokens_db
+
         cost = COMMAND_COSTS.get("!анекдот", 0)
         if cost > 0 and message.from_user.id not in VIP_IDS:
             await tokens_db.spend_tokens(message.from_user.id, cost)
@@ -70,11 +71,11 @@ async def cmd_joke(message: types.Message):
         joke = await get_joke_from_api()
         if joke:
             joke_msg = format_styled_message(
-                emoji=API_ICON,
-                title=API_NAME,
-                message=joke
+                emoji=API_ICON, title=API_NAME, message=joke
             )
-            await message.reply(joke_msg, reply_markup=get_joke_keyboard(message.from_user.id))
+            await message.reply(
+                joke_msg, reply_markup=get_joke_keyboard(message.from_user.id)
+            )
             await spend_tokens(message)
             return
 
@@ -82,7 +83,7 @@ async def cmd_joke(message: types.Message):
         backup_msg = format_styled_message(
             emoji=API_ICON,
             title=f"{API_NAME} (локальный)",
-            message=f"{backup}\n⚠️ <i>API недоступен</i>"
+            message=f"{backup}\n⚠️ <i>API недоступен</i>",
         )
         await message.reply(backup_msg)
         await spend_tokens(message)
@@ -92,7 +93,7 @@ async def cmd_joke(message: types.Message):
         error_msg = format_styled_message(
             emoji="❌",
             title="Ошибка",
-            message="Не удалось получить анекдот. Попробуй позже!"
+            message="Не удалось получить анекдот. Попробуй позже!",
         )
         await message.reply(error_msg)
 
@@ -102,14 +103,9 @@ async def more_joke_callback(callback_query: types.CallbackQuery):
 
     joke = await get_joke_from_api()
     if joke:
-        joke_msg = format_styled_message(
-            emoji=API_ICON,
-            title=API_NAME,
-            message=joke
-        )
+        joke_msg = format_styled_message(emoji=API_ICON, title=API_NAME, message=joke)
         await callback_query.message.edit_text(
-            joke_msg,
-            reply_markup=get_joke_keyboard(callback_query.from_user.id)
+            joke_msg, reply_markup=get_joke_keyboard(callback_query.from_user.id)
         )
         await spend_tokens(callback_query.message)
     else:
@@ -117,10 +113,9 @@ async def more_joke_callback(callback_query: types.CallbackQuery):
         backup_msg = format_styled_message(
             emoji=API_ICON,
             title=f"{API_NAME} (локальный)",
-            message=f"{backup}\n⚠️ <i>API недоступен</i>"
+            message=f"{backup}\n⚠️ <i>API недоступен</i>",
         )
         await callback_query.message.edit_text(
-            backup_msg,
-            reply_markup=get_joke_keyboard(callback_query.from_user.id)
+            backup_msg, reply_markup=get_joke_keyboard(callback_query.from_user.id)
         )
         await spend_tokens(callback_query.message)

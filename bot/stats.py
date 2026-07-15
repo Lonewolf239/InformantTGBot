@@ -62,6 +62,7 @@ class BotStats:
     async def start_time(self):
         uptime = await db.get_uptime_seconds()
         from datetime import datetime, timedelta
+
         return datetime.now() - timedelta(seconds=uptime)
 
 

@@ -5,7 +5,6 @@ from aiogram import types
 from config import KINOPOISK_API_KEY, COMMAND_METADATA
 from bot.utils.database import db
 from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
-from bot.utils.tokens_database import tokens_db
 
 API_ICON = COMMAND_METADATA["!кино"]["icon"]
 API_NAME = COMMAND_METADATA["!кино"]["name"]
@@ -15,10 +14,7 @@ logger = logging.getLogger(__name__)
 
 async def search_movie(query: str) -> dict | None:
     url = f"https://kinopoiskapiunofficial.tech/api/v2.1/films/search-by-keyword?keyword={quote(query)}&page=1"
-    headers = {
-        "X-API-KEY": KINOPOISK_API_KEY,
-        "Content-Type": "application/json"
-    }
+    headers = {"X-API-KEY": KINOPOISK_API_KEY, "Content-Type": "application/json"}
     async with aiohttp.ClientSession(headers=headers) as session:
         try:
             async with session.get(url, timeout=15) as response:
@@ -36,18 +32,29 @@ async def cmd_movie(message: types.Message):
     raw_text = get_raw_text(message)
     parts = raw_text.split(maxsplit=1) if raw_text else []
     if len(parts) < 2:
-        await message.reply(format_styled_message(
-            emoji=API_ICON, title=API_NAME,
-            message="❌ Напиши название фильма.\n📝 Пример: <code>!кино Бойцовский клуб</code>"
-        ))
+        await message.reply(
+            format_styled_message(
+                emoji=API_ICON,
+                title=API_NAME,
+                message="❌ Напиши название фильма.\n📝 Пример: <code>!кино Бойцовский клуб</code>",
+            )
+        )
         return
 
     query = parts[1].strip()
-    wait_msg = await message.reply(format_styled_message(emoji="⏳", title=API_NAME, message="Ищу фильм в базе Кинопоиска..."))
+    wait_msg = await message.reply(
+        format_styled_message(
+            emoji="⏳", title=API_NAME, message="Ищу фильм в базе Кинопоиска..."
+        )
+    )
 
     movie = await search_movie(query)
     if not movie:
-        await wait_msg.edit_text(format_styled_message(emoji="❌", title=API_NAME, message=f"Фильм «{query}» не найден."))
+        await wait_msg.edit_text(
+            format_styled_message(
+                emoji="❌", title=API_NAME, message=f"Фильм «{query}» не найден."
+            )
+        )
         return
 
     title = movie.get("nameRu") or movie.get("nameEn") or "Без названия"
@@ -74,7 +81,13 @@ async def cmd_movie(message: types.Message):
         if poster:
             try:
                 await message.reply_photo(photo=poster, caption=caption)
-                await wait_msg.edit_text(format_styled_message(emoji="✅", title=API_NAME, message="Информация найдена и отправлена ниже! 👇"))
+                await wait_msg.edit_text(
+                    format_styled_message(
+                        emoji="✅",
+                        title=API_NAME,
+                        message="Информация найдена и отправлена ниже! 👇",
+                    )
+                )
             except Exception:
                 await wait_msg.edit_text(caption, disable_web_page_preview=False)
         else:

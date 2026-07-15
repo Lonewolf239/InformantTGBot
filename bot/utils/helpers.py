@@ -1,5 +1,4 @@
 from config import OWNER_ID
-from typing import Union, List
 from aiogram.types import InlineKeyboardMarkup
 from aiogram import types
 
@@ -36,14 +35,16 @@ def create_user_keyboard(inline_keyboard: list, user_id: int) -> InlineKeyboardM
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
 
-def format_styled_message(emoji: str, title: str, message: str, html: bool = True) -> str:
+def format_styled_message(
+    emoji: str, title: str, message: str, html: bool = True
+) -> str:
     bold_start = "<b>"
     bold_end = "</b>"
     if not html:
         bold_start = "*"
         bold_end = "*"
 
-    lines = message.split('\n')
+    lines = message.split("\n")
 
     last_content_idx = -1
     for idx in range(len(lines) - 1, -1, -1):
@@ -57,7 +58,9 @@ def format_styled_message(emoji: str, title: str, message: str, html: bool = Tru
         if not line.strip():
             formatted_lines.append(f"{bold_start}│{bold_end}")
         else:
-            if i == last_content_idx or (last_content_idx == -1 and i == len(lines) - 1):
+            if i == last_content_idx or (
+                last_content_idx == -1 and i == len(lines) - 1
+            ):
                 prefix = f"{bold_start}└─{bold_end} "
             else:
                 prefix = f"{bold_start}├─{bold_end} "
@@ -69,8 +72,10 @@ def format_styled_message(emoji: str, title: str, message: str, html: bool = Tru
 async def spend_tokens(message: types.Message, command):
     from bot.owner_settings.config_getters import is_payments_enabled
     from config import COMMAND_COSTS, VIP_IDS
+
     if await is_payments_enabled():
         from bot.utils.tokens_database import tokens_db
+
         cost = COMMAND_COSTS.get(command, 0)
         if cost > 0 and message.from_user.id not in VIP_IDS:
             await tokens_db.spend_tokens(message.from_user.id, cost)

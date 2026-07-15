@@ -10,7 +10,12 @@ from aiogram import types
 from aiogram.types import FSInputFile, InlineKeyboardButton
 
 from config import COMMAND_METADATA
-from bot.utils.helpers import format_styled_message, create_user_keyboard, spend_tokens, get_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    create_user_keyboard,
+    spend_tokens,
+    get_raw_text,
+)
 from bot.utils.database import db
 
 logger = logging.getLogger(__name__)
@@ -39,7 +44,7 @@ async def _scrape_myinstants(query: str = None, page: int = 1) -> list:
         "Sec-Fetch-Dest": "document",
         "Sec-Fetch-Mode": "navigate",
         "Sec-Fetch-Site": "same-origin",
-        "Upgrade-Insecure-Requests": "1"
+        "Upgrade-Insecure-Requests": "1",
     }
 
     async with aiohttp.ClientSession(headers=headers) as session:
@@ -48,12 +53,14 @@ async def _scrape_myinstants(query: str = None, page: int = 1) -> list:
                 html = await response.text()
 
                 if response.status != 200:
-                    logger.error(f"[MyInstants] Ошибка: сайт вернул статус {response.status}. Возможно, сработала защита Cloudflare.")
+                    logger.error(
+                        f"[MyInstants] Ошибка: сайт вернул статус {response.status}. Возможно, сработала защита Cloudflare."
+                    )
                     return []
 
                 pattern = re.compile(
-                    r"play\('([^']+)'[^)]*\).*?<a[^>]+class=[\"'][^\"']*instant-link[^\"']*[\"'][^>]*>(.*?)</a>", 
-                    re.DOTALL | re.IGNORECASE
+                    r"play\('([^']+)'[^)]*\).*?<a[^>]+class=[\"'][^\"']*instant-link[^\"']*[\"'][^>]*>(.*?)</a>",
+                    re.DOTALL | re.IGNORECASE,
                 )
                 matches = pattern.findall(html)
 
@@ -64,7 +71,7 @@ async def _scrape_myinstants(query: str = None, page: int = 1) -> list:
                 seen_urls = set()
 
                 for audio_path, name in matches:
-                    if not audio_path.startswith('http'):
+                    if not audio_path.startswith("http"):
                         audio_path = "https://www.myinstants.com" + audio_path
 
                     if audio_path not in seen_urls:
@@ -99,21 +106,39 @@ def generate_instants_keyboard(req_id: str, page: int, user_id: int):
         if len(btn_text) > 40:
             btn_text = btn_text[:37] + "..."
 
-        inline_keyboard.append([
-            InlineKeyboardButton(text=btn_text, callback_data=f"inst_dl|{req_id}|{global_idx}")
-        ])
+        inline_keyboard.append(
+            [
+                InlineKeyboardButton(
+                    text=btn_text, callback_data=f"inst_dl|{req_id}|{global_idx}"
+                )
+            ]
+        )
 
     nav_row = []
     if page > 0:
-        nav_row.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"inst_pg|{req_id}|{page-1}"))
+        nav_row.append(
+            InlineKeyboardButton(
+                text="⬅️ Назад", callback_data=f"inst_pg|{req_id}|{page - 1}"
+            )
+        )
 
     if total_pages > 1:
-        nav_row.append(InlineKeyboardButton(text=f"📄 {page+1}/{total_pages}", callback_data="ignore"))
+        nav_row.append(
+            InlineKeyboardButton(
+                text=f"📄 {page + 1}/{total_pages}", callback_data="ignore"
+            )
+        )
 
     if page < total_pages - 1:
-        nav_row.append(InlineKeyboardButton(text="Вперед ➡️", callback_data=f"inst_pg|{req_id}|{page+1}"))
+        nav_row.append(
+            InlineKeyboardButton(
+                text="Вперед ➡️", callback_data=f"inst_pg|{req_id}|{page + 1}"
+            )
+        )
     else:
-        nav_row.append(InlineKeyboardButton(text="Ещё 🔄", callback_data=f"inst_more|{req_id}"))
+        nav_row.append(
+            InlineKeyboardButton(text="Ещё 🔄", callback_data=f"inst_more|{req_id}")
+        )
 
     if nav_row:
         inline_keyboard.append(nav_row)
@@ -126,12 +151,9 @@ async def _handle_expired_request(callback: types.CallbackQuery):
         expired_text = format_styled_message(
             emoji="⏳",
             title=API_NAME,
-            message="<b>Время этого запроса истекло.</b>\nПожалуйста, вызовите команду заново."
+            message="<b>Время этого запроса истекло.</b>\nПожалуйста, вызовите команду заново.",
         )
-        await callback.message.edit_text(
-            text=expired_text,
-            reply_markup=None
-        )
+        await callback.message.edit_text(text=expired_text, reply_markup=None)
     except Exception:
         pass
 
@@ -142,14 +164,22 @@ async def cmd_myinstants(message: types.Message):
     query = args[1].strip() if len(args) > 1 else None
 
     status_msg = await message.reply(
-        format_styled_message(emoji="🔍", title=API_NAME, message=f"Ищу звуки{' по запросу: ' + query if query else ' в трендах мемов'}...")
+        format_styled_message(
+            emoji="🔍",
+            title=API_NAME,
+            message=f"Ищу звуки{' по запросу: ' + query if query else ' в трендах мемов'}...",
+        )
     )
 
     results = await _scrape_myinstants(query)
 
     if not results:
         await status_msg.edit_text(
-            format_styled_message(emoji="❌", title=API_NAME, message="Ничего не найдено или сайт недоступен.")
+            format_styled_message(
+                emoji="❌",
+                title=API_NAME,
+                message="Ничего не найдено или сайт недоступен.",
+            )
         )
         return
 
@@ -167,15 +197,17 @@ async def cmd_myinstants(message: types.Message):
         "query": query or "Тренды",
         "results": results,
         "total_pages": math.ceil(len(results) / 6),
-        "site_page": 1
+        "site_page": 1,
     }
 
     keyboard = generate_instants_keyboard(req_id, 0, user_id)
-    result_text = f"🔎 <b>Результаты ({len(results)} шт.):</b>\n\nВыберите звук для скачивания:"
+    result_text = (
+        f"🔎 <b>Результаты ({len(results)} шт.):</b>\n\nВыберите звук для скачивания:"
+    )
 
     await status_msg.edit_text(
         format_styled_message(emoji=API_ICON, title=API_NAME, message=result_text),
-        reply_markup=keyboard
+        reply_markup=keyboard,
     )
 
     await db.increment_commands()
@@ -201,7 +233,7 @@ async def process_instants_page_callback(callback: types.CallbackQuery):
     try:
         await callback.message.edit_text(
             format_styled_message(emoji=API_ICON, title=API_NAME, message=result_text),
-            reply_markup=keyboard
+            reply_markup=keyboard,
         )
     except Exception:
         pass
@@ -239,14 +271,16 @@ async def process_instants_more_callback(callback: types.CallbackQuery):
     cache_data["total_pages"] = math.ceil(len(cache_data["results"]) / 6)
     cache_data["site_page"] = next_site_page
 
-    keyboard = generate_instants_keyboard(req_id, current_bot_page + 1, callback.from_user.id)
+    keyboard = generate_instants_keyboard(
+        req_id, current_bot_page + 1, callback.from_user.id
+    )
 
     result_text = f"🔎 <b>Результаты ({len(cache_data['results'])} шт.):</b>\n\nВыберите звук для скачивания:"
 
     try:
         await callback.message.edit_text(
             format_styled_message(emoji=API_ICON, title=API_NAME, message=result_text),
-            reply_markup=keyboard
+            reply_markup=keyboard,
         )
     except Exception:
         pass
@@ -274,27 +308,29 @@ async def process_instants_download_callback(callback: types.CallbackQuery):
                     audio_data = await resp.read()
 
                     fd, path = tempfile.mkstemp(suffix=".mp3")
-                    with os.fdopen(fd, 'wb') as f:
+                    with os.fdopen(fd, "wb") as f:
                         f.write(audio_data)
 
                     tg_file = FSInputFile(path)
-                    caption = format_styled_message(emoji=API_ICON, title=API_NAME, message=f"<b>{name}</b>")
+                    caption = format_styled_message(
+                        emoji=API_ICON, title=API_NAME, message=f"<b>{name}</b>"
+                    )
 
                     try:
                         if callback.message.reply_to_message:
                             await callback.message.reply_to_message.reply_voice(
-                                voice=tg_file,
-                                caption=caption
+                                voice=tg_file, caption=caption
                             )
                         else:
                             await callback.message.answer_voice(
-                                voice=tg_file,
-                                caption=caption
+                                voice=tg_file, caption=caption
                             )
                     finally:
                         os.remove(path)
                 else:
-                    await callback.answer("❌ Ошибка при скачивании файла.", show_alert=True)
+                    await callback.answer(
+                        "❌ Ошибка при скачивании файла.", show_alert=True
+                    )
         except Exception as e:
             logger.error(f"Ошибка загрузки звука myinstants: {e}")
             await callback.answer("❌ Ошибка сети.", show_alert=True)

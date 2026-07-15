@@ -6,7 +6,7 @@ from bot.utils.database import db
 SETTINGS_NAMES = {
     "payments_enabled": "💳 Платежи (Токены)",
     "auto_reply_enabled": "🤖 Автоответ",
-    "reply_to_owner": "👑 Отвечать владельцу"
+    "reply_to_owner": "👑 Отвечать владельцу",
 }
 
 
@@ -26,7 +26,9 @@ async def send_settings_menu(message: types.Message | types.CallbackQuery):
 
     builder.adjust(1)
 
-    text = "<b>┌─ ⚙️ СИСТЕМНЫЕ НАСТРОЙКИ БОТА</b>\n└─ Нажми на кнопку, чтобы переключить:"
+    text = (
+        "<b>┌─ ⚙️ СИСТЕМНЫЕ НАСТРОЙКИ БОТА</b>\n└─ Нажми на кнопку, чтобы переключить:"
+    )
 
     if isinstance(message, types.CallbackQuery):
         await message.message.edit_text(text, reply_markup=builder.as_markup())

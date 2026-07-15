@@ -1,9 +1,16 @@
 from aiogram import types
 from config import (
-    COMMAND_COSTS, COMMAND_ALIASES, VIP_IDS,
-    WELCOME_TEXT, KEYWORD_REACTIONS, SIMPLE_ANSWERS, COMMAND_METADATA,
-    SFW_RP_ACTIONS, NSFW_RP_ACTIONS, DEFAULT_DAILY_TOKENS,
-    POLLINATIONS_ENABLED
+    COMMAND_COSTS,
+    COMMAND_ALIASES,
+    VIP_IDS,
+    WELCOME_TEXT,
+    KEYWORD_REACTIONS,
+    SIMPLE_ANSWERS,
+    COMMAND_METADATA,
+    SFW_RP_ACTIONS,
+    NSFW_RP_ACTIONS,
+    DEFAULT_DAILY_TOKENS,
+    POLLINATIONS_ENABLED,
 )
 from bot.utils.keyword_handlers import KEYWORD_COMMANDS_REGISTRY
 from bot.utils.user_settings import user_settings_db
@@ -13,9 +20,17 @@ from bot.utils.joke_api import cmd_joke
 from bot.utils.meme_api import cmd_meme
 from bot.utils.weather_api import cmd_weather
 from bot.utils.ai_api import (
-    cmd_ai, cmd_ai_ham, cmd_ai_psycho, cmd_ai_summary,
-    cmd_ai_nerd, cmd_ai_senior, cmd_ai_gopnik,
-    cmd_ai_joker, cmd_ai_tale, cmd_ai_babka, cmd_ai_drunk
+    cmd_ai,
+    cmd_ai_ham,
+    cmd_ai_psycho,
+    cmd_ai_summary,
+    cmd_ai_nerd,
+    cmd_ai_senior,
+    cmd_ai_gopnik,
+    cmd_ai_joker,
+    cmd_ai_tale,
+    cmd_ai_babka,
+    cmd_ai_drunk,
 )
 from bot.utils.database import db
 from bot.handlers.nsfw_settings import cmd_nsfw_settings
@@ -44,7 +59,11 @@ from bot.utils.shakal_api import cmd_shakal
 from bot.utils.replace_audio_api import cmd_replace_audio
 from bot.utils.myinstants_api import cmd_myinstants
 from functools import lru_cache
-from bot.owner_settings.config_getters import is_payments_enabled, is_auto_reply_enabled, is_reply_to_owner
+from bot.owner_settings.config_getters import (
+    is_payments_enabled,
+    is_auto_reply_enabled,
+    is_reply_to_owner,
+)
 import logging
 
 if POLLINATIONS_ENABLED:
@@ -59,30 +78,46 @@ def get_public_help_text(is_away_mode: bool = False, payments_enabled: bool = Tr
     status_text = "режим ОТОШЁЛ активен" if is_away_mode else "режим ОНЛАЙН"
 
     commands = ["<b>┌─ 🤖 ДОСТУПНЫЕ КОМАНДЫ</b>"]
-    exclude_from_main = {"!старт", "!помощь", "!прайс", "!баланс", "!настройки", "!о_боте", "!donut"}
+    exclude_from_main = {
+        "!старт",
+        "!помощь",
+        "!прайс",
+        "!баланс",
+        "!настройки",
+        "!о_боте",
+        "!donut",
+    }
 
     for cmd, data in COMMAND_METADATA.items():
         if cmd not in exclude_from_main and not data.get("disabled", False):
             args_str = f" {data['args']}" if "args" in data else ""
-            commands.append(f"<b>├─ {data['icon']}</b> <code>{cmd}</code>{args_str} — {data['desc']}")
+            commands.append(
+                f"<b>├─ {data['icon']}</b> <code>{cmd}</code>{args_str} — {data['desc']}"
+            )
 
     if payments_enabled:
-        commands.append(f"<b>├─ {COMMAND_METADATA['!прайс']['icon']}</b> <code>!прайс</code> — {COMMAND_METADATA['!прайс']['desc']}")
-        commands.append(f"<b>├─ {COMMAND_METADATA['!баланс']['icon']}</b> <code>!баланс</code> — {COMMAND_METADATA['!баланс']['desc']}")
+        commands.append(
+            f"<b>├─ {COMMAND_METADATA['!прайс']['icon']}</b> <code>!прайс</code> — {COMMAND_METADATA['!прайс']['desc']}"
+        )
+        commands.append(
+            f"<b>├─ {COMMAND_METADATA['!баланс']['icon']}</b> <code>!баланс</code> — {COMMAND_METADATA['!баланс']['desc']}"
+        )
 
-    commands.extend([
-        f"<b>├─ {COMMAND_METADATA['!настройки']['icon']}</b> <code>!настройки</code> — {COMMAND_METADATA['!настройки']['desc']}",
-        f"<b>├─ {COMMAND_METADATA['!о_боте']['icon']}</b> <code>!о_боте</code> — {COMMAND_METADATA['!о_боте']['desc']}",
-        f"<b>├─ {COMMAND_METADATA['!donut']['icon']}</b> <code>!donut</code> — {COMMAND_METADATA['!donut']['desc']}",
-        f"<b>├─ {COMMAND_METADATA['!помощь']['icon']}</b> <code>!помощь</code> — {COMMAND_METADATA['!помощь']['desc']}",
-        "<b>│</b>",
-        "<b>├─ 🔗 <i>Авто-сохранение ссылок</i></b>",
-        "<b>├─   Отправь ссылку на музыку/видео, и она</b>",
-        "<b>├─   появится у владельца в !ссылки</b>",
-        "<b>│</b>",
-        f"<b>├─ {status_emoji} Статус:</b> {status_text}",
-        "<b>└─ 🤖 Автоответ:</b> Мгновенный при включённом режиме"
-    ])
+    commands.extend(
+        [
+            f"<b>├─ {COMMAND_METADATA['!настройки']['icon']}</b> <code>!настройки</code> — {COMMAND_METADATA['!настройки']['desc']}",
+            f"<b>├─ {COMMAND_METADATA['!о_боте']['icon']}</b> <code>!о_боте</code> — {COMMAND_METADATA['!о_боте']['desc']}",
+            f"<b>├─ {COMMAND_METADATA['!donut']['icon']}</b> <code>!donut</code> — {COMMAND_METADATA['!donut']['desc']}",
+            f"<b>├─ {COMMAND_METADATA['!помощь']['icon']}</b> <code>!помощь</code> — {COMMAND_METADATA['!помощь']['desc']}",
+            "<b>│</b>",
+            "<b>├─ 🔗 <i>Авто-сохранение ссылок</i></b>",
+            "<b>├─   Отправь ссылку на музыку/видео, и она</b>",
+            "<b>├─   появится у владельца в !ссылки</b>",
+            "<b>│</b>",
+            f"<b>├─ {status_emoji} Статус:</b> {status_text}",
+            "<b>└─ 🤖 Автоответ:</b> Мгновенный при включённом режиме",
+        ]
+    )
     return "\n".join(commands)
 
 
@@ -108,10 +143,7 @@ async def cmd_prices(message: types.Message):
 
         price_text += f"<b>├─ {emoji}</b> <code>{cmd}</code> — {cost} {token_word}\n"
 
-    price_text += (
-        "<b>│</b>\n"
-        "<b>└─ 💳 Узнать свой баланс:</b> <code>!баланс</code>"
-    )
+    price_text += "<b>│</b>\n" "<b>└─ 💳 Узнать свой баланс:</b> <code>!баланс</code>"
 
     await message.reply(price_text)
     await db.increment_commands()
@@ -157,7 +189,9 @@ async def get_rp_commands(user_id: int = None):
         nsfw_text = "\n".join(nsfw_list)
         result += f"\n<b>│</b>\n<b>├─ 🔞 NSFW RP КОМАНДЫ (18+)</b>\n{nsfw_text}"
 
-    result += "\n<b>│</b>\n<b>└─</b> Ответь на сообщение и напиши: [команда] &lt;слова&gt;\n"
+    result += (
+        "\n<b>│</b>\n<b>└─</b> Ответь на сообщение и напиши: [команда] &lt;слова&gt;\n"
+    )
     return result
 
 
@@ -237,14 +271,15 @@ async def handle_keywords(message: types.Message):
     text = raw_text
 
     import re
-    words = re.findall(r'\b\w+\b', text)
+
+    words = re.findall(r"\b\w+\b", text)
 
     for keyword, reply in KEYWORD_REACTIONS.items():
         keyword_lower = keyword.lower()
 
         match_found = False
 
-        if ' ' in keyword_lower:
+        if " " in keyword_lower:
             if keyword_lower in text:
                 match_found = True
         else:
@@ -259,7 +294,9 @@ async def handle_keywords(message: types.Message):
                     await handler_func(message)
                     return True
                 else:
-                    logger.error(f"Метод {method_name} не найден в KEYWORD_COMMANDS_REGISTRY")
+                    logger.error(
+                        f"Метод {method_name} не найден в KEYWORD_COMMANDS_REGISTRY"
+                    )
             else:
                 await message.reply(reply)
                 return True
@@ -274,7 +311,7 @@ async def handle_simple_answers(message: types.Message):
 
     text = raw_text
 
-    text_normalized = text.rstrip('?').rstrip('!').rstrip('.').strip()
+    text_normalized = text.rstrip("?").rstrip("!").rstrip(".").strip()
 
     if text_normalized in SIMPLE_ANSWERS:
         await message.reply(SIMPLE_ANSWERS[text_normalized])
@@ -287,7 +324,9 @@ async def handle_simple_answers(message: types.Message):
 
 async def cmd_aliases(message: types.Message):
     alias_text = "<b>┌─ 🔀 СИНОНИМЫ КОМАНД (АЛИАСЫ)</b>\n"
-    alias_text += "<b>├─</b> Любую команду из списка можно вызывать разными способами:\n"
+    alias_text += (
+        "<b>├─</b> Любую команду из списка можно вызывать разными способами:\n"
+    )
     alias_text += "<b>│</b>\n"
 
     for base_cmd, aliases in sorted(COMMAND_ALIASES.items()):
@@ -300,7 +339,9 @@ async def cmd_aliases(message: types.Message):
 
         icon = COMMAND_METADATA.get(base_cmd, {}).get("icon", "🔹")
 
-        alias_text += f"<b>├─ {icon}</b> <code>{base_cmd}</code> ➔ {aliases_formatted}\n"
+        alias_text += (
+            f"<b>├─ {icon}</b> <code>{base_cmd}</code> ➔ {aliases_formatted}\n"
+        )
 
     alias_text += "<b>│</b>\n"
     alias_text += "<b>└─ ℹ️</b> Регистр букв значения не имеет."
@@ -392,11 +433,13 @@ async def process_public_commands(message: types.Message):
         return False
 
     if COMMAND_METADATA.get(base_command, {}).get("disabled", False):
-        await message.reply(format_styled_message(
-            emoji="❌",
-            title="ОШИБКА",
-            message="Данная команда временно отключена администратором."
-        ))
+        await message.reply(
+            format_styled_message(
+                emoji="❌",
+                title="ОШИБКА",
+                message="Данная команда временно отключена администратором.",
+            )
+        )
         return True
 
     if await is_payments_enabled():
@@ -414,21 +457,33 @@ async def process_public_commands(message: types.Message):
         if base_command == "!перевести":
             reply = message.reply_to_message
             if reply:
-                is_media = any([reply.voice, reply.video_note, reply.video, reply.audio])
+                is_media = any(
+                    [reply.voice, reply.video_note, reply.video, reply.audio]
+                )
                 is_text = bool(reply.text)
                 if is_text and not is_media:
                     cost = 1
             else:
                 cost = 0
 
-        elif base_command in ["!ии", "!нейрохам", "!психолог", "!пересказ", "!душнила", "!синьор", "!гопник"]:
+        elif base_command in [
+            "!ии",
+            "!нейрохам",
+            "!психолог",
+            "!пересказ",
+            "!душнила",
+            "!синьор",
+            "!гопник",
+        ]:
             reply = message.reply_to_message
             if reply:
                 if any([reply.voice, reply.audio, reply.video_note, reply.video]):
                     from config import AI_AUDIO_EXTRA_COST
+
                     cost += AI_AUDIO_EXTRA_COST
                 elif reply.photo:
                     from config import AI_VISION_EXTRA_COST
+
                     cost += AI_VISION_EXTRA_COST
 
         if cost > 0 and user_id not in VIP_IDS:

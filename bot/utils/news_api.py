@@ -52,7 +52,9 @@ async def cmd_news(message: types.Message):
     query = parts[1].strip() if len(parts) > 1 else ""
 
     wait_msg = await message.reply(
-        format_styled_message(emoji="⏳", title=API_NAME, message="Собираю свежие новости...")
+        format_styled_message(
+            emoji="⏳", title=API_NAME, message="Собираю свежие новости..."
+        )
     )
 
     news_text = await get_news(query)
@@ -60,17 +62,19 @@ async def cmd_news(message: types.Message):
     if not news_text:
         await wait_msg.edit_text(
             format_styled_message(
-                emoji="❌", 
-                title=API_NAME, 
-                message=f"По запросу «<b>{query}</b>» новости не найдены." if query else "Не удалось получить свежие новости (возможно, API недоступен)."
+                emoji="❌",
+                title=API_NAME,
+                message=(
+                    f"По запросу «<b>{query}</b>» новости не найдены."
+                    if query
+                    else "Не удалось получить свежие новости (возможно, API недоступен)."
+                ),
             )
         )
         return
 
     result_msg = format_styled_message(
-        emoji=API_ICON,
-        title=API_NAME,
-        message=news_text
+        emoji=API_ICON, title=API_NAME, message=news_text
     )
 
     await wait_msg.edit_text(result_msg, disable_web_page_preview=True)

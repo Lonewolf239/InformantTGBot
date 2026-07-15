@@ -30,23 +30,22 @@ FORECASTS = [
     "Твоя энергия сегодня бьет ключом. Постарайся никого не убить этим ключом.",
     "Звёзды складываются в странную фигуру. Скорее всего, к вечеру захочется пиццы.",
     "Отличный момент, чтобы закрыть те 40 вкладок в браузере, которые висят с прошлого месяца.",
-    "Сегодня кто-то тайно восхищается тобой. Наверное, твой кот. Или алгоритмы контекстной рекламы."
+    "Сегодня кто-то тайно восхищается тобой. Наверное, твой кот. Или алгоритмы контекстной рекламы.",
 ]
 
 
 def get_forecast_keyboard(user_id: int):
-    return create_user_keyboard([
-        [InlineKeyboardButton(text="🔮 Ещё прогноз", callback_data="more_forecast")]
-    ], user_id)
+    return create_user_keyboard(
+        [[InlineKeyboardButton(text="🔮 Ещё прогноз", callback_data="more_forecast")]],
+        user_id,
+    )
 
 
 async def send_forecast(target, is_callback=False):
     forecast_text = random.choice(FORECASTS)
 
     msg_text = format_styled_message(
-        emoji=API_ICON,
-        title=API_NAME,
-        message=forecast_text
+        emoji=API_ICON, title=API_NAME, message=forecast_text
     )
 
     user_id = target.from_user.id

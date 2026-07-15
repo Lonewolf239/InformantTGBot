@@ -20,7 +20,9 @@ def resolve_lang_code(user_input: str) -> str:
         return user_input
 
     try:
-        translated_name = GoogleTranslator(source='auto', target='en').translate(user_input).lower()
+        translated_name = (
+            GoogleTranslator(source="auto", target="en").translate(user_input).lower()
+        )
         if translated_name in langs_dict:
             return langs_dict[translated_name]
         for lang_name, lang_code in langs_dict.items():
@@ -35,8 +37,8 @@ def resolve_lang_code(user_input: str) -> str:
 async def translate_text(text: str, target_lang: str = "ru") -> str:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(
-        None, 
-        lambda: GoogleTranslator(source='auto', target=target_lang).translate(text)
+        None,
+        lambda: GoogleTranslator(source="auto", target=target_lang).translate(text),
     )
 
 
@@ -47,14 +49,22 @@ async def text_to_speech(text: str, output_path: str, lang_code: str = "ru") -> 
 
     safe_lang_code = lang_code.lower()
     voices = {
-        "ru": "ru-RU-DmitryNeural", "en": "en-US-ChristopherNeural",
-        "zh": "zh-CN-YunxiNeural", "zh-cn": "zh-CN-YunxiNeural",
-        "zh-tw": "zh-CN-YunxiNeural", "de": "de-DE-KillianNeural",
-        "fr": "fr-FR-HenriNeural", "es": "es-ES-AlvaroNeural",
-        "ja": "ja-JP-KeitaNeural", "uk": "uk-UA-OstapNeural",
-        "it": "it-IT-DiegoNeural"
+        "ru": "ru-RU-DmitryNeural",
+        "en": "en-US-ChristopherNeural",
+        "zh": "zh-CN-YunxiNeural",
+        "zh-cn": "zh-CN-YunxiNeural",
+        "zh-tw": "zh-CN-YunxiNeural",
+        "de": "de-DE-KillianNeural",
+        "fr": "fr-FR-HenriNeural",
+        "es": "es-ES-AlvaroNeural",
+        "ja": "ja-JP-KeitaNeural",
+        "uk": "uk-UA-OstapNeural",
+        "it": "it-IT-DiegoNeural",
     }
-    selected_voice = voices.get(safe_lang_code, "en-US-ChristopherNeural" if safe_lang_code != "ru" else "ru-RU-DmitryNeural")
+    selected_voice = voices.get(
+        safe_lang_code,
+        "en-US-ChristopherNeural" if safe_lang_code != "ru" else "ru-RU-DmitryNeural",
+    )
 
     try:
         communicate = edge_tts.Communicate(text.strip(), selected_voice)

@@ -8,23 +8,20 @@ from mutagen.id3 import ID3
 
 logger = logging.getLogger(__name__)
 
-ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets")
+ASSETS_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets"
+)
 
 
 def extract_audio_metadata(file_path: str) -> dict:
-    metadata = {
-        "title": None,
-        "artist": None,
-        "duration": None,
-        "cover_bytes": None
-    }
+    metadata = {"title": None, "artist": None, "duration": None, "cover_bytes": None}
 
     try:
         audio = mutagen.File(file_path)
         if audio is not None and audio.info:
             metadata["duration"] = int(audio.info.length)
 
-        if file_path.lower().endswith('.mp3'):
+        if file_path.lower().endswith(".mp3"):
             tags = ID3(file_path)
 
             if "TIT2" in tags:
@@ -43,7 +40,9 @@ def extract_audio_metadata(file_path: str) -> dict:
     return metadata
 
 
-async def send_track(message: types.Message, file_name: str, title: str, performer: str):
+async def send_track(
+    message: types.Message, file_name: str, title: str, performer: str
+):
     file_path = os.path.join(ASSETS_DIR, file_name)
 
     if not os.path.exists(file_path):
@@ -67,7 +66,7 @@ async def send_track(message: types.Message, file_name: str, title: str, perform
         title=audio_title,
         performer=audio_performer,
         thumbnail=thumbnail,
-        duration=duration
+        duration=duration,
     )
     return True
 
@@ -90,7 +89,7 @@ async def send_social_credit_plus(message: types.Message):
         "sc_plus_69420.jpg",
         "sc_plus_infinity.jpg",
         "sc_plus_rice.webp",
-        "sc_plus_rice2.jpg"
+        "sc_plus_rice2.jpg",
     ]
     filename = random.choice(images)
     file_path = os.path.join(ASSETS_DIR, filename)
@@ -106,12 +105,12 @@ async def send_social_credit_plus(message: types.Message):
 
 async def send_social_credit_minus(message: types.Message):
     images = [
-        "sc_minus_15.jpg", 
+        "sc_minus_15.jpg",
         "sc_minus_death.jpg",
         "sc_minus_1.jpg",
         "sc_minus_16m.jpg",
         "sc_minus_50.jpg",
-        "sc_minus_420m.jpg"
+        "sc_minus_420m.jpg",
     ]
     filename = random.choice(images)
     file_path = os.path.join(ASSETS_DIR, filename)
@@ -123,6 +122,7 @@ async def send_social_credit_minus(message: types.Message):
     photo = FSInputFile(file_path)
     await message.answer_photo(photo)
     return True
+
 
 KEYWORD_COMMANDS_REGISTRY = {
     "send_party_track": send_party_track,

@@ -15,14 +15,18 @@ from urllib.parse import quote_plus
 # ----------------------------------------------------------------------------------------------------------------------
 # Общие настройки
 # ----------------------------------------------------------------------------------------------------------------------
-API_URL = 'http://anecdotica.ru/api'  # http-адрес API
+API_URL = "http://anecdotica.ru/api"  # http-адрес API
 # Настройки для режима отладки
-API_LOGFILE = 'api_errors.log'  # путь к файлу лога
+API_LOGFILE = "api_errors.log"  # путь к файлу лога
 API_LOGGING = 0  # логирование (0 - выкл., 1 - вкл.)
 
 if API_LOGGING:
-    logging.basicConfig(filename=API_LOGFILE, level=logging.INFO, format='%(asctime)s : %(levelname)s : %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')  # настройка формата вывода в лог
+    logging.basicConfig(
+        filename=API_LOGFILE,
+        level=logging.INFO,
+        format="%(asctime)s : %(levelname)s : %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )  # настройка формата вывода в лог
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -30,7 +34,8 @@ if API_LOGGING:
 
 class AnecdoticaApiCore:
     """Базовый класс"""
-    DEFAULT_SETTINGS = {'charset': 'utf-8', 'format': 'json'}
+
+    DEFAULT_SETTINGS = {"charset": "utf-8", "format": "json"}
     reply = None
     called_from = None
 
@@ -46,13 +51,13 @@ class AnecdoticaApiCore:
     def log_error(result):
         """Запись информации об ошибке в лог"""
         if API_LOGGING and result:  # если логирование включено
-            msg = str(result.get_error()) + ' (' + result.get_err_msg() + ')'
+            msg = str(result.get_error()) + " (" + result.get_err_msg() + ")"
             logging.error(msg)  # пишем в лог
 
     @staticmethod
     def set_error(err_code, err_msg):
         """Возвращаем информацию об ошибке"""
-        return json.dumps({'result': {'error': err_code, 'errMsg': err_msg}})
+        return json.dumps({"result": {"error": err_code, "errMsg": err_msg}})
 
     @staticmethod
     def get_setting(settings, name):
@@ -63,52 +68,56 @@ class AnecdoticaApiCore:
     def send_query(params, profile):
         """Выполнение запроса к API"""
         content = None
-        params['uts'] = int(time.time())
+        params["uts"] = int(time.time())
         # print('send_query: ', params, '\n')
 
         try:
-            url_params = ''
+            url_params = ""
             for key in params:
-                if url_params == '':
-                    und = ''
+                if url_params == "":
+                    und = ""
                 else:
-                    und = '&'
+                    und = "&"
                 if params[key] is not None:
                     if isinstance(params[key], str):
                         params[key] = quote_plus(params[key])
-                    url_params = url_params + und + key + '=' + str(params[key])
+                    url_params = url_params + und + key + "=" + str(params[key])
 
             # print(url_params)
-            md5hash = hashlib.md5((url_params + profile['key']).encode())
-            api_url = API_URL + '?' + url_params + '&hash=' + md5hash.hexdigest()
+            md5hash = hashlib.md5((url_params + profile["key"]).encode())
+            api_url = API_URL + "?" + url_params + "&hash=" + md5hash.hexdigest()
             # print('api_url=', api_url)
 
-            if profile['http_method'] == 'GET':
+            if profile["http_method"] == "GET":
                 content = requests.get(api_url)  # GET-запрос
-            elif profile['http_method'] == 'POST':
+            elif profile["http_method"] == "POST":
                 content = requests.post(api_url)  # POST-запрос
             else:
-                content = AnecdoticaApiCore.set_error(7, 'FORBIDDEN_HTTP_METHOD')
+                content = AnecdoticaApiCore.set_error(7, "FORBIDDEN_HTTP_METHOD")
 
             if content is None:
-                content = AnecdoticaApiCore.set_error(103, 'NO_CONTENT_RECEIVED')
-            elif hasattr(content, 'status_code'):
+                content = AnecdoticaApiCore.set_error(103, "NO_CONTENT_RECEIVED")
+            elif hasattr(content, "status_code"):
                 if content.status_code == 200:  # 200
                     content = content.text
                 else:  # http-error
-                    content = AnecdoticaApiCore.set_error(102, 'HTTP_REQUEST_FAILED')
+                    content = AnecdoticaApiCore.set_error(102, "HTTP_REQUEST_FAILED")
 
         except (ConnectionError, ConnectionRefusedError):
-            content = AnecdoticaApiCore.set_error(102, 'HTTP_REQUEST_FAILED')
+            content = AnecdoticaApiCore.set_error(102, "HTTP_REQUEST_FAILED")
         except Exception as e:
-            content = AnecdoticaApiCore.set_error(102, 'HTTP_REQUEST_FAILED')
+            content = AnecdoticaApiCore.set_error(102, "HTTP_REQUEST_FAILED")
 
         reply = json.loads(content)
         return reply
 
     def get_next_reply(self, handler=None):
-        self.reply = self._get_reply(self.called_from, self.profile, self.settings,
-                                     self.handler if handler is None else handler)
+        self.reply = self._get_reply(
+            self.called_from,
+            self.profile,
+            self.settings,
+            self.handler if handler is None else handler,
+        )
         return self.reply
 
     @staticmethod
@@ -127,15 +136,16 @@ class AnecdoticaApiCore:
 
 class ApiReply:
     """Класс ответа сервера"""
+
     item = None
     items = None
 
     def __init__(self, data):
-        self.result = Result(data.get('result'))
-        if data.get('item') is not None:
-            self.item = Item(data.get('item'))
-        if data.get('items') is not None:
-            self.items = Items(data.get('items'), data.get('info'))
+        self.result = Result(data.get("result"))
+        if data.get("item") is not None:
+            self.item = Item(data.get("item"))
+        if data.get("items") is not None:
+            self.items = Items(data.get("items"), data.get("info"))
 
     def is_error(self):
         return self.result.is_error()
@@ -160,6 +170,7 @@ class ApiReply:
 
 class DataElement:
     """Класс элемента данных"""
+
     data = {}
 
     def __init__(self, data):
@@ -173,33 +184,34 @@ class Result(DataElement):
     """Класс элемента данных Result"""
 
     def get_error(self):
-        return None if self.data['error'] == '' else self.data['error']
+        return None if self.data["error"] == "" else self.data["error"]
 
     def get_err_msg(self):
-        return None if self.data['errMsg'] == '' else self.data['errMsg']
+        return None if self.data["errMsg"] == "" else self.data["errMsg"]
 
     def is_error(self):
-        return not (self.data['error'] == '' or self.data['error'] == 0)
+        return not (self.data["error"] == "" or self.data["error"] == 0)
 
 
 class Item(DataElement):
     """Класс записи Item"""
 
     def get_text(self):
-        text = self.data.get('text')
+        text = self.data.get("text")
         if text is None:
-            text = ''
+            text = ""
         return text
 
     def get_note(self):
-        text = self.data.get('note')
+        text = self.data.get("note")
         if text is None:
-            text = ''
+            text = ""
         return text
 
 
 class Items(DataElement):
     """Класс списка записей Items"""
+
     info = None
     index = 0
 
@@ -226,24 +238,25 @@ class Items(DataElement):
         return result
 
     def get_num(self):
-        return 0 if self.info.get('n') is None else self.info.get('n')
+        return 0 if self.info.get("n") is None else self.info.get("n")
 
     def get_size(self):
-        return 0 if self.info.get('size') is None else self.info.get('size')
+        return 0 if self.info.get("size") is None else self.info.get("size")
 
     def get_page(self):
-        return 0 if self.info.get('page') is None else self.info.get('page')
+        return 0 if self.info.get("page") is None else self.info.get("page")
 
     def get_max_page(self):
-        return 0 if self.info.get('max_page') is None else self.info.get('max_page')
+        return 0 if self.info.get("max_page") is None else self.info.get("max_page")
 
     def get_ipp(self):
-        return 0 if self.info.get('ipp') is None else self.info.get('ipp')
+        return 0 if self.info.get("ipp") is None else self.info.get("ipp")
 
 
 class RandomItemApi(AnecdoticaApiCore):
     """API Level 1"""
-    DEF_METHOD = 'getRandItem'
+
+    DEF_METHOD = "getRandItem"
 
     def __init__(self, profile, settings=None, handler=None):
         super().__init__(profile, settings, handler)
@@ -257,26 +270,27 @@ class RandomItemApi(AnecdoticaApiCore):
     @staticmethod
     def set_params(profile, settings):
         params = {
-            'pid': profile['pid'],
-            'method': __class__.DEF_METHOD,
-            'format': __class__.DEFAULT_SETTINGS['format'],
-            'charset': __class__.DEFAULT_SETTINGS['charset'],
-            'category': __class__.get_setting(settings, 'category'),
-            'series': __class__.get_setting(settings, 'series'),
-            'genre': __class__.get_setting(settings, 'genre'),
-            'country': __class__.get_setting(settings, 'country'),
-            'lang': __class__.get_setting(settings, 'lang'),
-            'markup': __class__.get_setting(settings, 'markup'),
-            'note': __class__.get_setting(settings, 'note')
+            "pid": profile["pid"],
+            "method": __class__.DEF_METHOD,
+            "format": __class__.DEFAULT_SETTINGS["format"],
+            "charset": __class__.DEFAULT_SETTINGS["charset"],
+            "category": __class__.get_setting(settings, "category"),
+            "series": __class__.get_setting(settings, "series"),
+            "genre": __class__.get_setting(settings, "genre"),
+            "country": __class__.get_setting(settings, "country"),
+            "lang": __class__.get_setting(settings, "lang"),
+            "markup": __class__.get_setting(settings, "markup"),
+            "note": __class__.get_setting(settings, "note"),
         }
-        if profile['pid'] == '0' or profile['pid'] == 0:
-            params['error'] = __class__.get_setting(settings, 'error')
+        if profile["pid"] == "0" or profile["pid"] == 0:
+            params["error"] = __class__.get_setting(settings, "error")
         return params
 
 
 class RandomItemParamApi(AnecdoticaApiCore):
     """API Level 2"""
-    DEF_METHOD = 'getRandItemP'
+
+    DEF_METHOD = "getRandItemP"
 
     def __init__(self, profile, settings=None, handler=None):
         super().__init__(profile, settings, handler)
@@ -290,29 +304,30 @@ class RandomItemParamApi(AnecdoticaApiCore):
     @staticmethod
     def set_params(profile, settings):
         params = {
-            'pid': profile['pid'],
-            'method': __class__.DEF_METHOD,
-            'format': __class__.DEFAULT_SETTINGS['format'],
-            'charset': __class__.DEFAULT_SETTINGS['charset'],
-            'tag': __class__.get_setting(settings, 'tag'),
-            'category': __class__.get_setting(settings, 'category'),
-            'series': __class__.get_setting(settings, 'series'),
-            'country': __class__.get_setting(settings, 'country'),
-            'genre': __class__.get_setting(settings, 'genre'),
-            'lang': __class__.get_setting(settings, 'lang'),
-            'wlist': __class__.get_setting(settings, 'wlist'),
-            'censor': __class__.get_setting(settings, 'censor'),
-            'markup': __class__.get_setting(settings, 'markup'),
-            'note': __class__.get_setting(settings, 'note')
+            "pid": profile["pid"],
+            "method": __class__.DEF_METHOD,
+            "format": __class__.DEFAULT_SETTINGS["format"],
+            "charset": __class__.DEFAULT_SETTINGS["charset"],
+            "tag": __class__.get_setting(settings, "tag"),
+            "category": __class__.get_setting(settings, "category"),
+            "series": __class__.get_setting(settings, "series"),
+            "country": __class__.get_setting(settings, "country"),
+            "genre": __class__.get_setting(settings, "genre"),
+            "lang": __class__.get_setting(settings, "lang"),
+            "wlist": __class__.get_setting(settings, "wlist"),
+            "censor": __class__.get_setting(settings, "censor"),
+            "markup": __class__.get_setting(settings, "markup"),
+            "note": __class__.get_setting(settings, "note"),
         }
-        if profile['pid'] == '0' or profile['pid'] == 0:
-            params['error'] = __class__.get_setting(settings, 'error')
+        if profile["pid"] == "0" or profile["pid"] == 0:
+            params["error"] = __class__.get_setting(settings, "error")
         return params
 
 
 class RandomItemTagsApi(AnecdoticaApiCore):
     """API Level 3"""
-    DEF_METHOD = 'getRandItemT'
+
+    DEF_METHOD = "getRandItemT"
 
     def __init__(self, profile, settings=None, handler=None):
         super().__init__(profile, settings, handler)
@@ -326,40 +341,45 @@ class RandomItemTagsApi(AnecdoticaApiCore):
     @staticmethod
     def set_params(profile, settings):
         params = {
-            'pid': profile['pid'],
-            'method': __class__.DEF_METHOD,
-            'format': __class__.DEFAULT_SETTINGS['format'],
-            'charset': __class__.DEFAULT_SETTINGS['charset'],
-            'tags': __class__.get_setting(settings, 'tags'),
-            'precision': __class__.get_setting(settings, 'precision'),
-            'priority': __class__.get_setting(settings, 'priority'),
-            'category': __class__.get_setting(settings, 'category'),
-            'series': __class__.get_setting(settings, 'series'),
-            'country': __class__.get_setting(settings, 'country'),
-            'genre': __class__.get_setting(settings, 'genre'),
-            'lang': __class__.get_setting(settings, 'lang'),
-            'wlist': __class__.get_setting(settings, 'wlist'),
-            'censor': __class__.get_setting(settings, 'censor'),
-            'markup': __class__.get_setting(settings, 'markup'),
-            'note': __class__.get_setting(settings, 'note')
+            "pid": profile["pid"],
+            "method": __class__.DEF_METHOD,
+            "format": __class__.DEFAULT_SETTINGS["format"],
+            "charset": __class__.DEFAULT_SETTINGS["charset"],
+            "tags": __class__.get_setting(settings, "tags"),
+            "precision": __class__.get_setting(settings, "precision"),
+            "priority": __class__.get_setting(settings, "priority"),
+            "category": __class__.get_setting(settings, "category"),
+            "series": __class__.get_setting(settings, "series"),
+            "country": __class__.get_setting(settings, "country"),
+            "genre": __class__.get_setting(settings, "genre"),
+            "lang": __class__.get_setting(settings, "lang"),
+            "wlist": __class__.get_setting(settings, "wlist"),
+            "censor": __class__.get_setting(settings, "censor"),
+            "markup": __class__.get_setting(settings, "markup"),
+            "note": __class__.get_setting(settings, "note"),
         }
-        if profile['pid'] == '0' or profile['pid'] == 0:
-            params['error'] = __class__.get_setting(settings, 'error')
+        if profile["pid"] == "0" or profile["pid"] == 0:
+            params["error"] = __class__.get_setting(settings, "error")
         return params
 
 
 class ItemsApi(AnecdoticaApiCore):
     """API Level 4"""
-    DEF_METHOD = 'getItems'
+
+    DEF_METHOD = "getItems"
 
     def __init__(self, profile, settings=None, handler=None):
         super().__init__(profile, settings, handler)
         self.called_from = __class__
 
     def get_page(self, page=0, handler=None):
-        self.settings['page'] = page
-        self.reply = self._get_reply(self.called_from, self.profile, self.settings,
-                                     self.handler if handler is None else handler)
+        self.settings["page"] = page
+        self.reply = self._get_reply(
+            self.called_from,
+            self.profile,
+            self.settings,
+            self.handler if handler is None else handler,
+        )
         return self.reply
 
     @staticmethod
@@ -370,25 +390,25 @@ class ItemsApi(AnecdoticaApiCore):
     @staticmethod
     def set_params(profile, settings):
         params = {
-            'pid': profile['pid'],
-            'method': __class__.DEF_METHOD,
-            'format': __class__.DEFAULT_SETTINGS['format'],
-            'charset': __class__.DEFAULT_SETTINGS['charset'],
-            'page': __class__.get_setting(settings, 'page'),
-            'ipp': __class__.get_setting(settings, 'ipp'),
-            'tag': __class__.get_setting(settings, 'tag'),
-            'category': __class__.get_setting(settings, 'category'),
-            'series': __class__.get_setting(settings, 'series'),
-            'country': __class__.get_setting(settings, 'country'),
-            'genre': __class__.get_setting(settings, 'genre'),
-            'lang': __class__.get_setting(settings, 'lang'),
-            'wlist': __class__.get_setting(settings, 'wlist'),
-            'censor': __class__.get_setting(settings, 'censor'),
-            'markup': __class__.get_setting(settings, 'markup'),
-            'note': __class__.get_setting(settings, 'note')
+            "pid": profile["pid"],
+            "method": __class__.DEF_METHOD,
+            "format": __class__.DEFAULT_SETTINGS["format"],
+            "charset": __class__.DEFAULT_SETTINGS["charset"],
+            "page": __class__.get_setting(settings, "page"),
+            "ipp": __class__.get_setting(settings, "ipp"),
+            "tag": __class__.get_setting(settings, "tag"),
+            "category": __class__.get_setting(settings, "category"),
+            "series": __class__.get_setting(settings, "series"),
+            "country": __class__.get_setting(settings, "country"),
+            "genre": __class__.get_setting(settings, "genre"),
+            "lang": __class__.get_setting(settings, "lang"),
+            "wlist": __class__.get_setting(settings, "wlist"),
+            "censor": __class__.get_setting(settings, "censor"),
+            "markup": __class__.get_setting(settings, "markup"),
+            "note": __class__.get_setting(settings, "note"),
         }
-        if profile['pid'] == '0' or profile['pid'] == 0:
-            params['error'] = __class__.get_setting(settings, 'error')
+        if profile["pid"] == "0" or profile["pid"] == 0:
+            params["error"] = __class__.get_setting(settings, "error")
         return params
 
 
