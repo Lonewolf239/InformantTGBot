@@ -27,66 +27,66 @@ python main.py
 <!-- FEATURES_TABLE_START -->
 | | Feature | Description |
 |---|---------|-------------|
-| 🌐 | **Translator** | `!перевести` — Generates translation and voiceover |
-| 👾 | **Jackalizer** | `!шакал -начало` — Generates a mixed video from two requests |
-| 🎧 | **Sound replacement** | `!звук` — Generates audio files for videos |
-| 🎙️ | **Speech transcript** | `!расшифровка` — Generates text from audio/video |
-| 🧠 | **AI assistant** | `!ии [текст]` — Generates a response from a local neural network |
-| 🤬 | **Нейрохам** | `!нейрохам [текст]` — Генерирует агрессивные ответы |
-| 🛋 | **ИИ-Психолог** | `!психолог [текст]` — Отвечает эмпатичным советом пользователю |
-| 📝 | **Краткий пересказ** | `!пересказ [текст]` — Генерирует краткий пересказ текста |
-| 🤓 | **ИИ-Душнила** | `!душнила [текст]` — Отвечает идioticнами шутками |
-| 💻 | **Senior ИИ** | `!синьор [текст]` — Отвечает в стиле выгоревшего программиста |
-| 🧢 | **AI Gopnik** | `!гопник [текст]` — AI Gopnik answers by concepts |
-| 🤡 | **AI Joker** | `!шутник [тема]` — Generates a joke by an AI joker |
-| 🧚 | **AI Storyteller** | `!сказка [тема]` — Generates a fairy tale |
-| 👵 | **AI Grandma** | `!бабка [тема]` — Gives off an unattractive grunt |
-| 🥴 | **AI-Drunk** | `!алкаш [тема]` — Gives out phrases from a state of deep drinking |
-| 🔊 | **Voice over text** | `!озвучка` — Generates voice reading of text |
-| 🔊 | **Meme sounds** | `!инстант [запрос]` — Generates meme sounds |
-| 🎬 | **Media Loader** | `!скачать [ссылка]` — Generates a video from a request |
-| 🎵 | **Search music** | `!трек [название]` — Generates requests in music services |
-| 🎤 | **Search by text** | `!по_тексту [слова из песни]` — Generates a request in charmpodka |
-| 📚 | **Wikipedia** | `!вики [запрос]` — Generates a query to Wikipedia |
-| 🎬 | **Kino-Poisk** | `!кино [название]` — Gives out a movie card from Kinopoisk |
-| 🪙 | **Cryptocurrency rate** | `!курс_крипты` — Gives rates for top crypto coins in rubles |
-| 🔍 | **Image search** | `!картинка [запрос]` — Generates a random picture |
-| 🌤️ | **Weather** | `!погода [город]` — Generates the current weather in a message |
-| 🖼️ | **Meme** | `!мем [избранное]` — Generates a random meme or from favorites |
-| 🐱 | **Kitty** | `!кот` — Generates a random cat |
-| 📖 | **Fact** | `!факт` — Generates a random fact from Wikipedia |
-| 🔎 | **Search the web** | `!поиск [запрос]` — Generates Internet search results |
-| 🔮 | **Forecast** | `!прогноз` — Generates a random forecast for the day |
-| 💭 | **Quote** | `!цитата` — Generates a wise thought |
-| 📱 | **QR code** | `!qr [текст]` — Generates a QR code! |
-| 🎰 | **Roulette** | `!рулетка [ставка]` — Generates random game results |
-| ⚔️ | **Duel** | `!дуэль [ставка]` — Generates a random opponent for a duel |
-| 🎭 | **RP Teams** | `!рп` — Returns a list of RP commands |
-| 💱 | **Currency rates** | `!курс [сумма] [валюты]` — Converts currencies with a bot |
-| 🔀 | **Aliases** | `!алиасы` — Gives a list of all command synonyms! |
-| 💳 | **Wallet balance** | `!баланс` — Corresponds with the status of the balance in the wallet |
-| 💰 | **Price list** | `!прайс` — Generates a price list |
-| ⚙️ | **Settings** | `!настройки` — Generates a list of bot settings |
-| 🤖 | **About the bot** | `!о_боте` — Generates bot technical information |
-| 🍩 | **Donat** | `!donut` — Generates a payment request |
-| ℹ️ | **Help** | `!помощь` — Bot responds with available Telegram commands |
-| 🚀 | **Start** | `!старт` — Displays a welcome message |
-| 📰 | **News** | `!новости` — Generates a list of top news |
-| 🎟 | **Афиша** | `!афиша` — Генерирует события для сегоднящнего д afteroon |
-| 🖼 | **Обои** | `!обои` — Генерирует сочные картинки 4k |
-| 🚫 | **Отключенные команды** | `!отключенные` — Выдает список отключенных команд |
+| 🌐 | **Переводчик** | `!перевести` — Translates text with voiceover integration |
+| 👾 | **Шакализатор** | `!шакал -начало` — Generates a glitch for two videos using a bot |
+| 🎧 | **Замена звука** | `!звук` — Replaces the sound in a video with an audio file |
+| 🎙️ | **Расшифровка речи** | `!расшифровка` — Decrypts text from audio/video |
+| 🧠 | **ИИ-помощник** | `!ии [текст]` — Generates answers to questions using a local neural network |
+| 🤬 | **Нейрохам** | `!нейрохам [текст]` — Generates aggressive responses to requests |
+| 🛋 | **ИИ-Психолог** | `!психолог [текст]` — Finds suitable empathetic conversation |
+| 📝 | **Краткий пересказ** | `!пересказ [текст]` — Retells long texts into short versions |
+| 🤓 | **ИИ-Душнила** | `!душнила [текст]` — Responds stuffily and meticulously to requests |
+| 💻 | **Senior ИИ** | `!синьор [текст]` — Bot answers requests from burnt out programmers |
+| 🧢 | **ИИ-Гопник** | `!гопник [текст]` — Answers queries in the format !Gopnik in terms of concepts |
+| 🤡 | **ИИ-Шутник** | `!шутник [тема]` — AI Joker generates summer jokes |
+| 🧚 | **ИИ-Сказочник** | `!сказка [тема]` — AI Storyteller composes fairy tales and stories |
+| 👵 | **ИИ-Бабка** | `!бабка [тема]` — AI Grandma grumbles like an old neighbor from the entrance |
+| 🥴 | **ИИ-Алкаш** | `!алкаш [тема]` — AI Drunk broadcasts from a state of deep drinking |
+| 🔊 | **Озвучка текста** | `!озвучка` — Generates an audio recording with spoken text |
+| 🔊 | **Мемные звуки** | `!инстант [запрос]` — Downloads meme sounds from social networks |
+| 🎬 | **Загрузчик медиа** | `!скачать [ссылка]` — Loads media from social networks and YouTube |
+| 🎵 | **Поиск музыки** | `!трек [название]` — Finds and downloads songs on request |
+| 🎤 | **Поиск по тексту** | `!по_тексту [слова из песни]` — Finds songs by passage in the text |
+| 📚 | **Википедия** | `!вики [запрос]` — Finds articles on Wikipedia |
+| 🎬 | **Кино-Поиск** | `!кино [название]` — Shows a movie card from Kinopoisk |
+| 🪙 | **Курс Криптовалют** | `!курс_крипты` — Finds and shows rates of top cryptocurrencies |
+| 🔍 | **Поиск картинок** | `!картинка [запрос]` — Finds images by request on social networks |
+| 🌤️ | **Погода** | `!погода [город]` — Finds and shows current weather |
+| 🖼️ | **Мем** | `!мем [избранное]` — Finds and shows random memes |
+| 🐱 | **Котёнок** | `!кот` — Finds and shows a random cat |
+| 📖 | **Факт** | `!факт` — Finds and displays a random fact from Wikipedia |
+| 🔎 | **Поиск в сети** | `!поиск [запрос]` — Finds information on the Internet upon request |
+| 🔮 | **Прогноз** | `!прогноз` — Finds a random forecast in the specified city |
+| 💭 | **Цитата** | `!цитата` — Finds and shows a wise thought |
+| 📱 | **QR-код** | `!qr [текст]` — Generates QR codes quickly |
+| 🎰 | **Рулетка** | `!рулетка [ставка]` — Generates gambling with tokens |
+| ⚔️ | **Дуэль** | `!дуэль [ставка]` — Challenges you to a duel for tokens |
+| 🎭 | **RP Команды** | `!рп` — Shows a list of RP commands |
+| 💱 | **Курс Валют** | `!курс [сумма] [валюты]` — Converts currency from specified rates |
+| 🔀 | **Алиасы** | `!алиасы` — Shows a list of all command synonyms |
+| 💳 | **Баланс кошелька** | `!баланс` — Finds balance in wallet and token value |
+| 💰 | **Прайс-лист** | `!прайс` — Finds the price of a query in the specified command |
+| ⚙️ | **Настройки** | `!настройки` — Configures bot settings (NSFW, etc.) |
+| 🤖 | **О боте** | `!о_боте` — Finds technical information about the bot |
+| 🍩 | **Донат** | `!donut` — Supports the bot via donation |
+| ℹ️ | **Помощь** | `!помощь` — Finds the help tab in the menu |
+| 🚀 | **Старт** | `!старт` — Sends a welcome message |
+| 📰 | **Новости** | `!новости` — Shows top news |
+| 🎟 | **Афиша** | `!афиша` — Finds event information for today |
+| 🖼 | **Обои** | `!обои` — Generates juicy 4K wallpapers |
+| 🚫 | **Отключенные команды** | `!отключенные` — Disables broken commands and shows reasons |
 | 👑 | **Owner Commands** | `---` |
-| 🚶‍♂️ | **Отошёл** | `!отошёл` — Генерирует автоответ "Отошёл |
-| 🏠 | **Вернулся** | `!вернулся` — Отключает автоответ бота |
-| 📊 | **Статус** | `!статус` — Отвечает текущий статус работы бота |
-| 📈 | **Статистика** | `!статистика` — Генерирует полную статистику бота |
-| ⏱ | **Сброс таймеров** | `!сброс_таймеров` — Генерирует новую сессию |
-| 🧹 | **Очистить статус** | `!очистить_статус [id]` — Генерирует удаление статуса пользователя |
-| 🔗 | **Ссылки** | `!ссылки` — Генерирует список всех активированных ссылок |
-| 📊 | **Статистика ссылок** | `!линкстат` — Генерирует статистику переходов по ссылкам |
-| ⏳ | **Ждущие** | `!ждущие` — Генерирует список ждущих сообщений |
-| 🔞 | **NSFW** | `!nsfw` — Выдает статистику NSFW настроек |
-| ⚙️ | **Система** | `!система` — Генерирует доступ к системным настройкам |
+| 🚶‍♂️ | **Отошёл** | `!отошёл` — Finds and turns on auto answer mode |
+| 🏠 | **Вернулся** | `!вернулся` — Turns off auto-reply mode when the bot returns |
+| 📊 | **Статус** | `!статус` — Shows the current status of the bot |
+| 📈 | **Статистика** | `!статистика` — Shows full bot statistics |
+| ⏱ | **Сброс таймеров** | `!сброс_таймеров` — Deletes current session data |
+| 🧹 | **Очистить статус** | `!очистить_статус [id]` — Deletes a user status |
+| 🔗 | **Ссылки** | `!ссылки` — Manages bot links |
+| 📊 | **Статистика ссылок** | `!линкстат` — Shows link click statistics |
+| ⏳ | **Ждущие** | `!ждущие` — Shows a list of waiting messages |
+| 🔞 | **NSFW** | `!nsfw` — Shows statistics of NSFW settings |
+| ⚙️ | **Система** | `!система` — Finds system settings and shows them to the user |
 <!-- FEATURES_TABLE_END -->
 
 ---
@@ -95,17 +95,17 @@ python main.py
 
 <!-- COMMANDS_SECTION_START -->
 ### Owner (`!ownerhelp`)
-- `!отошёл` – Включить режим автоответа
-- `!вернулся` – Выключить режим автоответа
-- `!статус` – Текущий статус работы бота
-- `!статистика` – Полная статистика бота
-- `!сброс_таймеров` – Сбросить текущую сессию
-- `!очистить_статус [id]` – Очистить статус пользователя
-- `!ссылки` – Управление ссылками бота
-- `!линкстат` – Статистика переходов по ссылкам
-- `!ждущие` – Список ожидающих ответа
-- `!nsfw` – Статистика NSFW настроек
-- `!система` – Системные настройки
+- `!отошёл` – Enable auto answer mode
+- `!вернулся` – Turn off auto answer mode
+- `!статус` – Current status of the bot
+- `!статистика` – Full bot statistics
+- `!сброс_таймеров` – Reset current session
+- `!очистить_статус [id]` – Clear user status
+- `!ссылки` – Bot link management
+- `!линкстат` – Link click statistics
+- `!ждущие` – Waiting List
+- `!nsfw` – NSFW Settings Statistics
+- `!система` – System Settings
 
 ### Public (`!помощь`)
 - `!перевести` – translation and voice acting
@@ -113,11 +113,11 @@ python main.py
 - `!звук` – replaces sound in video (reply to video with audio file)
 - `!расшифровка` – text from audio/video
 - `!ии [текст]` – request to local neural network
-- `!нейрохам [текст]` – агрессивный ИИ-ответ
-- `!психолог [текст]` – эмпатичный ИИ, который выслушает и поддержит
-- `!пересказ [текст]` – выжимка главного из большого текста
-- `!душнила [текст]` – душный и придирчивый ответ
-- `!синьор [текст]` – ответ от выгоревшего программиста
+- `!нейрохам [текст]` – aggressive AI response
+- `!психолог [текст]` – empathetic AI that will listen and support
+- `!пересказ [текст]` – squeezing out the main points from a large text
+- `!душнила [текст]` – stuffy and picky answer
+- `!синьор [текст]` – response from a burned out programmer
 - `!гопник [текст]` – answer by concept
 - `!шутник [тема]` – makes up jokes on the fly
 - `!сказка [тема]` – writes fairy tales and stories
@@ -153,9 +153,9 @@ python main.py
 - `!помощь` – this is the menu
 - `!старт` – welcome message
 - `!новости` – main news
-- `!афиша` – куда сходить сегодня
-- `!обои` – сочные картинки 4k
-- `!отключенные` – список неработающих команд и причины
+- `!афиша` – where to go today
+- `!обои` – juicy pictures 4k
+- `!отключенные` – list of broken commands and reasons
 
 **RP commands** (reply to a message):
 SFW: `!обнять`, `!поцеловать`, `!ударить`, `!шлепнуть`, `!укусить`, `!погладить`, `!пнуть`, `!толкнуть`, `!ущипнуть`, `!прижать_к_стене`, `!ткнуть_по_носику`, `!лизнуть`, `!задушить`.
