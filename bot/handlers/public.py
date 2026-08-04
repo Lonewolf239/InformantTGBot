@@ -414,6 +414,8 @@ COMMAND_HANDLERS = {
     "!отключенные": cmd_disabled_list,
     "!ютуб_текст": cmd_youtube_transcribe,
     "!анализ": cmd_analyze_code,
+    "!прайс": cmd_prices,
+    "!баланс": cmd_balance,
 }
 
 if POLLINATIONS_ENABLED:
@@ -457,14 +459,8 @@ async def process_public_commands(message: types.Message, state: FSMContext = No
         )
         return True
 
-    if await is_payments_enabled():
-        if base_command == "!прайс":
-            await cmd_prices(message)
-            return True
-
-        if base_command == "!баланс":
-            await cmd_balance(message)
-            return True
+    if base_command in ("!прайс", "!баланс") and not await is_payments_enabled():
+        return False
 
     handler = COMMAND_HANDLERS.get(base_command)
     if handler:
