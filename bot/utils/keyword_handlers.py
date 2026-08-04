@@ -84,7 +84,7 @@ async def send_wivd(message: types.Message):
 
 
 async def bad_nickname(message: types.Message):
-    from bot.utils.database import tokens_db
+    from bot.utils.tokens_database import tokens_db
 
     result = await tokens_db.penalize_user(message.from_user.id, penalty_amount=10)
     await message.reply(result)
