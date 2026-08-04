@@ -5,7 +5,6 @@ import re
 import textwrap
 from aiogram import types
 from config import COMMAND_METADATA
-from bot.handlers.public import COMMAND_HANDLERS, ALIAS_TO_BASE
 from bot.utils.ai_api import ask_ai
 from bot.utils.database import db
 from bot.utils.helpers import (
@@ -73,6 +72,8 @@ def get_deep_source(func, max_depth=1):
 
 
 async def cmd_analyze_code(message: types.Message):
+    from bot.handlers.public import COMMAND_HANDLERS, ALIAS_TO_BASE
+
     raw_text = get_raw_text(message)
     args = raw_text.split(maxsplit=1) if raw_text else []
     user_id = message.from_user.id
