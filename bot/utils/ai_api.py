@@ -182,7 +182,7 @@ async def ask_ai(
 
 
 async def unified_ai_worker(
-    reply_msg: Optional[types.Message],
+    msg: Optional[types.Message],
     bot,
     raw_prompt: Optional[str],
     reply_text: Optional[str],
@@ -192,15 +192,13 @@ async def unified_ai_worker(
 ) -> Optional[str]:
     base64_images = None
 
-    if reply_msg:
-        has_audio_video = any(
-            [reply_msg.voice, reply_msg.audio, reply_msg.video_note, reply_msg.video]
-        )
-        has_photo = bool(reply_msg.photo)
+    if msg:
+        has_audio_video = any([msg.voice, msg.audio, msg.video_note, msg.video])
+        has_photo = bool(msg.photo)
 
         if has_audio_video:
             try:
-                file_path, _ = await download_media_file(reply_msg, bot)
+                file_path, _ = await download_media_file(msg, bot)
                 if file_path:
                     transcribed = await transcribe_audio(
                         file_path=file_path, language="auto"
@@ -221,7 +219,7 @@ async def unified_ai_worker(
 
         elif has_photo:
             try:
-                photo = reply_msg.photo[-1]
+                photo = msg.photo[-1]
                 img_bytes = io.BytesIO()
                 await bot.download(photo, destination=img_bytes)
                 img_base64 = base64.b64encode(img_bytes.getvalue()).decode("utf-8")
@@ -320,7 +318,7 @@ async def process_ai_request(message: types.Message, cmd_key: str):
         title=name,
         action_text=action_text,
         func=unified_ai_worker,
-        reply_msg=reply_msg,
+        msg=reply_msg,
         bot=message.bot,
         raw_prompt=raw_prompt,
         reply_text=reply_text,
@@ -472,7 +470,7 @@ async def process_chat_persona_callback(
 
 
 async def chat_ai_worker(
-    message: types.Message,
+    msg: types.Message,
     bot,
     text: str,
     history: list,
@@ -480,17 +478,15 @@ async def chat_ai_worker(
     user_id: int,
     first_name: str = "",
 ) -> tuple[Optional[str], list]:
-    has_audio_video = any(
-        [message.voice, message.audio, message.video_note, message.video]
-    )
-    has_photo = bool(message.photo)
+    has_audio_video = any([msg.voice, msg.audio, msg.video_note, msg.video])
+    has_photo = bool(msg.photo)
 
     extracted_text = text
     base64_images = None
 
     if has_audio_video:
         try:
-            file_path, _ = await download_media_file(message, bot)
+            file_path, _ = await download_media_file(msg, bot)
             if file_path:
                 transcribed = await transcribe_audio(
                     file_path=file_path, language="auto"
@@ -512,7 +508,7 @@ async def chat_ai_worker(
             return "ERROR:MEDIA_FAILED", history
     elif has_photo:
         try:
-            photo = message.photo[-1]
+            photo = msg.photo[-1]
             img_bytes = io.BytesIO()
             await bot.download(photo, destination=img_bytes)
             base64_images = [base64.b64encode(img_bytes.getvalue()).decode("utf-8")]
@@ -629,6 +625,7 @@ async def process_chat_message(message: types.Message, state: FSMContext):
         title=name,
         action_text=action_text,
         func=chat_ai_worker,
+        msg=message,
         bot=message.bot,
         text=text,
         history=history,

@@ -3,16 +3,18 @@ import re
 import sys
 import json
 import time
+import argparse
 import requests
 import threading
 import shutil
 from deep_translator import GoogleTranslator
 from dotenv import load_dotenv
 
+# Настройка путей
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 
-env_path = os.path.join(SCRIPT_DIR, ".env")
+env_path = os.path.join(ROOT_DIR, ".env")
 if os.path.exists(env_path):
     load_dotenv(env_path)
 
@@ -20,14 +22,12 @@ sys.path.insert(0, ROOT_DIR)
 
 CACHE_FILE = os.path.join(SCRIPT_DIR, "ai_descriptions_cache.json")
 TRANSLATION_CACHE_FILE = os.path.join(SCRIPT_DIR, "translation_cache.json")
-README_RU = os.path.join(SCRIPT_DIR, "README-RU.md")
-README_EN = os.path.join(SCRIPT_DIR, "README.md")
+README_RU = os.path.join(ROOT_DIR, "docs", "README-RU.md")
+README_EN = os.path.join(ROOT_DIR, "docs", "README.md")
 
-OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
-OLLAMA_MODEL = "qwen2.5:3b"
-
-os.environ["OWNER_ID"] = "1"
-os.environ["BOT_TOKEN"] = "dummy"
+# Фейковые переменные окружения для успешного импорта config, если они не заданы
+os.environ.setdefault("OWNER_ID", "1")
+os.environ.setdefault("BOT_TOKEN", "dummy")
 
 try:
     import config
@@ -84,9 +84,7 @@ class UILoggerProgressBar:
             import sys
 
             try:
-                import tty
-                import termios
-                import select
+                import tty, termios, select
 
                 fd = sys.stdin.fileno()
                 old_settings = termios.tcgetattr(fd)
@@ -111,12 +109,10 @@ class UILoggerProgressBar:
         with self.lock:
             max_offset = max(0, len(self.logs) - self.max_log_lines)
             self.scroll_offset += direction
-
             if self.scroll_offset < 0:
                 self.scroll_offset = 0
             elif self.scroll_offset > max_offset:
                 self.scroll_offset = max_offset
-
             self._draw_no_lock()
 
     def add_log(self, message, level="INFO"):
@@ -124,7 +120,6 @@ class UILoggerProgressBar:
             timestamp = time.strftime("%H:%M:%S")
             clean_msg = message.replace("\n", " ").strip()
             self.logs.append((timestamp, clean_msg, level))
-
             if self.active:
                 self._draw_no_lock()
 
@@ -159,7 +154,6 @@ class UILoggerProgressBar:
             self.last_text = text
 
         sys.stdout.write(f"\033[{self.ui_height}F")
-
         columns, _ = shutil.get_terminal_size()
         box_width = min(110, max(60, columns - 2))
         inner_width = box_width - 2
@@ -167,25 +161,18 @@ class UILoggerProgressBar:
         total_logs = len(self.logs)
         max_offset = max(0, total_logs - self.max_log_lines)
 
-        if total_logs > self.max_log_lines:
-            scroll_pct = (
-                int(((max_offset - self.scroll_offset) / max_offset) * 100)
-                if max_offset > 0
-                else 100
-            )
-            scroll_ind = f" ▲▼ {scroll_pct}% "
-        else:
-            scroll_ind = " "
-
+        scroll_ind = (
+            f" ▲▼ {int(((max_offset - self.scroll_offset) / max_offset) * 100) if max_offset > 0 else 100}% "
+            if total_logs > self.max_log_lines
+            else " "
+        )
         header = f" ЛОГИ И СОСТОЯНИЕ{scroll_ind}"
         sys.stdout.write(
             f"\033[K{C.CYAN}┌{header.center(inner_width, '─')}┐{C.RESET}\n"
         )
 
         start_idx = max(0, total_logs - self.max_log_lines - self.scroll_offset)
-        end_idx = start_idx + self.max_log_lines
-        display_logs = self.logs[start_idx:end_idx]
-
+        display_logs = self.logs[start_idx : start_idx + self.max_log_lines]
         LEVEL_COLORS = {"INFO": C.GREEN, "WARN": C.YELLOW, "ERROR": C.RED}
 
         for i in range(self.max_log_lines):
@@ -193,11 +180,9 @@ class UILoggerProgressBar:
                 timestamp, msg_text, level = display_logs[i]
                 col = LEVEL_COLORS.get(level, C.RESET)
                 log_line = f"[{timestamp}] [{level}] {msg_text}"
-
                 max_log_len = inner_width - 2
                 if len(log_line) > max_log_len:
                     log_line = log_line[: max_log_len - 3] + "..."
-
                 sys.stdout.write(
                     f"\033[K{C.CYAN}│{C.RESET} {col}{log_line:<{inner_width - 2}}{C.RESET} {C.CYAN}│{C.RESET}\n"
                 )
@@ -209,16 +194,12 @@ class UILoggerProgressBar:
         sys.stdout.write(f"\033[K{C.CYAN}└{'─' * inner_width}┘{C.RESET}\n")
 
         bar_len = min(40, max(20, int(inner_width * 0.5)))
-
         pct_ov = min(100, int(100 * self.current_overall / max(1, self.total_overall)))
         filled_ov = min(
             bar_len, int(bar_len * self.current_overall / max(1, self.total_overall))
         )
-        bar_ov = "█" * filled_ov + "░" * (bar_len - filled_ov)
-
         pct_op = min(100, int(100 * self.current_op / max(1, self.total_op)))
         filled_op = min(bar_len, int(bar_len * self.current_op / max(1, self.total_op)))
-        bar_op = "█" * filled_op + "░" * (bar_len - filled_op)
 
         max_text_len = inner_width - bar_len - 25
         safe_text = (
@@ -229,10 +210,10 @@ class UILoggerProgressBar:
 
         sys.stdout.write(f"\033[K{'-' * box_width}\n")
         sys.stdout.write(
-            f"\033[K {C.MAGENTA}Общий прогресс : [{bar_ov}] {pct_ov:>3}%{C.RESET}\n"
+            f"\033[K {C.MAGENTA}Общий прогресс : [{'█' * filled_ov + '░' * (bar_len - filled_ov)}] {pct_ov:>3}%{C.RESET}\n"
         )
         sys.stdout.write(
-            f"\033[K {C.CYAN}{self.op_name[:14]:<14} : [{bar_op}] {pct_op:>3}%  {safe_text}{C.RESET}\n"
+            f"\033[K {C.CYAN}{self.op_name[:14]:<14} : [{'█' * filled_op + '░' * (bar_len - filled_op)}] {pct_op:>3}%  {safe_text}{C.RESET}\n"
         )
         sys.stdout.write(f"\033[K{'-' * box_width}\n")
         sys.stdout.flush()
@@ -246,32 +227,20 @@ class UILoggerProgressBar:
             print("\n")
 
 
-def load_cache():
-    if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+def load_cache(filepath):
+    if os.path.exists(filepath):
+        with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
 
 
-def save_cache(cache):
-    with open(CACHE_FILE, "w", encoding="utf-8") as f:
+def save_cache(cache, filepath):
+    with open(filepath, "w", encoding="utf-8") as f:
         json.dump(cache, f, ensure_ascii=False, indent=4)
 
 
-def load_trans_cache():
-    if os.path.exists(TRANSLATION_CACHE_FILE):
-        with open(TRANSLATION_CACHE_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
-
-
-def save_trans_cache(trans_cache):
-    with open(TRANSLATION_CACHE_FILE, "w", encoding="utf-8") as f:
-        json.dump(trans_cache, f, ensure_ascii=False, indent=4)
-
-
 translator = GoogleTranslator(source="ru", target="en")
-translation_cache = load_trans_cache()
+translation_cache = load_cache(TRANSLATION_CACHE_FILE)
 
 
 def t_en(text):
@@ -283,9 +252,7 @@ def t_en(text):
 def clean_and_validate_desc(text):
     if not text:
         return None
-
     text = text.strip()
-
     text = re.sub(r'^["\'`*\-\s]+|["\'`*\-\s\.]+$', "", text)
     text = text.replace("\n", " ").strip()
 
@@ -312,11 +279,9 @@ def clean_and_validate_desc(text):
 
     if not text:
         return None
-
     words = text.split()
     if len(words) > 12 or len(words) < 2:
         return None
-
     if any("\u4e00" <= char <= "\u9fff" for char in text):
         return None
 
@@ -331,23 +296,28 @@ def clean_and_validate_desc(text):
         cyrillic_letters = sum(
             1 for c in letters if "а" <= c.lower() <= "я" or c.lower() == "ё"
         )
-        cyrillic_ratio = cyrillic_letters / len(letters)
-
-        if cyrillic_ratio < 0.80:
-            if re.search(r"\b[a-z]+\b", text):
-                return None
+        if (cyrillic_letters / len(letters)) < 0.80 and re.search(r"\b[a-z]+\b", text):
+            return None
 
     if len(text) > 0:
         text = text[0].upper() + text[1:]
-
     return text
 
 
-def get_ai_description(cmd, name, short_desc, cache, pb):
-    if cmd in cache and cache[cmd].get("short_desc") == short_desc:
+def get_ai_description(
+    cmd, name, short_desc, cache, pb, force=False, custom_model=None
+):
+    if not force and cmd in cache and cache[cmd].get("short_desc") == short_desc:
         ai_desc = cache[cmd]["ai_desc"]
         pb.add_log(f"Кэш: {cmd} -> '{ai_desc}'", "INFO")
         return ai_desc
+
+    model = custom_model or config.GROQ_MODEL or "llama-3.3-70b-versatile"
+    api_key = config.GROQ_API_KEY
+
+    if not api_key:
+        pb.add_log("GROQ_API_KEY не задан! Применяем базовое описание.", "WARN")
+        return short_desc
 
     aliases = config.COMMAND_ALIASES.get(cmd, [])
     aliases_str = ", ".join(aliases) if aliases else "нет дополнительных синонимов"
@@ -356,76 +326,91 @@ def get_ai_description(cmd, name, short_desc, cache, pb):
         "Ты — профессиональный технический писатель.\n"
         "Твоя задача: перевести суть команды Telegram-бота в одно лаконичное описание на русском языке.\n\n"
         "ПРАВИЛА:\n"
-        "1. Пиши СТРОГО на русском языке. Запрещено использовать транслит, английские слова и латинские буквы (исключение: общепринятые аббревиатуры капсом, такие как API, ID, SFW, NSFW, IT).\n"
+        "1. Пиши СТРОГО на русском языке.\n"
         "2. Напиши ровно ОДНО короткое предложение (не более 8-10 слов).\n"
-        "3. Начинай описание строго с глагола действия в 3-м лице единственного числа (например: Находит, Скачивает, Показывает, Генерирует, Удаляет).\n"
-        "4. Пиши БЕЗ точки на конце, БЕЗ кавычек, БЕЗ вводных фраз типа 'Эта команда...', 'Бот умеет...'.\n\n"
-        "ПРИМЕРЫ:\n"
-        "Ввод: cmd='!погода', name='Погода', short_desc='показывает погоду в городе'\n"
-        "Вывод: Показывает текущую погоду в указанном городе\n"
-        "Ввод: cmd='!скачать', name='Загрузчик', short_desc='качает видео с ютуба'\n"
-        "Вывод: Скачивает медиафайлы из социальных сетей"
+        "3. Начинай описание строго с глагола действия в 3-м лице единственного числа (Находит, Скачивает, Показывает и т.д.).\n"
+        "4. БЕЗ точки на конце, БЕЗ кавычек, БЕЗ вводных фраз."
     )
 
     prompt = (
         f"Контекст: Это команда Telegram-бота.\n"
-        f"Команда: {cmd}\n"
-        f"Название: {name}\n"
-        f"Суть от разработчика: {short_desc}\n"
-        f"Синонимы: {aliases_str}\n\n"
+        f"Команда: {cmd}\nНазвание: {name}\n"
+        f"Суть от разработчика: {short_desc}\nСинонимы: {aliases_str}\n\n"
         f"Напиши 1 короткое описание:"
     )
 
-    for attempt in range(1, 3):
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.0,
+        "top_p": 0.1,
+        "max_tokens": 50,
+    }
+
+    for attempt in range(1, 4):
         try:
             response = requests.post(
-                OLLAMA_URL,
-                json={
-                    "model": OLLAMA_MODEL,
-                    "prompt": prompt,
-                    "system": system,
-                    "stream": False,
-                    "options": {
-                        "temperature": 0.0,
-                        "top_p": 0.1,
-                        "repeat_penalty": 1.1,
-                        "num_predict": 35,
-                    },
-                },
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=payload,
                 timeout=30,
             )
+
+            # Обработка Rate Limit
+            if response.status_code == 429:
+                sleep_time = attempt * 3
+                pb.add_log(
+                    f"Rate Limit (429) от Groq. Ждем {sleep_time} сек...", "WARN"
+                )
+                time.sleep(sleep_time)
+                continue
+
             response.raise_for_status()
 
-            raw_text = response.json().get("response", "").strip()
+            raw_text = (
+                response.json()
+                .get("choices", [{}])[0]
+                .get("message", {})
+                .get("content", "")
+                .strip()
+            )
             cleaned_text = clean_and_validate_desc(raw_text)
 
             if cleaned_text:
                 cache[cmd] = {"short_desc": short_desc, "ai_desc": cleaned_text}
-                save_cache(cache)
-                pb.add_log(f"ИИ: {cmd} -> '{cleaned_text}'", "INFO")
+                save_cache(cache, CACHE_FILE)
+                pb.add_log(f"Groq: {cmd} -> '{cleaned_text}'", "INFO")
                 return cleaned_text
             else:
                 pb.add_log(
-                    f"Попытка {attempt} для {cmd} отсеяна как галлюцинация (текст: '{raw_text}').",
+                    f"Попытка {attempt} для {cmd} отсеяна как галлюцинация: '{raw_text}'",
                     "WARN",
                 )
 
         except Exception as e:
-            pb.add_log(
-                f"Сбой подключения к Ollama на попытке {attempt}: {str(e)}", "ERROR"
-            )
+            pb.add_log(f"Сбой Groq API (Попытка {attempt}): {str(e)}", "ERROR")
+            time.sleep(2)
 
     pb.add_log(f"Для {cmd} применено базовое описание разработчика.", "WARN")
     return short_desc
 
 
-def generate_features_table(active_cmds, owner_cmds, cache, pb, lang="ru"):
+def generate_features_table(
+    active_cmds, owner_cmds, cache, pb, lang="ru", force=False, custom_model=None
+):
     lines = []
     if lang == "ru":
         lines.append("| | Функция | Описание |")
         lines.append("|---|---------|----------|")
         for cmd, data in active_cmds.items():
-            ai_desc = get_ai_description(cmd, data["name"], data["desc"], cache, pb)
+            ai_desc = get_ai_description(
+                cmd, data["name"], data["desc"], cache, pb, force, custom_model
+            )
             args = f" {data['args']}" if "args" in data else ""
             lines.append(
                 f"| {data['icon']} | **{data['name']}** | `{cmd}{args}` — {ai_desc} |"
@@ -434,7 +419,9 @@ def generate_features_table(active_cmds, owner_cmds, cache, pb, lang="ru"):
         if owner_cmds:
             lines.append("| 👑 | **Команды владельца** | `---` |")
             for cmd, data in owner_cmds.items():
-                ai_desc = get_ai_description(cmd, data["name"], data["desc"], cache, pb)
+                ai_desc = get_ai_description(
+                    cmd, data["name"], data["desc"], cache, pb, force, custom_model
+                )
                 args = f" {data['args']}" if "args" in data else ""
                 lines.append(
                     f"| {data['icon']} | **{data['name']}** | `{cmd}{args}` — {ai_desc} |"
@@ -443,7 +430,9 @@ def generate_features_table(active_cmds, owner_cmds, cache, pb, lang="ru"):
         lines.append("| | Feature | Description |")
         lines.append("|---|---------|-------------|")
         for cmd, data in active_cmds.items():
-            ai_desc = get_ai_description(cmd, data["name"], data["desc"], cache, pb)
+            ai_desc = get_ai_description(
+                cmd, data["name"], data["desc"], cache, pb, force, custom_model
+            )
             ai_desc_en = t_en(ai_desc)
             args = f" {data['args']}" if "args" in data else ""
             lines.append(
@@ -453,7 +442,9 @@ def generate_features_table(active_cmds, owner_cmds, cache, pb, lang="ru"):
         if owner_cmds:
             lines.append("| 👑 | **Owner Commands** | `---` |")
             for cmd, data in owner_cmds.items():
-                ai_desc = get_ai_description(cmd, data["name"], data["desc"], cache, pb)
+                ai_desc = get_ai_description(
+                    cmd, data["name"], data["desc"], cache, pb, force, custom_model
+                )
                 ai_desc_en = t_en(ai_desc)
                 args = f" {data['args']}" if "args" in data else ""
                 lines.append(
@@ -469,7 +460,6 @@ def generate_commands_section(active_cmds, owner_cmds, lang="ru"):
         for cmd, data in owner_cmds.items():
             args = f" {data['args']}" if "args" in data else ""
             content += f"- `{cmd}{args}` – {data['desc']}\n"
-
         content += "\n### Публичные (`!помощь`)\n"
         for cmd, data in active_cmds.items():
             args = f" {data['args']}" if "args" in data else ""
@@ -478,14 +468,11 @@ def generate_commands_section(active_cmds, owner_cmds, lang="ru"):
         content = "### Owner (`!ownerhelp`)\n"
         for cmd, data in owner_cmds.items():
             args = f" {data['args']}" if "args" in data else ""
-            desc_en = t_en(data["desc"])
-            content += f"- `{cmd}{args}` – {desc_en}\n"
-
+            content += f"- `{cmd}{args}` – {t_en(data['desc'])}\n"
         content += "\n### Public (`!помощь`)\n"
         for cmd, data in active_cmds.items():
             args = f" {data['args']}" if "args" in data else ""
-            desc_en = t_en(data["desc"])
-            content += f"- `{cmd}{args}` – {desc_en}\n"
+            content += f"- `{cmd}{args}` – {t_en(data['desc'])}\n"
 
     sfw_rp = "`!обнять`, `!поцеловать`, `!ударить`, `!шлепнуть`, `!укусить`, `!погладить`, `!пнуть`, `!толкнуть`, `!ущипнуть`, `!прижать_к_стене`, `!ткнуть_по_носику`, `!лизнуть`, `!задушить`"
     nsfw_rp = "`!отсосать`, `!выебать`, `!трахнуть`, `!кончить`, `!раздеть`, `!оттрахать`, `!поставить_на_колени`, `!схватить_за_член`, `!схватить_за_жопу`, `!отлизать`"
@@ -500,7 +487,10 @@ def generate_commands_section(active_cmds, owner_cmds, lang="ru"):
 
 def update_readme(file_path, marker_name, new_content):
     if not os.path.exists(file_path):
-        return False, f"Файл {os.path.basename(file_path)} не найден"
+        return (
+            False,
+            f"Файл {os.path.basename(file_path)} не найден (Ожидался путь: {file_path})",
+        )
 
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
@@ -520,7 +510,29 @@ def update_readme(file_path, marker_name, new_content):
 
 
 def main():
-    print(f"{C.MAGENTA}{C.BOLD}[INFO] Запуск сборки README...{C.RESET}")
+    parser = argparse.ArgumentParser(
+        description="Утилита генерации README с использованием Groq ИИ"
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Игнорировать кэш и перегенерировать описания",
+    )
+    parser.add_argument(
+        "--clear-cache", action="store_true", help="Очистить файлы кэша перед запуском"
+    )
+    parser.add_argument(
+        "--model", type=str, help="Переопределить модель (напр. llama-3.1-8b-instant)"
+    )
+    args = parser.parse_args()
+
+    if args.clear_cache:
+        for f_path in [CACHE_FILE, TRANSLATION_CACHE_FILE]:
+            if os.path.exists(f_path):
+                os.remove(f_path)
+        print(f"{C.YELLOW}[INFO] Кэш успешно очищен.{C.RESET}")
+
+    print(f"{C.MAGENTA}{C.BOLD}[INFO] Запуск сборки README (Движок: Groq)...{C.RESET}")
 
     active_cmds = {
         k: v for k, v in config.COMMAND_METADATA.items() if not v.get("disabled", False)
@@ -529,10 +541,9 @@ def main():
     active_owner_cmds = {
         k: v for k, v in owner_cmds.items() if not v.get("disabled", False)
     }
-
     all_cmds = {**active_cmds, **active_owner_cmds}
 
-    cache = load_cache()
+    cache = load_cache(CACHE_FILE)
 
     total_ai_steps = len(all_cmds)
     total_translate_steps = len(all_cmds)
@@ -541,25 +552,48 @@ def main():
 
     pb = UILoggerProgressBar(total_overall, max_log_lines=6)
 
-    pb.start("Анализ ИИ", total_ai_steps)
+    # ЭТАП 1: ГЕНЕРАЦИЯ ИИ
+    pb.start("Анализ ИИ (Groq)", total_ai_steps)
     for cmd, data in all_cmds.items():
         pb.update_op(1, f"Команда {cmd}")
-        get_ai_description(cmd, data["name"], data["desc"], cache, pb)
+        get_ai_description(
+            cmd,
+            data["name"],
+            data["desc"],
+            cache,
+            pb,
+            force=args.force,
+            custom_model=args.model,
+        )
         pb.update_overall(1)
 
     pb.start("Сборка (RU)", 1)
     cmds_ru = generate_commands_section(active_cmds, active_owner_cmds, "ru")
     features_ru = generate_features_table(
-        active_cmds, active_owner_cmds, cache, pb, "ru"
+        active_cmds,
+        active_owner_cmds,
+        cache,
+        pb,
+        "ru",
+        force=args.force,
+        custom_model=args.model,
     )
     pb.update_op(1, "Таблицы сформированы")
     pb.update_overall(1)
 
+    # ЭТАП 2: ПЕРЕВОД
     pb.start("Сбор строк", 1)
     texts_to_translate = []
     for cmd, data in all_cmds.items():
-        ai_desc = get_ai_description(cmd, data["name"], data["desc"], cache, pb)
-
+        ai_desc = get_ai_description(
+            cmd,
+            data["name"],
+            data["desc"],
+            cache,
+            pb,
+            force=args.force,
+            custom_model=args.model,
+        )
         for t in (data["desc"], ai_desc):
             if t and t not in translation_cache and t not in texts_to_translate:
                 texts_to_translate.append(t)
@@ -586,7 +620,7 @@ def main():
                 for orig in chunk:
                     translation_cache[orig] = orig
 
-        save_trans_cache(translation_cache)
+        save_cache(translation_cache, TRANSLATION_CACHE_FILE)
     else:
         pb.start("Перевод (EN)", 1)
         pb.update_op(1, "Всё взято из кэша")
@@ -595,9 +629,16 @@ def main():
 
     cmds_en = generate_commands_section(active_cmds, active_owner_cmds, "en")
     features_en = generate_features_table(
-        active_cmds, active_owner_cmds, cache, pb, "en"
+        active_cmds,
+        active_owner_cmds,
+        cache,
+        pb,
+        "en",
+        force=args.force,
+        custom_model=args.model,
     )
 
+    # ЭТАП 3: СОХРАНЕНИЕ
     pb.start("Сохранение", total_files_steps)
     files_to_update = [
         (README_RU, "COMMANDS_SECTION", cmds_ru),
@@ -632,10 +673,7 @@ def main():
         print(f"{C.GREEN}{C.BOLD}✓ Все операции выполнены без ошибок.{C.RESET}\n")
 
     for success, msg in results:
-        if success:
-            print(f"  [SUCCESS] {msg}")
-        else:
-            print(f"  [ERROR] {msg}")
+        print(f"  [{'SUCCESS' if success else 'ERROR'}] {msg}")
 
     print(f"\n{C.GREEN}{C.BOLD}[INFO] Все README файлы успешно обновлены!{C.RESET}")
 
