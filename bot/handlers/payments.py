@@ -1,4 +1,3 @@
-# bot/handlers/payments.py
 from aiogram import types
 from aiogram.types import InlineKeyboardButton
 from bot.utils.tokens_database import tokens_db

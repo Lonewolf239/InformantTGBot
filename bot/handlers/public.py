@@ -277,22 +277,50 @@ async def handle_keywords(message: types.Message):
         return False
 
     text = raw_text
+    text_lower = text.lower()
 
     import re
 
-    words = re.findall(r"\b\w+\b", text)
+    words_exact = re.findall(r"\b\w+\b", text)
+    words_lower = re.findall(r"\b\w+\b", text_lower)
 
-    for keyword, reply in KEYWORD_REACTIONS.items():
-        keyword_lower = keyword.lower()
-
+    for keyword_key, reply in KEYWORD_REACTIONS.items():
         match_found = False
 
-        if " " in keyword_lower:
-            if keyword_lower in text:
+        if keyword_key.startswith("[{") and keyword_key.endswith("}]"):
+            actual_kw = keyword_key[2:-2]
+            if " " in actual_kw:
+                if actual_kw in text:
+                    match_found = True
+            else:
+                if actual_kw in words_exact:
+                    match_found = True
+
+        elif keyword_key.startswith("[[") and keyword_key.endswith("]]"):
+            actual_kw = keyword_key[2:-2]
+            actual_kw_lower = actual_kw.lower()
+
+            has_lower_match = False
+            has_exact_match = False
+
+            if " " in actual_kw_lower:
+                has_lower_match = actual_kw_lower in text_lower
+                has_exact_match = actual_kw in text
+            else:
+                has_lower_match = actual_kw_lower in words_lower
+                has_exact_match = actual_kw in words_exact
+
+            if has_lower_match and not has_exact_match:
                 match_found = True
+
         else:
-            if keyword_lower in words:
-                match_found = True
+            keyword_lower = keyword_key.lower()
+            if " " in keyword_lower:
+                if keyword_lower in text_lower:
+                    match_found = True
+            else:
+                if keyword_lower in words_lower:
+                    match_found = True
 
         if match_found:
             if reply.startswith("cmd:"):

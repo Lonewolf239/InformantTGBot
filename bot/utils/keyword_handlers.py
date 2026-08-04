@@ -83,6 +83,14 @@ async def send_wivd(message: types.Message):
     return await send_track(message, "WIvD.mp3", "What I've Done", "Linkin Park")
 
 
+async def bad_nickname(message: types.Message):
+    from bot.utils.database import tokens_db
+
+    result = await tokens_db.penalize_user(message.from_user.id, penalty_amount=10)
+    await message.reply(result)
+    return True
+
+
 async def send_social_credit_plus(message: types.Message):
     images = [
         "sc_plus_15.png",
@@ -134,4 +142,5 @@ KEYWORD_COMMANDS_REGISTRY = {
     "send_social_credit_minus": send_social_credit_minus,
     "send_cool_ringtone": send_cool_ringtone,
     "send_wivd": send_wivd,
+    "bad_nickname": bad_nickname,
 }

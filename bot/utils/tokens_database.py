@@ -88,5 +88,29 @@ class TokensDB:
             )
             await db.commit()
 
+    async def penalize_user(self, user_id: int, penalty_amount: int = 10) -> str:
+        balance = await self.get_balance(user_id)
+
+        if balance >= penalty_amount:
+            async with aiosqlite.connect(DB_PATH) as db:
+                await db.execute(
+                    "UPDATE users SET tokens = tokens - ? WHERE user_id = ?",
+                    (penalty_amount, user_id),
+                )
+                await db.commit()
+            return f"Штраф! Списано {penalty_amount} токенов."
+        else:
+            tomorrow = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
+
+            async with aiosqlite.connect(DB_PATH) as db:
+                await db.execute(
+                    "UPDATE users SET tokens = 0, last_reset_date = ? WHERE user_id = ?",
+                    (tomorrow, user_id),
+                )
+                await db.commit()
+            return (
+                "Штраф! Баланс обнулен, а ежедневное пополнение заморожено на 24 часа."
+            )
+
 
 tokens_db = TokensDB(default_daily_tokens=DEFAULT_DAILY_TOKENS)
