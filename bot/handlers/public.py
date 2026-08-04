@@ -71,6 +71,7 @@ from bot.owner_settings.config_getters import (
 )
 from bot.utils.youtube_transcribe import cmd_youtube_transcribe
 from bot.utils.ai_api import cmd_ai_chat
+from bot.utils.code_analyzer import cmd_analyze_code
 import logging
 
 if POLLINATIONS_ENABLED:
@@ -412,6 +413,7 @@ COMMAND_HANDLERS = {
     "!инстант": cmd_myinstants,
     "!отключенные": cmd_disabled_list,
     "!ютуб_текст": cmd_youtube_transcribe,
+    "!анализ": cmd_analyze_code,
 }
 
 if POLLINATIONS_ENABLED:

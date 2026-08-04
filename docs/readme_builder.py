@@ -1,16 +1,15 @@
 import os
-import re
 import sys
 import json
 import time
 import argparse
-import requests
+import asyncio
 import threading
 import shutil
-from deep_translator import GoogleTranslator
+import re
+import logging
 from dotenv import load_dotenv
 
-# Настройка путей
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 
@@ -20,20 +19,22 @@ if os.path.exists(env_path):
 
 sys.path.insert(0, ROOT_DIR)
 
+logging.getLogger("bot.utils.ai_api").setLevel(logging.CRITICAL)
+
+try:
+    import config
+    from bot.utils.ai_api import ask_groq_ai
+except Exception as e:
+    print(f"\033[91m[ERROR] Ошибка импорта базовых модулей: {e}\033[0m")
+    exit(1)
+
 CACHE_FILE = os.path.join(SCRIPT_DIR, "ai_descriptions_cache.json")
 TRANSLATION_CACHE_FILE = os.path.join(SCRIPT_DIR, "translation_cache.json")
 README_RU = os.path.join(ROOT_DIR, "docs", "README-RU.md")
 README_EN = os.path.join(ROOT_DIR, "docs", "README.md")
 
-# Фейковые переменные окружения для успешного импорта config, если они не заданы
 os.environ.setdefault("OWNER_ID", "1")
 os.environ.setdefault("BOT_TOKEN", "dummy")
-
-try:
-    import config
-except Exception as e:
-    print(f"\033[91m[ERROR] Ошибка импорта config.py: {e}\033[0m")
-    exit(1)
 
 
 class C:
@@ -84,7 +85,9 @@ class UILoggerProgressBar:
             import sys
 
             try:
-                import tty, termios, select
+                import tty
+                import termios
+                import select
 
                 fd = sys.stdin.fileno()
                 old_settings = termios.tcgetattr(fd)
@@ -93,13 +96,12 @@ class UILoggerProgressBar:
                     while self.active:
                         if select.select([sys.stdin], [], [], 0.05)[0]:
                             key = sys.stdin.read(1)
-                            if key == "\x1b":
-                                if sys.stdin.read(1) == "[":
-                                    direction = sys.stdin.read(1)
-                                    if direction == "A":
-                                        self._scroll(1)
-                                    elif direction == "B":
-                                        self._scroll(-1)
+                            if key == "\x1b" and sys.stdin.read(1) == "[":
+                                direction = sys.stdin.read(1)
+                                if direction == "A":
+                                    self._scroll(1)
+                                elif direction == "B":
+                                    self._scroll(-1)
                 finally:
                     termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
             except Exception:
@@ -109,10 +111,7 @@ class UILoggerProgressBar:
         with self.lock:
             max_offset = max(0, len(self.logs) - self.max_log_lines)
             self.scroll_offset += direction
-            if self.scroll_offset < 0:
-                self.scroll_offset = 0
-            elif self.scroll_offset > max_offset:
-                self.scroll_offset = max_offset
+            self.scroll_offset = max(0, min(self.scroll_offset, max_offset))
             self._draw_no_lock()
 
     def add_log(self, message, level="INFO"):
@@ -141,7 +140,8 @@ class UILoggerProgressBar:
     def update_op(self, step=1, text=""):
         with self.lock:
             self.current_op += step
-            self.last_text = text if text else self.last_text
+            if text:
+                self.last_text = text
             self._draw_no_lock()
 
     def update_overall(self, step=1):
@@ -152,12 +152,10 @@ class UILoggerProgressBar:
     def _draw_no_lock(self, text=None):
         if text is not None:
             self.last_text = text
-
         sys.stdout.write(f"\033[{self.ui_height}F")
         columns, _ = shutil.get_terminal_size()
         box_width = min(110, max(60, columns - 2))
         inner_width = box_width - 2
-
         total_logs = len(self.logs)
         max_offset = max(0, total_logs - self.max_log_lines)
 
@@ -200,7 +198,6 @@ class UILoggerProgressBar:
         )
         pct_op = min(100, int(100 * self.current_op / max(1, self.total_op)))
         filled_op = min(bar_len, int(bar_len * self.current_op / max(1, self.total_op)))
-
         max_text_len = inner_width - bar_len - 25
         safe_text = (
             (self.last_text[: max_text_len - 2] + "..")
@@ -227,10 +224,54 @@ class UILoggerProgressBar:
             print("\n")
 
 
+class GUIHandler(logging.Handler):
+    def __init__(self, pb):
+        super().__init__()
+        self.pb = pb
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+
+            if (
+                "Event loop is closed" in msg
+                or "Task exception was never retrieved" in msg
+            ):
+                return
+
+            level = "INFO"
+            if record.levelno >= logging.ERROR:
+                level = "ERROR"
+            elif record.levelno >= logging.WARNING:
+                level = "WARN"
+
+            for line in msg.splitlines():
+                if line.strip():
+                    self.pb.add_log(line.strip(), level)
+        except Exception:
+            self.handleError(record)
+
+
+class StderrRedirector:
+    def __init__(self, pb):
+        self.pb = pb
+
+    def write(self, text):
+        for line in text.splitlines():
+            if line.strip():
+                self.pb.add_log(line.strip(), "ERROR")
+
+    def flush(self):
+        pass
+
+
 def load_cache(filepath):
     if os.path.exists(filepath):
-        with open(filepath, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            return {}
     return {}
 
 
@@ -239,7 +280,6 @@ def save_cache(cache, filepath):
         json.dump(cache, f, ensure_ascii=False, indent=4)
 
 
-translator = GoogleTranslator(source="ru", target="en")
 translation_cache = load_cache(TRANSLATION_CACHE_FILE)
 
 
@@ -249,168 +289,114 @@ def t_en(text):
     return translation_cache.get(text, text)
 
 
-def clean_and_validate_desc(text):
-    if not text:
-        return None
-    text = text.strip()
-    text = re.sub(r'^["\'`*\-\s]+|["\'`*\-\s\.]+$', "", text)
-    text = text.replace("\n", " ").strip()
-
-    sentences = re.split(r"(?<=[.!?])\s+", text)
-    if sentences:
-        text = sentences[0].strip()
-        text = re.sub(r"[.!?]+$", "", text)
-
-    prefixes = [
-        r"^вот описание команды[:\s]*",
-        r"^описание команды[:\s]*",
-        r"^команда делает[:\s]*",
-        r"^команда[:\s]*",
-        r"^функция[:\s]*",
-        r"^это команда, которая[:\s]*",
-        r"^эта команда[:\s]*",
-        r"^данная команда[:\s]*",
-        r"^бот[:\s]*",
-        r"^смысл команды[:\s]*",
-        r"^предназначена для того, чтобы[:\s]*",
-    ]
-    for pattern in prefixes:
-        text = re.sub(pattern, "", text, flags=re.IGNORECASE).strip()
-
-    if not text:
-        return None
-    words = text.split()
-    if len(words) > 12 or len(words) < 2:
-        return None
-    if any("\u4e00" <= char <= "\u9fff" for char in text):
-        return None
-
-    mixed_word_pattern = re.compile(
-        r"\b(?=[а-яА-ЯёЁ]*[a-zA-Z])(?=[a-zA-Z]*[а-яА-ЯёЁ])[а-яА-ЯёЁa-zA-Z]+\b"
-    )
-    if mixed_word_pattern.search(text):
-        return None
-
-    letters = [c for c in text if c.isalpha()]
-    if letters:
-        cyrillic_letters = sum(
-            1 for c in letters if "а" <= c.lower() <= "я" or c.lower() == "ё"
-        )
-        if (cyrillic_letters / len(letters)) < 0.80 and re.search(r"\b[a-z]+\b", text):
-            return None
-
-    if len(text) > 0:
-        text = text[0].upper() + text[1:]
-    return text
-
-
-def get_ai_description(
-    cmd, name, short_desc, cache, pb, force=False, custom_model=None
-):
-    if not force and cmd in cache and cache[cmd].get("short_desc") == short_desc:
-        ai_desc = cache[cmd]["ai_desc"]
-        pb.add_log(f"Кэш: {cmd} -> '{ai_desc}'", "INFO")
-        return ai_desc
-
-    model = custom_model or config.GROQ_MODEL or "llama-3.3-70b-versatile"
-    api_key = config.GROQ_API_KEY
-
-    if not api_key:
-        pb.add_log("GROQ_API_KEY не задан! Применяем базовое описание.", "WARN")
-        return short_desc
-
-    aliases = config.COMMAND_ALIASES.get(cmd, [])
-    aliases_str = ", ".join(aliases) if aliases else "нет дополнительных синонимов"
-
+def generate_ai_descriptions_batch(commands_dict, pb):
     system = (
-        "Ты — профессиональный технический писатель.\n"
-        "Твоя задача: перевести суть команды Telegram-бота в одно лаконичное описание на русском языке.\n\n"
-        "ПРАВИЛА:\n"
-        "1. Пиши СТРОГО на русском языке.\n"
-        "2. Напиши ровно ОДНО короткое предложение (не более 8-10 слов).\n"
-        "3. Начинай описание строго с глагола действия в 3-м лице единственного числа (Находит, Скачивает, Показывает и т.д.).\n"
-        "4. БЕЗ точки на конце, БЕЗ кавычек, БЕЗ вводных фраз."
+        "Ты — строгий технический писатель. Твоя задача: написать лаконичные описания для списка команд Telegram-бота.\n"
+        "КРИТИЧЕСКИЕ ПРАВИЛА:\n"
+        "1. Максимум 5-8 слов на команду.\n"
+        "2. Начинай СТРОГО с глагола в 3-м лице единственного числа (например: Ищет, Скачивает, Генерирует).\n"
+        "3. Никаких точек в конце и кавычек.\n"
+        '4. Верни ответ СТРОГО в формате JSON: {"command_name": "описание"}.\n'
+        "Не используй markdown-блоки, верни только сырой JSON!"
     )
 
-    prompt = (
-        f"Контекст: Это команда Telegram-бота.\n"
-        f"Команда: {cmd}\nНазвание: {name}\n"
-        f"Суть от разработчика: {short_desc}\nСинонимы: {aliases_str}\n\n"
-        f"Напиши 1 короткое описание:"
+    prompt_data = {}
+    for cmd, data in commands_dict.items():
+        aliases = config.COMMAND_ALIASES.get(cmd, [])
+        prompt_data[cmd] = {
+            "name": data["name"],
+            "dev_description": data["desc"],
+            "aliases": aliases,
+        }
+
+    prompt = f"Сгенерируй короткие описания для этих команд в JSON.\nВходные данные:\n{json.dumps(prompt_data, ensure_ascii=False)}"
+
+    try:
+        answer = asyncio.run(
+            ask_groq_ai(user_prompt=prompt, system_prompt=system, temperature=0.1)
+        )
+
+        if answer:
+            clean_ans = answer.strip()
+            if clean_ans.startswith("```json"):
+                clean_ans = clean_ans[7:]
+            elif clean_ans.startswith("```"):
+                clean_ans = clean_ans[3:]
+            if clean_ans.endswith("```"):
+                clean_ans = clean_ans[:-3]
+
+            result = json.loads(clean_ans.strip())
+            pb.add_log(f"Успешно сгенерировано {len(result)} описаний батчем.", "INFO")
+
+            for k, v in result.items():
+                result[k] = v.strip().strip(".").capitalize()
+
+            return result
+        else:
+            pb.add_log(
+                "Groq API не вернул ответ (все ключи забанены или лимит).", "ERROR"
+            )
+            return {}
+
+    except json.JSONDecodeError as e:
+        pb.add_log(f"Ошибка парсинга JSON от ИИ: {str(e)}", "ERROR")
+        return {}
+    except Exception as e:
+        pb.add_log(f"Сбой Groq API при батч-запросе: {str(e)}", "ERROR")
+        return {}
+
+
+def translate_batch_groq(chunk, pb):
+    system = (
+        "Ты — профессиональный ИИ-переводчик. Твоя задача: перевести массив строк с русского на английский язык.\n"
+        "КРИТИЧЕСКИЕ ПРАВИЛА:\n"
+        "1. Сохраняй исходный порядок элементов.\n"
+        "2. Переводи точно и технически грамотно.\n"
+        '3. Верни ответ СТРОГО в формате JSON-массива строк: ["translation1", "translation2"].\n'
+        "Не используй markdown-блоки, верни только сырой JSON!"
     )
 
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    prompt = f"Переведи этот массив JSON: {json.dumps(chunk, ensure_ascii=False)}"
 
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.0,
-        "top_p": 0.1,
-        "max_tokens": 50,
-    }
+    try:
+        answer = asyncio.run(
+            ask_groq_ai(user_prompt=prompt, system_prompt=system, temperature=0.1)
+        )
 
-    for attempt in range(1, 4):
-        try:
-            response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=30,
-            )
+        if answer:
+            clean_ans = answer.strip()
+            if clean_ans.startswith("```json"):
+                clean_ans = clean_ans[7:]
+            elif clean_ans.startswith("```"):
+                clean_ans = clean_ans[3:]
+            if clean_ans.endswith("```"):
+                clean_ans = clean_ans[:-3]
 
-            # Обработка Rate Limit
-            if response.status_code == 429:
-                sleep_time = attempt * 3
-                pb.add_log(
-                    f"Rate Limit (429) от Groq. Ждем {sleep_time} сек...", "WARN"
-                )
-                time.sleep(sleep_time)
-                continue
+            result = json.loads(clean_ans.strip())
+            return result
+        else:
+            pb.add_log("Groq API не вернул ответ при переводе.", "ERROR")
+            return []
 
-            response.raise_for_status()
-
-            raw_text = (
-                response.json()
-                .get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", "")
-                .strip()
-            )
-            cleaned_text = clean_and_validate_desc(raw_text)
-
-            if cleaned_text:
-                cache[cmd] = {"short_desc": short_desc, "ai_desc": cleaned_text}
-                save_cache(cache, CACHE_FILE)
-                pb.add_log(f"Groq: {cmd} -> '{cleaned_text}'", "INFO")
-                return cleaned_text
-            else:
-                pb.add_log(
-                    f"Попытка {attempt} для {cmd} отсеяна как галлюцинация: '{raw_text}'",
-                    "WARN",
-                )
-
-        except Exception as e:
-            pb.add_log(f"Сбой Groq API (Попытка {attempt}): {str(e)}", "ERROR")
-            time.sleep(2)
-
-    pb.add_log(f"Для {cmd} применено базовое описание разработчика.", "WARN")
-    return short_desc
+    except json.JSONDecodeError as e:
+        pb.add_log(f"Ошибка парсинга JSON перевода от ИИ: {str(e)}", "ERROR")
+        return []
+    except Exception as e:
+        pb.add_log(f"Сбой Groq API при переводе батча: {str(e)}", "ERROR")
+        return []
 
 
-def generate_features_table(
-    active_cmds, owner_cmds, cache, pb, lang="ru", force=False, custom_model=None
-):
+def generate_features_table(active_cmds, owner_cmds, cache, lang="ru"):
     lines = []
+
+    def get_desc(cmd, data):
+        return cache.get(cmd, {}).get("ai_desc", data["desc"])
+
     if lang == "ru":
         lines.append("| | Функция | Описание |")
         lines.append("|---|---------|----------|")
         for cmd, data in active_cmds.items():
-            ai_desc = get_ai_description(
-                cmd, data["name"], data["desc"], cache, pb, force, custom_model
-            )
+            ai_desc = get_desc(cmd, data)
             args = f" {data['args']}" if "args" in data else ""
             lines.append(
                 f"| {data['icon']} | **{data['name']}** | `{cmd}{args}` — {ai_desc} |"
@@ -419,9 +405,7 @@ def generate_features_table(
         if owner_cmds:
             lines.append("| 👑 | **Команды владельца** | `---` |")
             for cmd, data in owner_cmds.items():
-                ai_desc = get_ai_description(
-                    cmd, data["name"], data["desc"], cache, pb, force, custom_model
-                )
+                ai_desc = get_desc(cmd, data)
                 args = f" {data['args']}" if "args" in data else ""
                 lines.append(
                     f"| {data['icon']} | **{data['name']}** | `{cmd}{args}` — {ai_desc} |"
@@ -430,10 +414,7 @@ def generate_features_table(
         lines.append("| | Feature | Description |")
         lines.append("|---|---------|-------------|")
         for cmd, data in active_cmds.items():
-            ai_desc = get_ai_description(
-                cmd, data["name"], data["desc"], cache, pb, force, custom_model
-            )
-            ai_desc_en = t_en(ai_desc)
+            ai_desc_en = t_en(get_desc(cmd, data))
             args = f" {data['args']}" if "args" in data else ""
             lines.append(
                 f"| {data['icon']} | **{data['name']}** | `{cmd}{args}` — {ai_desc_en} |"
@@ -442,10 +423,7 @@ def generate_features_table(
         if owner_cmds:
             lines.append("| 👑 | **Owner Commands** | `---` |")
             for cmd, data in owner_cmds.items():
-                ai_desc = get_ai_description(
-                    cmd, data["name"], data["desc"], cache, pb, force, custom_model
-                )
-                ai_desc_en = t_en(ai_desc)
+                ai_desc_en = t_en(get_desc(cmd, data))
                 args = f" {data['args']}" if "args" in data else ""
                 lines.append(
                     f"| {data['icon']} | **{data['name']}** | `{cmd}{args}` — {ai_desc_en} |"
@@ -487,16 +465,10 @@ def generate_commands_section(active_cmds, owner_cmds, lang="ru"):
 
 def update_readme(file_path, marker_name, new_content):
     if not os.path.exists(file_path):
-        return (
-            False,
-            f"Файл {os.path.basename(file_path)} не найден (Ожидался путь: {file_path})",
-        )
-
+        return False, f"Файл {os.path.basename(file_path)} не найден"
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
-
     pattern = rf"(<!--\s*{marker_name}_START\s*-->).*?(<!--\s*{marker_name}_END\s*-->)"
-
     if re.search(pattern, content, flags=re.DOTALL):
         updated = re.sub(pattern, rf"\1\n{new_content}\n\2", content, flags=re.DOTALL)
         with open(file_path, "w", encoding="utf-8") as f:
@@ -521,9 +493,6 @@ def main():
     parser.add_argument(
         "--clear-cache", action="store_true", help="Очистить файлы кэша перед запуском"
     )
-    parser.add_argument(
-        "--model", type=str, help="Переопределить модель (напр. llama-3.1-8b-instant)"
-    )
     args = parser.parse_args()
 
     if args.clear_cache:
@@ -545,101 +514,109 @@ def main():
 
     cache = load_cache(CACHE_FILE)
 
-    total_ai_steps = len(all_cmds)
-    total_translate_steps = len(all_cmds)
-    total_files_steps = 4
-    total_overall = total_ai_steps + total_translate_steps + total_files_steps + 1
+    cmds_to_process = {}
+    for cmd, data in all_cmds.items():
+        if (
+            args.force
+            or cmd not in cache
+            or cache[cmd].get("short_desc") != data["desc"]
+        ):
+            cmds_to_process[cmd] = data
 
+    chunk_size = 20
+    cmds_keys = list(cmds_to_process.keys())
+    chunks = [
+        {k: cmds_to_process[k] for k in cmds_keys[i : i + chunk_size]}
+        for i in range(0, len(cmds_keys), chunk_size)
+    ]
+
+    total_overall = len(chunks) + 3
     pb = UILoggerProgressBar(total_overall, max_log_lines=6)
 
-    # ЭТАП 1: ГЕНЕРАЦИЯ ИИ
-    pb.start("Анализ ИИ (Groq)", total_ai_steps)
-    for cmd, data in all_cmds.items():
-        pb.update_op(1, f"Команда {cmd}")
-        get_ai_description(
-            cmd,
-            data["name"],
-            data["desc"],
-            cache,
-            pb,
-            force=args.force,
-            custom_model=args.model,
-        )
+    gui_handler = GUIHandler(pb)
+    gui_handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+
+    asyncio_logger = logging.getLogger("asyncio")
+    asyncio_logger.setLevel(logging.WARNING)
+    asyncio_logger.handlers.clear()
+    asyncio_logger.addHandler(gui_handler)
+
+    for logger_name in ("httpx", "httpcore"):
+        l = logging.getLogger(logger_name)
+        l.setLevel(logging.WARNING)
+        l.handlers.clear()
+        l.addHandler(gui_handler)
+
+    sys.stderr = StderrRedirector(pb)
+
+    if chunks:
+        pb.start("Анализ ИИ (Groq)", len(chunks))
+        for idx, chunk in enumerate(chunks):
+            pb.update_op(1, f"Чанк {idx + 1}/{len(chunks)}")
+            ai_results = generate_ai_descriptions_batch(chunk, pb)
+
+            for cmd, ai_desc in ai_results.items():
+                if cmd in chunk:
+                    cache[cmd] = {"short_desc": chunk[cmd]["desc"], "ai_desc": ai_desc}
+
+            save_cache(cache, CACHE_FILE)
+            pb.update_overall(1)
+            time.sleep(1)
+    else:
+        pb.start("Анализ ИИ (Groq)", 1)
+        pb.add_log("Все команды актуальны в кэше. ИИ пропущен.", "INFO")
+        pb.update_op(1, "ИИ не требуется")
         pb.update_overall(1)
 
-    pb.start("Сборка (RU)", 1)
-    cmds_ru = generate_commands_section(active_cmds, active_owner_cmds, "ru")
-    features_ru = generate_features_table(
-        active_cmds,
-        active_owner_cmds,
-        cache,
-        pb,
-        "ru",
-        force=args.force,
-        custom_model=args.model,
-    )
-    pb.update_op(1, "Таблицы сформированы")
-    pb.update_overall(1)
-
-    # ЭТАП 2: ПЕРЕВОД
-    pb.start("Сбор строк", 1)
+    pb.start("Перевод (EN)", 1)
     texts_to_translate = []
     for cmd, data in all_cmds.items():
-        ai_desc = get_ai_description(
-            cmd,
-            data["name"],
-            data["desc"],
-            cache,
-            pb,
-            force=args.force,
-            custom_model=args.model,
-        )
+        ai_desc = cache.get(cmd, {}).get("ai_desc", data["desc"])
         for t in (data["desc"], ai_desc):
             if t and t not in translation_cache and t not in texts_to_translate:
                 texts_to_translate.append(t)
 
     if texts_to_translate:
-        chunk_size = 15
-        chunks = [
-            texts_to_translate[i : i + chunk_size]
-            for i in range(0, len(texts_to_translate), chunk_size)
+        t_chunk_size = 20
+        t_chunks = [
+            texts_to_translate[i : i + t_chunk_size]
+            for i in range(0, len(texts_to_translate), t_chunk_size)
         ]
 
-        pb.start("Перевод (EN)", len(chunks))
-        for i, chunk in enumerate(chunks):
-            pb.update_op(1, f"Пакет {i + 1}/{len(chunks)}")
-            try:
-                translated = translator.translate_batch(chunk)
+        pb.start("Перевод (EN)", len(t_chunks))
+        for i, chunk in enumerate(t_chunks):
+            pb.update_op(1, f"Пакет {i + 1}/{len(t_chunks)}")
+
+            translated = translate_batch_groq(chunk, pb)
+
+            if isinstance(translated, list) and len(translated) == len(chunk):
                 for orig, trans in zip(chunk, translated):
                     translation_cache[orig] = trans if trans else orig
-                    pb.add_log(
-                        f"Переведено: '{orig[:15]}...' -> '{trans[:15]}...'", "INFO"
-                    )
-            except Exception as e:
-                pb.add_log(f"Ошибка перевода (пакет {i + 1}): {str(e)}", "ERROR")
+            else:
+                pb.add_log(
+                    "Ошибка перевода пакета: несовпадение длин или неверный формат",
+                    "ERROR",
+                )
                 for orig in chunk:
                     translation_cache[orig] = orig
+            time.sleep(0.5)
 
         save_cache(translation_cache, TRANSLATION_CACHE_FILE)
     else:
-        pb.start("Перевод (EN)", 1)
-        pb.update_op(1, "Всё взято из кэша")
+        pb.update_op(1, "Переводы в кэше")
+    pb.update_overall(1)
 
-    pb.update_overall(total_translate_steps)
+    pb.start("Сборка Markdown", 2)
+    cmds_ru = generate_commands_section(active_cmds, active_owner_cmds, "ru")
+    features_ru = generate_features_table(active_cmds, active_owner_cmds, cache, "ru")
+    pb.update_op(1, "RU собрано")
 
     cmds_en = generate_commands_section(active_cmds, active_owner_cmds, "en")
-    features_en = generate_features_table(
-        active_cmds,
-        active_owner_cmds,
-        cache,
-        pb,
-        "en",
-        force=args.force,
-        custom_model=args.model,
-    )
+    features_en = generate_features_table(active_cmds, active_owner_cmds, cache, "en")
+    pb.update_op(1, "EN собрано")
+    pb.update_overall(1)
 
-    # ЭТАП 3: СОХРАНЕНИЕ
-    pb.start("Сохранение", total_files_steps)
+    pb.start("Запись в файлы", 4)
     files_to_update = [
         (README_RU, "COMMANDS_SECTION", cmds_ru),
         (README_RU, "FEATURES_TABLE", features_ru),
@@ -652,7 +629,7 @@ def main():
         pb.update_op(1, f"Запись {marker}")
         success, msg = update_readme(file_path, marker, content)
         results.append((success, msg))
-        pb.update_overall(1)
+    pb.update_overall(1)
 
     pb.finish()
 
@@ -660,22 +637,20 @@ def main():
     errors_list = [log for log in pb.logs if log[2] == "ERROR"]
 
     if errors_list or warnings_list:
-        print(
-            f"{C.YELLOW}{C.BOLD}[INFO] Сводка предупреждений и ошибок генерации:{C.RESET}"
-        )
+        print(f"{C.YELLOW}{C.BOLD}[INFO] Сводка предупреждений и ошибок:{C.RESET}")
         for timestamp, msg, lvl in pb.logs:
             if lvl == "ERROR":
                 print(f"  {C.RED}• [{timestamp}] [ERROR] {msg}{C.RESET}")
             elif lvl == "WARN":
                 print(f"  {C.YELLOW}• [{timestamp}] [WARN] {msg}{C.RESET}")
-        print()
-    else:
-        print(f"{C.GREEN}{C.BOLD}✓ Все операции выполнены без ошибок.{C.RESET}\n")
 
+    print(f"\n{C.MAGENTA}{C.BOLD}[ИТОГИ] Обновление файлов README:{C.RESET}")
     for success, msg in results:
-        print(f"  [{'SUCCESS' if success else 'ERROR'}] {msg}")
-
-    print(f"\n{C.GREEN}{C.BOLD}[INFO] Все README файлы успешно обновлены!{C.RESET}")
+        if success:
+            print(f"  {C.GREEN}• [УСПЕХ] {msg}{C.RESET}")
+        else:
+            print(f"  {C.RED}• [ОШИБКА] {msg}{C.RESET}")
+    print("\n")
 
 
 if __name__ == "__main__":
