@@ -23,7 +23,7 @@ API_NAME = COMMAND_METADATA["!анализ"]["name"]
 logger = logging.getLogger(__name__)
 
 
-def get_deep_source(func, max_depth=1):
+def get_deep_source(func, max_depth=2):
     visited = set()
     sources = []
 
@@ -128,7 +128,7 @@ async def cmd_analyze_code(message: types.Message):
     handler_func = COMMAND_HANDLERS[base_command]
 
     try:
-        source_code = get_deep_source(handler_func, max_depth=1)
+        source_code = get_deep_source(handler_func, 2)
     except Exception as e:
         logger.error(f"Ошибка получения исходников для {base_command}: {e}")
         return await message.reply(
