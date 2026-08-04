@@ -1,6 +1,7 @@
 import base64
 import html
 import re
+import random
 import io
 import logging
 import os
@@ -18,7 +19,6 @@ from config import (
     AI_REQUEST_TIMEOUT,
     AI_VISION_EXTRA_COST,
     COMMAND_METADATA,
-    GROQ_API_KEY,
     GROQ_MODEL,
     GROQ_VISION_MODEL,
     OLLAMA_BASE_URL,
@@ -39,6 +39,7 @@ from bot.utils.media_core import download_media_file
 from bot.utils.queue_wrapper import process_with_queue
 from bot.utils.whisper_core import transcribe_audio
 from groq import AsyncGroq
+from bot.utils.api_key_manager import key_manager
 
 MAX_SINGLE_MSG_CHARS = 2500
 MAX_HISTORY_TOTAL_CHARS = 16000
@@ -47,7 +48,23 @@ user_chat_histories: dict[int, list] = {}
 
 logger = logging.getLogger(__name__)
 
-groq_client = AsyncGroq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 OPR/107.0.0.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.15",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:123.0) Gecko/20100101 Firefox/123.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:123.0) Gecko/20100101 Firefox/123.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Vivaldi/6.5.3206.63",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (iPad; CPU OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 13; Redmi Note 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36",
+]
 
 
 def split_text(text: str, limit: int = AI_MAX_REPLY_LEN) -> list[str]:
@@ -136,43 +153,77 @@ async def ask_local_ai(
 async def ask_groq_ai(
     user_prompt: str, system_prompt: str, images: list[str] = None, **kwargs
 ) -> Optional[str]:
-    if not groq_client:
-        logger.error("GROQ_API_KEY не установлен!")
+    available_keys = key_manager.get_available_keys()
+
+    if not available_keys:
+        logger.error("Все ключи Groq отвалились, в бане или исчерпали лимит токенов!")
         return None
 
-    try:
-        if images:
-            model_to_use = GROQ_VISION_MODEL
-            user_content = [{"type": "text", "text": user_prompt}]
-            for img in images:
-                user_content.append(
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{img}"},
-                    }
-                )
-            user_message = {"role": "user", "content": user_content}
-        else:
-            model_to_use = GROQ_MODEL
-            user_message = {"role": "user", "content": user_prompt}
+    last_error = None
 
-        response = await groq_client.chat.completions.create(
-            model=model_to_use,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                user_message,
-            ],
-            temperature=kwargs.get("temperature", 0.4),
-            top_p=kwargs.get("top_p", 0.75),
-            max_tokens=kwargs.get("max_tokens", 1024),
-            presence_penalty=kwargs.get("presence_penalty", 0.0),
-            frequency_penalty=kwargs.get("frequency_penalty", 0.0),
-            timeout=AI_REQUEST_TIMEOUT,
+    if images:
+        model_to_use = GROQ_VISION_MODEL
+        user_content = [{"type": "text", "text": user_prompt}]
+        for img in images:
+            user_content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{img}"},
+                }
+            )
+        user_message = {"role": "user", "content": user_content}
+    else:
+        model_to_use = GROQ_MODEL
+        user_message = {"role": "user", "content": user_prompt}
+
+    for api_key in available_keys:
+        user_agent = random.choice(USER_AGENTS)
+
+        client = AsyncGroq(
+            api_key=api_key, default_headers={"User-Agent": user_agent}, max_retries=0
         )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        logger.error(f"Ошибка при запросе к Groq API: {e}")
-        return None
+
+        try:
+            response = await client.chat.completions.create(
+                model=model_to_use,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    user_message,
+                ],
+                temperature=kwargs.get("temperature", 0.4),
+                top_p=kwargs.get("top_p", 0.75),
+                max_tokens=kwargs.get("max_tokens", 1024),
+                presence_penalty=kwargs.get("presence_penalty", 0.0),
+                frequency_penalty=kwargs.get("frequency_penalty", 0.0),
+                timeout=AI_REQUEST_TIMEOUT,
+            )
+
+            if response.usage:
+                total_used = response.usage.total_tokens
+                key_manager.add_usage(api_key, total_used)
+
+            return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            err_msg = str(e).lower()
+
+            if "429" in err_msg or "rate_limit_exceeded" in err_msg:
+                logger.warning(
+                    f"Ключ {api_key[:8]}... получил 429 ошибку. Бан на 24 часа."
+                )
+                key_manager.ban_key(api_key)
+            else:
+                logger.warning(
+                    f"Ошибка Groq с ключом {api_key[:8]}... (UA: {user_agent.split('/')[0]}): {e}"
+                )
+
+            last_error = e
+            continue
+
+    logger.error(
+        f"Не удалось получить ответ ни с одного из {len(available_keys)} доступных ключей. Последняя ошибка: {last_error}"
+    )
+    return None
 
 
 async def ask_ai(

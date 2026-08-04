@@ -493,7 +493,8 @@ OLLAMA_BASE_URL = "http://127.0.0.1:11434"
 OLLAMA_MODEL = "qwen2.5:3b"
 OLLAMA_VISION_MODEL = "qwen2.5vl:3b"
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+groq_keys_str = os.getenv("GROQ_API_KEYS", "")
+GROQ_API_KEYS = [k.strip() for k in groq_keys_str.split(",") if k.strip()]
 GROQ_MODEL = "llama-3.3-70b-versatile"
 GROQ_VISION_MODEL = "qwen/qwen3.6-27b"
 
