@@ -4,6 +4,7 @@ import logging
 import os
 from typing import Optional
 import aiohttp
+from aiogram.exceptions import TelegramBadRequest
 from aiogram import types
 from config import (
     AI_AUDIO_EXTRA_COST,
@@ -385,11 +386,26 @@ async def process_ai_request(message: types.Message, cmd_key: str):
 
     try:
         await wait_msg.edit_text(first_chunk, parse_mode="Markdown")
+    except TelegramBadRequest:
+        logger.warning(
+            "Failed to parse Markdown in first_chunk. Falling back to plain text."
+        )
+        try:
+            await wait_msg.edit_text(first_chunk)
+        except Exception:
+            await message.reply(first_chunk)
     except Exception:
         await message.reply(first_chunk, parse_mode="Markdown")
 
     for chunk in chunks[1:]:
-        await message.answer(escape_unclosed_markdown(chunk), parse_mode="Markdown")
+        safe_chunk = escape_unclosed_markdown(chunk)
+        try:
+            await message.answer(safe_chunk, parse_mode="Markdown")
+        except TelegramBadRequest:
+            logger.warning(
+                "Failed to parse Markdown in subsequent chunk. Falling back to plain text."
+            )
+            await message.answer(safe_chunk)
 
     await db.increment_commands()
     await db.log_command(cmd_key, user_id)
