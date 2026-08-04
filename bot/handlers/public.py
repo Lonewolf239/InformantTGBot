@@ -298,20 +298,9 @@ async def handle_keywords(message: types.Message):
 
         elif keyword_key.startswith("[[") and keyword_key.endswith("]]"):
             actual_kw = keyword_key[2:-2]
-            actual_kw_lower = actual_kw.lower()
-
-            has_lower_match = False
-            has_exact_match = False
-
-            if " " in actual_kw_lower:
-                has_lower_match = actual_kw_lower in text_lower
-                has_exact_match = actual_kw in text
-            else:
-                has_lower_match = actual_kw_lower in words_lower
-                has_exact_match = actual_kw in words_exact
-
-            if has_lower_match and not has_exact_match:
-                match_found = True
+            if actual_kw.lower() in text.lower():
+                if actual_kw not in text:
+                    match_found = True
 
         else:
             keyword_lower = keyword_key.lower()
