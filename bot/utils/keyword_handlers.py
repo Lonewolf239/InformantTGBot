@@ -79,6 +79,10 @@ async def send_cool_ringtone(message: types.Message):
     return await send_track(message, "cool_ringtone.mp3", "Cool Ringtone", "Unknown")
 
 
+async def send_wivd(message: types.Message):
+    return await send_track(message, "WIvD.mp3", "What I've Done", "Linkin Park")
+
+
 async def send_social_credit_plus(message: types.Message):
     images = [
         "sc_plus_15.png",
@@ -129,4 +133,5 @@ KEYWORD_COMMANDS_REGISTRY = {
     "send_social_credit_plus": send_social_credit_plus,
     "send_social_credit_minus": send_social_credit_minus,
     "send_cool_ringtone": send_cool_ringtone,
+    "send_wivd": send_wivd,
 }
