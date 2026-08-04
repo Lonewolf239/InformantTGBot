@@ -116,7 +116,7 @@ async def cmd_away_off(message: types.Message):
 
 
 async def cmd_status(message: types.Message):
-    state_info = state.get_stats()
+    state_info = await state.get_stats()
     status_text = (
         "🚶‍♂️ ОТОШЁЛ (автоответ включён)"
         if state_info["is_away"]
@@ -188,7 +188,7 @@ async def cmd_owner_help(message: types.Message):
 
 async def cmd_stats(message: types.Message):
     full_stats = await db.get_full_stats()
-    state_info = state.get_stats()
+    state_info = await state.get_stats()
 
     uptime_seconds = full_stats.get("uptime_seconds", 0)
     hours = uptime_seconds // 3600
