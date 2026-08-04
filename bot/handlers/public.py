@@ -272,54 +272,49 @@ async def cmd_donut(message: types.Message):
 
 
 async def handle_keywords(message: types.Message):
-    raw_text = get_raw_text(message)
-    if not raw_text:
-        return False
-
-    text = raw_text
-    text_lower = text.lower()
-
     import re
 
-    words_exact = re.findall(r"\b\w+\b", text)
-    words_lower = re.findall(r"\b\w+\b", text_lower)
+    raw_text = get_raw_text(message, False)
+    if not raw_text:
+        return False
 
     for keyword_key, reply in KEYWORD_REACTIONS.items():
         match_found = False
 
         if keyword_key.startswith("[{") and keyword_key.endswith("}]"):
             actual_kw = keyword_key[2:-2]
-            if " " in actual_kw:
-                if actual_kw in text:
-                    match_found = True
-            else:
-                if actual_kw in words_exact:
-                    match_found = True
+            pattern = r"\b" + re.escape(actual_kw) + r"\b"
+
+            if re.search(pattern, raw_text):
+                match_found = True
 
         elif keyword_key.startswith("[[") and keyword_key.endswith("]]"):
             actual_kw = keyword_key[2:-2]
-            if actual_kw.lower() in text.lower():
-                if actual_kw not in text:
+            pattern = r"\b" + re.escape(actual_kw) + r"\b"
+
+            matches = re.finditer(pattern, raw_text, re.IGNORECASE)
+
+            for match in matches:
+                if match.group(0) != actual_kw:
                     match_found = True
+                    break
 
         else:
-            keyword_lower = keyword_key.lower()
-            if " " in keyword_lower:
-                if keyword_lower in text_lower:
-                    match_found = True
-            else:
-                if keyword_lower in words_lower:
-                    match_found = True
+            pattern = r"\b" + re.escape(keyword_key) + r"\b"
+
+            if re.search(pattern, raw_text, re.IGNORECASE):
+                match_found = True
 
         if match_found:
             if reply.startswith("cmd:"):
                 method_name = reply.split("cmd:")[1]
                 handler_func = KEYWORD_COMMANDS_REGISTRY.get(method_name)
+
                 if handler_func:
                     await handler_func(message)
                     return True
                 else:
-                    logger.error(
+                    logging.error(
                         f"Метод {method_name} не найден в KEYWORD_COMMANDS_REGISTRY"
                     )
             else:
