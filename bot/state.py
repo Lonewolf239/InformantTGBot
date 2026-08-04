@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Dict, List, Optional, Set
 import asyncio
+from aiogram.fsm.state import State, StatesGroup
 
 
 class BotState:
@@ -80,6 +81,11 @@ class BotState:
                 "auto_replied_count": len(self._users_received_auto_reply),
                 "awaiting_count": len(self._awaiting_users),
             }
+
+
+class AIChatMode(StatesGroup):
+    choosing_persona = State()
+    in_chat = State()
 
 
 state = BotState()

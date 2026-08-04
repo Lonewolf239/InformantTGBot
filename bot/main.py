@@ -3,9 +3,10 @@ import logging
 import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.client.default import DefaultBotProperties
+from aiogram.fsm.context import FSMContext
 from aiogram.enums import ParseMode
 from aiohttp import web
-from config import BOT_TOKEN, OWNER_ID, COOKIES_FILE, USE_WEBHOOKS
+from config import BOT_TOKEN, OWNER_ID, COOKIES_FILE, USE_WEBHOOKS, AI_PROVIDER
 from bot.handlers.message import handle_all_messages
 from bot.middlewares import LoggingMiddleware
 from bot.state import state
@@ -51,13 +52,13 @@ dp.message.middleware(LoggingMiddleware())
 
 
 @dp.message()
-async def message_handler(message: types.Message):
-    await handle_all_messages(message)
+async def message_handler(message: types.Message, state: FSMContext):
+    await handle_all_messages(message, state)
 
 
 @dp.business_message()
-async def business_message_handler(message: types.Message):
-    await handle_all_messages(message)
+async def business_message_handler(message: types.Message, state: FSMContext):
+    await handle_all_messages(message, state)
 
 
 @dp.business_connection()
@@ -68,7 +69,7 @@ async def business_connect(connection: types.BusinessConnection):
 
 
 @dp.callback_query()
-async def callback_handler(callback_query: types.CallbackQuery):
+async def callback_handler(callback_query: types.CallbackQuery, state: FSMContext):
     data = callback_query.data
     user_id = callback_query.from_user.id
 
@@ -153,6 +154,11 @@ async def callback_handler(callback_query: types.CallbackQuery):
     elif data and data.startswith("yt_transcribe|"):
         await process_yt_transcribe_callback(callback_query)
 
+    elif data and data.startswith("chat_persona|") or data == "chat_cancel":
+        from bot.utils.ai_api import process_chat_persona_callback
+
+        await process_chat_persona_callback(callback_query, state)
+
     try:
         await callback_query.answer()
     except Exception:
@@ -220,6 +226,8 @@ async def main():
     print("├─ 🔘 Включить автоответ: !отошёл")
     print("├─ 🔘 Выключить автоответ: !вернулся")
     print("├─ 📖 Публичная справка: !помощь")
+    if AI_PROVIDER == "groq":
+        print("├─ 💬 ИИ-ЧАТ: !ии_чат")
     print("├─ 🔗 Команда ссылок: !ссылки (только для владельца)")
     print("├─ 🎬 Загрузка медиа: !скачать [ссылка]")
     print("└─ 👑 Приватная справка: !ownerhelp")

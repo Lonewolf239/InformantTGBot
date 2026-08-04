@@ -1,4 +1,6 @@
 from aiogram import types
+import inspect
+from aiogram.fsm.context import FSMContext
 from config import (
     COMMAND_COSTS,
     COMMAND_ALIASES,
@@ -10,6 +12,7 @@ from config import (
     NSFW_RP_ACTIONS,
     DEFAULT_DAILY_TOKENS,
     POLLINATIONS_ENABLED,
+    AI_PROVIDER,
 )
 from bot.utils.keyword_handlers import KEYWORD_COMMANDS_REGISTRY
 from bot.utils.user_settings import user_settings_db
@@ -63,6 +66,7 @@ from bot.owner_settings.config_getters import (
     is_reply_to_owner,
 )
 from bot.utils.youtube_transcribe import cmd_youtube_transcribe
+from bot.utils.ai_api import cmd_ai_chat
 import logging
 
 if POLLINATIONS_ENABLED:
@@ -405,13 +409,16 @@ COMMAND_HANDLERS = {
 if POLLINATIONS_ENABLED:
     COMMAND_HANDLERS["!рис"] = cmd_render
 
+if AI_PROVIDER == "groq":
+    COMMAND_HANDLERS["!ии_чат"] = cmd_ai_chat
+
 ALIAS_TO_BASE = {}
 for base_cmd, aliases in COMMAND_ALIASES.items():
     for alias in aliases:
         ALIAS_TO_BASE[alias] = base_cmd
 
 
-async def process_public_commands(message: types.Message):
+async def process_public_commands(message: types.Message, state: FSMContext = None):
     raw_text = get_raw_text(message)
     if not raw_text:
         return False
@@ -451,7 +458,11 @@ async def process_public_commands(message: types.Message):
 
     handler = COMMAND_HANDLERS.get(base_command)
     if handler:
-        await handler(message)
+        sig = inspect.signature(handler)
+        if "state" in sig.parameters and state is not None:
+            await handler(message, state)
+        else:
+            await handler(message)
         return True
 
     return False

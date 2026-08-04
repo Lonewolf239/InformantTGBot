@@ -1,5 +1,6 @@
 from aiogram import types
 from aiogram.exceptions import TelegramNetworkError
+from aiogram.fsm.context import FSMContext
 from bot.handlers.owner import process_owner_commands
 from bot.handlers.public import process_public_commands
 from bot.handlers.rp import process_rp_command
@@ -8,6 +9,8 @@ from bot.links.handlers import process_incoming_link
 from bot.utils.helpers import its_me
 from config import WELCOME_TEXT
 from bot.utils.database import db
+from bot.state import AIChatMode
+from bot.utils.ai_api import process_chat_message
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,9 +26,15 @@ async def safe_reply(message: types.Message, text: str, **kwargs):
         return None
 
 
-async def handle_all_messages(message: types.Message):
+async def handle_all_messages(message: types.Message, state: FSMContext = None):
     if not message.from_user:
         return
+
+    if state:
+        current_state = await state.get_state()
+        if current_state == AIChatMode.in_chat.state:
+            await process_chat_message(message, state)
+            return
 
     user = message.from_user
     user_id = message.from_user.id
@@ -45,7 +54,7 @@ async def handle_all_messages(message: types.Message):
                 if await process_owner_commands(message):
                     return
 
-            if await process_public_commands(message):
+            if await process_public_commands(message, state):
                 return
 
             if message.reply_to_message:

@@ -7,6 +7,9 @@ import os
 from typing import Optional
 import aiohttp
 from aiogram import types
+from aiogram.fsm.context import FSMContext
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from bot.state import AIChatMode
 from config import (
     AI_AUDIO_EXTRA_COST,
     AI_MAX_REPLY_LEN,
@@ -21,6 +24,7 @@ from config import (
     OLLAMA_BASE_URL,
     OLLAMA_MODEL,
     OLLAMA_VISION_MODEL,
+    COMMAND_COSTS,
 )
 from bot.utils.database import db
 from bot.utils.helpers import (
@@ -29,11 +33,15 @@ from bot.utils.helpers import (
     get_raw_text,
     get_reply_raw_text,
     refund_tokens,
+    its_me,
 )
 from bot.utils.media_core import download_media_file
 from bot.utils.queue_wrapper import process_with_queue
 from bot.utils.whisper_core import transcribe_audio
 from groq import AsyncGroq
+
+MAX_SINGLE_MSG_CHARS = 2500
+MAX_HISTORY_TOTAL_CHARS = 16000
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +187,8 @@ async def unified_ai_worker(
     raw_prompt: Optional[str],
     reply_text: Optional[str],
     persona: dict,
+    user_id: int = 0,
+    first_name: str = "",
 ) -> Optional[str]:
     base64_images = None
 
@@ -236,11 +246,23 @@ async def unified_ai_worker(
     else:
         final_prompt = raw_prompt
 
-    user_prompt = persona.get("prompt_template", "{prompt}").format(prompt=final_prompt)
+    system_prompt = (
+        persona["system_prompt"]
+        + "\n\nТЕКУЩИЙ РЕЖИМ: БЛИЦ-ОТВЕТ (разовый запрос без сохранения истории). Если пользователь хочет вести диалог — предложи ему запустить !ии_чат."
+    )
+
+    if user_id:
+        if its_me(user_id):
+            system_prompt += "\n\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Собеседник — Lonewolf239, твой создатель и автор бота! Учитывай это в своих ответах.]"
+        else:
+            safe_name = (first_name or "Пользователь").replace("\n", " ")
+            system_prompt += f"\n\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Имя текущего собеседника — '{safe_name}'. Обрати внимание: этот пользователь НЕ является твоим создателем. Твой единственный создатель — Lonewolf239.]"
 
     return await ask_ai(
-        user_prompt=user_prompt,
-        system_prompt=persona["system_prompt"],
+        user_prompt=persona.get("prompt_template", "{prompt}").format(
+            prompt=final_prompt
+        ),
+        system_prompt=system_prompt,
         images=base64_images,
         temperature=persona.get("temperature", 0.5),
         top_p=persona.get("top_p", 0.9),
@@ -261,6 +283,7 @@ async def process_ai_request(message: types.Message, cmd_key: str):
     icon = meta["icon"]
     name = meta["name"]
     user_id = message.from_user.id
+    first_name = message.from_user.first_name if message.from_user else ""
 
     raw_text = get_raw_text(message)
     parts = raw_text.split(maxsplit=1) if raw_text else []
@@ -302,6 +325,8 @@ async def process_ai_request(message: types.Message, cmd_key: str):
         raw_prompt=raw_prompt,
         reply_text=reply_text,
         persona=persona,
+        user_id=user_id,
+        first_name=first_name,
     )
 
     if not answer:
@@ -360,6 +385,330 @@ async def process_ai_request(message: types.Message, cmd_key: str):
 
     await db.increment_commands()
     await db.log_command(cmd_key, user_id)
+
+
+def truncate_history_to_budget(
+    history: list[str], max_chars: int = MAX_HISTORY_TOTAL_CHARS
+) -> list[str]:
+    total_chars = sum(len(entry) for entry in history)
+    while history and total_chars > max_chars:
+        removed = history.pop(0)
+        total_chars -= len(removed)
+    return history
+
+
+async def cmd_ai_chat(message: types.Message, state: FSMContext):
+    if AI_PROVIDER != "groq":
+        await message.reply(
+            format_styled_message(
+                "❌", "НЕДОСТУПНО", "Режим ИИ-чата доступен только при работе с Groq."
+            )
+        )
+        return
+
+    keyboard = []
+    row = []
+    for cmd_key, persona in AI_PERSONAS.items():
+        name = persona.get("name", cmd_key)
+        row.append(
+            InlineKeyboardButton(text=name, callback_data=f"chat_persona|{cmd_key}")
+        )
+        if len(row) == 2:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+
+    keyboard.append(
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="chat_cancel")]
+    )
+    markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+    await message.reply(
+        format_styled_message(
+            "💬",
+            "ИИ-ЧАТ",
+            "Выбери персону для начала диалога. \nДля выхода из чата напиши <code>!выход</code>.",
+        ),
+        reply_markup=markup,
+    )
+    await state.set_state(AIChatMode.choosing_persona)
+
+
+async def process_chat_persona_callback(
+    callback: types.CallbackQuery, state: FSMContext
+):
+    if callback.data == "chat_cancel":
+        await state.clear()
+        await callback.message.edit_text("❌ Вход в режим чата отменен.")
+        await callback.answer()
+        return
+
+    if AI_PROVIDER != "groq":
+        await callback.answer(
+            "❌ ИИ-чат отключен (режим провайдера изменён).", show_alert=True
+        )
+        await state.clear()
+        return
+
+    _, persona_key = callback.data.split("|")
+    persona_data = AI_PERSONAS.get(persona_key)
+
+    if not persona_data:
+        await callback.answer("Ошибка: персона не найдена.", show_alert=True)
+        return
+
+    await state.update_data(persona_key=persona_key, history=[], msg_count=0)
+    await state.set_state(AIChatMode.in_chat)
+
+    await callback.message.edit_text(
+        format_styled_message(
+            "✅",
+            "ЧАТ НАЧАТ",
+            f"Ты в чате! Персона: <b>{persona_key}</b>.\nОтправляй текст, фото или голосовые. Для завершения: <code>!выход</code>",
+        )
+    )
+    await callback.answer()
+
+
+async def chat_ai_worker(
+    message: types.Message,
+    bot,
+    text: str,
+    history: list,
+    persona: dict,
+    user_id: int,
+    first_name: str = "",
+) -> tuple[Optional[str], list]:
+    has_audio_video = any(
+        [message.voice, message.audio, message.video_note, message.video]
+    )
+    has_photo = bool(message.photo)
+
+    extracted_text = text
+    base64_images = None
+
+    if has_audio_video:
+        try:
+            file_path, _ = await download_media_file(message, bot)
+            if file_path:
+                transcribed = await transcribe_audio(
+                    file_path=file_path, language="auto"
+                )
+                if transcribed:
+                    extracted_text = transcribed + (
+                        f"\n\nПодпись: {text}" if text else ""
+                    )
+                else:
+                    return "ERROR:MEDIA_FAILED", history
+                try:
+                    os.unlink(file_path)
+                except Exception:
+                    pass
+            else:
+                return "ERROR:MEDIA_FAILED", history
+        except Exception as e:
+            logger.error(f"Ошибка Whisper внутри очереди (чат): {e}")
+            return "ERROR:MEDIA_FAILED", history
+    elif has_photo:
+        try:
+            photo = message.photo[-1]
+            img_bytes = io.BytesIO()
+            await bot.download(photo, destination=img_bytes)
+            base64_images = [base64.b64encode(img_bytes.getvalue()).decode("utf-8")]
+        except Exception as e:
+            logger.error(f"Ошибка Vision внутри очереди (чат): {e}")
+            return "ERROR:VISION_FAILED", history
+
+        if not extracted_text:
+            extracted_text = "Опиши подробно, что ты видишь на этом изображении."
+
+    if not extracted_text and not base64_images:
+        return "ERROR:EMPTY_PROMPT", history
+
+    if len(extracted_text) > MAX_SINGLE_MSG_CHARS:
+        extracted_text = extracted_text[:MAX_SINGLE_MSG_CHARS] + "..."
+
+    local_history = history.copy()
+    local_history.append(
+        f"Пользователь ({first_name or 'Пользователь'}): {extracted_text}"
+    )
+    if len(local_history) > 10:
+        local_history = local_history[-10:]
+    local_history = truncate_history_to_budget(local_history)
+
+    max_response_tokens = min(persona.get("max_tokens", 1024), 1024)
+
+    system_prompt = (
+        persona["system_prompt"]
+        + "\n\n⚠️ ТЕКУЩИЙ РЕЖИМ: ИИ-ЧАТ (!ии_чат). Ты находишься в активном диалоге с пользователем и ПОМНИШЬ прошлые сообщения из истории ниже."
+    )
+
+    if user_id:
+        if its_me(user_id):
+            system_prompt += "\n\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Собеседник — Lonewolf239, твой создатель и автор бота! Учитывай это в своих ответах.]"
+        else:
+            safe_name = (first_name or "Пользователь").replace("\n", " ")
+            system_prompt += f"\n\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Имя текущего собеседника — '{safe_name}'. Обрати внимание: этот пользователь НЕ является твоим создателем. Твой единственный создатель — Lonewolf239.]"
+
+    answer = await ask_groq_ai(
+        user_prompt="\n".join(local_history),
+        system_prompt=system_prompt,
+        images=base64_images,
+        temperature=persona.get("temperature", 0.5),
+        max_tokens=max_response_tokens,
+    )
+
+    return answer, local_history
+
+
+async def process_chat_message(message: types.Message, state: FSMContext):
+    text = (message.text or message.caption or "").strip()
+
+    if text.lower() in ["!выход", "/exit", "выход", "!exit"]:
+        await state.clear()
+        await message.reply(
+            format_styled_message(
+                "🛑", "ЧАТ ЗАВЕРШЕН", "Ты вышел из режима диалога с ИИ."
+            )
+        )
+        return
+
+    if AI_PROVIDER != "groq":
+        await message.reply("❌ ИИ-чат отключен (режим провайдера изменён).")
+        await state.clear()
+        return
+
+    user_id = message.from_user.id
+    first_name = message.from_user.first_name if message.from_user else ""
+    data = await state.get_data()
+    persona_key = data.get("persona_key", "!ии")
+    history = data.get("history", [])
+    msg_count = data.get("msg_count", 0)
+    persona = AI_PERSONAS.get(persona_key, AI_PERSONAS["!ии"])
+
+    has_audio_video = any(
+        [message.voice, message.audio, message.video_note, message.video]
+    )
+    has_photo = bool(message.photo)
+
+    media_extra_cost = 0
+    action_text = "Анализ запроса"
+
+    if has_audio_video:
+        media_extra_cost = AI_AUDIO_EXTRA_COST
+        action_text = "Распознавание речи и анализ"
+    elif has_photo:
+        media_extra_cost = AI_VISION_EXTRA_COST
+        action_text = "Анализ изображения (Vision)"
+
+    total_extra_cost = (msg_count * 2) + media_extra_cost
+
+    if not await freeze_tokens(
+        message,
+        user_id,
+        "!ии_чат",
+        extra_cost=total_extra_cost,
+        custom_message=(
+            "Это сообщение стоит <b>{cost}</b> токенов.\n"
+            "На балансе: <b>{balance}</b>.\n"
+            "Чат завершен, возвращайся после пополнения!"
+        ),
+    ):
+        await state.clear()
+        return
+
+    meta = COMMAND_METADATA.get(persona_key, {"icon": "💬", "name": persona_key})
+    icon = meta.get("icon", "💬")
+    name = meta.get("name", persona_key)
+
+    result, wait_msg = await process_with_queue(
+        message=message,
+        queue_name="lightweights",
+        icon=icon,
+        title=name,
+        action_text=action_text,
+        func=chat_ai_worker,
+        bot=message.bot,
+        text=text,
+        history=history,
+        persona=persona,
+        user_id=user_id,
+        first_name=first_name,
+    )
+
+    if not result:
+        await refund_tokens(user_id, "!ии_чат", extra_cost=total_extra_cost)
+        err_msg = format_styled_message(
+            emoji=icon,
+            title=name,
+            message="❌ Ошибка при постановке в очередь или сбое воркера.",
+        )
+        if wait_msg:
+            try:
+                await wait_msg.edit_text(err_msg)
+            except Exception:
+                await message.reply(err_msg)
+        return
+
+    answer, new_history = result
+
+    if not answer:
+        await refund_tokens(user_id, "!ии_чат", extra_cost=total_extra_cost)
+        err_msg = format_styled_message(
+            emoji=icon, title=name, message="❌ ИИ не ответил. Попробуй еще раз."
+        )
+        if wait_msg:
+            try:
+                await wait_msg.edit_text(err_msg)
+            except Exception:
+                await message.reply(err_msg)
+        return
+
+    if answer.startswith("ERROR:"):
+        await refund_tokens(user_id, "!ии_чат", extra_cost=total_extra_cost)
+        err_type = answer.split("ERROR:", 1)[1]
+        if err_type == "EMPTY_PROMPT":
+            error_text = "⚠️ Сообщение пустое или не содержит распознаваемого текста."
+        elif err_type == "MEDIA_FAILED":
+            error_text = "⚠️ Не удалось распознать содержимое медиа. Попробуй еще раз."
+        elif err_type == "VISION_FAILED":
+            error_text = "⚠️ Ошибка при загрузке изображения."
+        else:
+            error_text = f"⚠️ Ошибка: {err_type}"
+
+        formatted_error = format_styled_message(
+            emoji=icon, title=name, message=error_text
+        )
+        if wait_msg:
+            try:
+                await wait_msg.edit_text(formatted_error)
+            except Exception:
+                await message.reply(formatted_error)
+        return
+
+    new_history.append(f"ИИ: {answer}")
+    new_history = truncate_history_to_budget(new_history)
+    await state.update_data(history=new_history, msg_count=msg_count + 1)
+
+    base_cost = COMMAND_COSTS.get("!ии_чат", 5)
+    current_cost = base_cost + total_extra_cost
+
+    token_info = f"\n\n<i>🪙 Стоимость сообщения: {current_cost} токенов</i>"
+    disclaimer = persona.get("disclaimer", "")
+
+    formatted_answer = f"{format_md_to_html(answer)}{token_info}{disclaimer}"
+    chunks = split_text(formatted_answer)
+
+    first_chunk = format_styled_message(emoji=icon, title=name, message=chunks[0])
+
+    try:
+        await wait_msg.edit_text(first_chunk)
+    except Exception:
+        await message.reply(first_chunk)
+
+    for chunk in chunks[1:]:
+        await message.answer(chunk)
 
 
 def make_ai_handler(cmd_key: str):

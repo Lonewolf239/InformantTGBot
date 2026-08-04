@@ -70,7 +70,15 @@ def format_styled_message(
 
 
 async def freeze_tokens(
-    message: types.Message, user_id: int, command: str, extra_cost: int = 0
+    message: types.Message,
+    user_id: int,
+    command: str,
+    extra_cost: int = 0,
+    custom_message: str = (
+        "Эта команда стоит <b>{cost}</b> токенов.\n"
+        "У тебя осталось: <b>{balance}</b>.\n"
+        "Баланс восполнится завтра, или ты можешь его пополнить."
+    ),
 ) -> bool:
     from bot.owner_settings.config_getters import is_payments_enabled
     from config import COMMAND_COSTS, VIP_IDS
@@ -84,13 +92,13 @@ async def freeze_tokens(
                 return True
 
             balance = await tokens_db.get_balance(user_id)
-            error_msg = (
-                "<b>┌─ ⛽ БАК ПУСТ</b>\n"
-                f"<b>├─</b> Эта команда стоит <b>{cost}</b> токенов.\n"
-                f"<b>├─</b> У тебя осталось: <b>{balance}</b>.\n"
-                "<b>└─</b> Баланс восполнится завтра, или ты можешь его пополнить."
+            await message.reply(
+                format_styled_message(
+                    "⛽",
+                    "БАК ПУСТ",
+                    custom_message.format(cost=cost, balance=balance),
+                )
             )
-            await message.reply(error_msg)
             return False
 
     return True
