@@ -4,7 +4,12 @@ from aiogram import types
 from aiogram.types import InlineKeyboardButton
 from config import COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, create_user_keyboard, spend_tokens
+from bot.utils.helpers import (
+    format_styled_message,
+    create_user_keyboard,
+    freeze_tokens,
+    refund_tokens,
+)
 
 API_ICON = COMMAND_METADATA["!кот"]["icon"]
 API_NAME = COMMAND_METADATA["!кот"]["name"]
@@ -35,9 +40,18 @@ def get_cat_keyboard(user_id: int):
 
 
 async def send_cat(target, is_callback=False):
+    user_id = target.from_user.id
+    message_obj = target.message if is_callback else target
+
+    if not await freeze_tokens(message_obj, user_id, "!кот"):
+        if is_callback:
+            await target.answer()
+        return
+
     url = await get_random_cat()
 
     if not url:
+        await refund_tokens(user_id, "!кот")
         error_msg = format_styled_message(
             emoji="❌", title=API_NAME, message="Котики спрятались! Попробуй позже."
         )
@@ -50,11 +64,9 @@ async def send_cat(target, is_callback=False):
     caption = format_styled_message(
         emoji=API_ICON, title=API_NAME, message="Держи пушистого!"
     )
-    reply_markup = get_cat_keyboard(target.from_user.id)
+    reply_markup = get_cat_keyboard(user_id)
 
     try:
-        message_obj = target.message if is_callback else target
-
         if url.endswith(".gif"):
             await message_obj.reply_animation(
                 animation=url, caption=caption, reply_markup=reply_markup
@@ -64,12 +76,13 @@ async def send_cat(target, is_callback=False):
                 photo=url, caption=caption, reply_markup=reply_markup
             )
 
-        await db.increment_commands()
-        await db.log_command("!кот", target.from_user.id)
-        await spend_tokens(message_obj, "!кот")
+        if not is_callback:
+            await db.increment_commands()
+            await db.log_command("!кот", user_id)
 
     except Exception as e:
         logger.error(f"Ошибка при отправке котика: {e}")
+        await refund_tokens(user_id, "!кот")
 
 
 async def cmd_cat(message: types.Message):

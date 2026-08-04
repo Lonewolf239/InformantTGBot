@@ -4,7 +4,12 @@ from urllib.parse import quote
 from aiogram import types
 from config import KINOPOISK_API_KEY, COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    freeze_tokens,
+    refund_tokens,
+    get_raw_text,
+)
 
 API_ICON = COMMAND_METADATA["!кино"]["icon"]
 API_NAME = COMMAND_METADATA["!кино"]["name"]
@@ -29,9 +34,14 @@ async def search_movie(query: str) -> dict | None:
 
 
 async def cmd_movie(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!кино"):
+        return
+
     raw_text = get_raw_text(message)
     parts = raw_text.split(maxsplit=1) if raw_text else []
     if len(parts) < 2:
+        await refund_tokens(user_id, "!кино")
         await message.reply(
             format_styled_message(
                 emoji=API_ICON,
@@ -50,6 +60,7 @@ async def cmd_movie(message: types.Message):
 
     movie = await search_movie(query)
     if not movie:
+        await refund_tokens(user_id, "!кино")
         await wait_msg.edit_text(
             format_styled_message(
                 emoji="❌", title=API_NAME, message=f"Фильм «{query}» не найден."
@@ -94,8 +105,8 @@ async def cmd_movie(message: types.Message):
             await wait_msg.edit_text(caption, disable_web_page_preview=False)
 
         await db.increment_commands()
-        await db.log_command("!кино", message.from_user.id)
-        await spend_tokens(message, "!кино")
+        await db.log_command("!кино", user_id)
 
     except Exception as e:
+        await refund_tokens(user_id, "!кино")
         logger.error(f"Ошибка отправки сообщения кино: {e}")

@@ -4,7 +4,12 @@ from urllib.parse import quote
 from aiogram import types
 from config import COMMAND_METADATA, TICKETMASTER_API_KEY
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    freeze_tokens,
+    refund_tokens,
+    get_raw_text,
+)
 
 API_ICON = COMMAND_METADATA["!афиша"]["icon"]
 API_NAME = COMMAND_METADATA["!афиша"]["name"]
@@ -64,6 +69,10 @@ async def cmd_events(message: types.Message):
     raw_text = get_raw_text(message)
     parts = raw_text.split(maxsplit=1) if raw_text else []
     query = parts[1].strip() if len(parts) > 1 else ""
+    user_id = message.from_user.id
+
+    if not await freeze_tokens(message, user_id, "!афиша"):
+        return
 
     if not query:
         error_msg = format_styled_message(
@@ -83,6 +92,7 @@ async def cmd_events(message: types.Message):
     events_text = await search_global_events(query)
 
     if not events_text:
+        await refund_tokens(user_id, "!афиша")
         await wait_msg.edit_text(
             format_styled_message(
                 emoji="❌",
@@ -100,4 +110,3 @@ async def cmd_events(message: types.Message):
 
     await db.increment_commands()
     await db.log_command("!афиша", message.from_user.id)
-    await spend_tokens(message, "!афиша")

@@ -3,7 +3,12 @@ from aiogram import types
 from aiogram.types import InlineKeyboardButton
 from config import USER_PROFILE, API_SETTINGS, BACKUP_JOKES, COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, create_user_keyboard
+from bot.utils.helpers import (
+    format_styled_message,
+    create_user_keyboard,
+    freeze_tokens,
+    refund_tokens,
+)
 import logging
 
 API_ICON = COMMAND_METADATA["!анекдот"]["icon"]
@@ -50,35 +55,24 @@ def get_joke_keyboard(user_id: int):
     )
 
 
-async def spend_tokens(message: types.Message):
-    from bot.owner_settings.config_getters import is_payments_enabled
-    from config import COMMAND_COSTS, VIP_IDS
-
-    if await is_payments_enabled():
-        from bot.utils.tokens_database import tokens_db
-
-        cost = COMMAND_COSTS.get("!анекдот", 0)
-        if cost > 0 and message.from_user.id not in VIP_IDS:
-            await tokens_db.spend_tokens(message.from_user.id, cost)
-
-    await db.increment_jokes()
-    await db.increment_commands()
-    await db.log_command("!анекдот", message.from_user.id)
-
-
 async def cmd_joke(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!анекдот"):
+        return
+
     try:
         joke = await get_joke_from_api()
         if joke:
             joke_msg = format_styled_message(
                 emoji=API_ICON, title=API_NAME, message=joke
             )
-            await message.reply(
-                joke_msg, reply_markup=get_joke_keyboard(message.from_user.id)
-            )
-            await spend_tokens(message)
+            await message.reply(joke_msg, reply_markup=get_joke_keyboard(user_id))
+            await db.increment_jokes()
+            await db.increment_commands()
+            await db.log_command("!анекдот", user_id)
             return
 
+        await refund_tokens(user_id, "!анекдот")
         backup = get_backup_joke()
         backup_msg = format_styled_message(
             emoji=API_ICON,
@@ -86,10 +80,10 @@ async def cmd_joke(message: types.Message):
             message=f"{backup}\n⚠️ <i>API недоступен</i>",
         )
         await message.reply(backup_msg)
-        await spend_tokens(message)
 
     except Exception as e:
         logger.error(f"Ошибка в !анекдот: {e}")
+        await refund_tokens(user_id, "!анекдот")
         error_msg = format_styled_message(
             emoji="❌",
             title="Ошибка",
@@ -99,16 +93,22 @@ async def cmd_joke(message: types.Message):
 
 
 async def more_joke_callback(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+    if not await freeze_tokens(callback_query.message, user_id, "!анекдот"):
+        await callback_query.answer()
+        return
+
     await callback_query.answer("🔄 Загружаю новый анекдот...")
 
     joke = await get_joke_from_api()
     if joke:
         joke_msg = format_styled_message(emoji=API_ICON, title=API_NAME, message=joke)
         await callback_query.message.edit_text(
-            joke_msg, reply_markup=get_joke_keyboard(callback_query.from_user.id)
+            joke_msg, reply_markup=get_joke_keyboard(user_id)
         )
-        await spend_tokens(callback_query.message)
+        await db.increment_jokes()
     else:
+        await refund_tokens(user_id, "!анекдот")
         backup = get_backup_joke()
         backup_msg = format_styled_message(
             emoji=API_ICON,
@@ -116,6 +116,5 @@ async def more_joke_callback(callback_query: types.CallbackQuery):
             message=f"{backup}\n⚠️ <i>API недоступен</i>",
         )
         await callback_query.message.edit_text(
-            backup_msg, reply_markup=get_joke_keyboard(callback_query.from_user.id)
+            backup_msg, reply_markup=get_joke_keyboard(user_id)
         )
-        await spend_tokens(callback_query.message)

@@ -11,7 +11,12 @@ from config import (
     COMMAND_METADATA,
 )
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    freeze_tokens,
+    refund_tokens,
+    get_raw_text,
+)
 
 API_ICON = COMMAND_METADATA["!погода"]["icon"]
 API_NAME = COMMAND_METADATA["!погода"]["name"]
@@ -155,10 +160,15 @@ def format_weather_message(weather_data: dict, city_name: str, country: str):
 
 
 async def cmd_weather(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!погода"):
+        return
+
     raw_text = get_raw_text(message)
     args = raw_text.split(maxsplit=1) if raw_text else []
 
     if len(args) < 2:
+        await refund_tokens(user_id, "!погода")
         error_no_city = format_styled_message(
             emoji=API_ICON,
             title=API_NAME,
@@ -186,6 +196,7 @@ async def cmd_weather(message: types.Message):
     try:
         location = await asyncio.wait_for(get_coordinates(city_name), timeout=20.0)
         if not location:
+            await refund_tokens(user_id, "!погода")
             reply = format_styled_message(
                 emoji="❌",
                 title="ГОРОД НЕ НАЙДЕН",
@@ -201,6 +212,7 @@ async def cmd_weather(message: types.Message):
             get_weather_by_coords(location["lat"], location["lon"]), timeout=15.0
         )
         if not weather_data:
+            await refund_tokens(user_id, "!погода")
             reply = format_styled_message(
                 emoji="❌",
                 title="ОШИБКА API",
@@ -221,10 +233,10 @@ async def cmd_weather(message: types.Message):
             await message.reply(weather_text)
 
         await db.increment_commands()
-        await db.log_command("!погода", message.from_user.id)
-        await spend_tokens(message, "!погода")
+        await db.log_command("!погода", user_id)
 
     except Exception:
+        await refund_tokens(user_id, "!погода")
         error_msg = format_styled_message(
             emoji="❌",
             title="ОШИБКА",

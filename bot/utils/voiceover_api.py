@@ -6,7 +6,7 @@ from aiogram.types import FSInputFile
 from langdetect import detect, LangDetectException
 from config import COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens
+from bot.utils.helpers import format_styled_message, freeze_tokens, refund_tokens
 from bot.utils.translation_core import text_to_speech
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,12 @@ VOICE_NAME = COMMAND_METADATA["!озвучка"]["name"]
 
 
 async def cmd_voiceover(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!озвучка"):
+        return
+
     if not message.reply_to_message:
+        await refund_tokens(user_id, "!озвучка")
         usage_msg = format_styled_message(
             emoji=VOICE_ICON,
             title=VOICE_NAME,
@@ -34,6 +39,7 @@ async def cmd_voiceover(message: types.Message):
     target_text = reply_msg.text or reply_msg.caption
 
     if not target_text:
+        await refund_tokens(user_id, "!озвучка")
         error_msg = format_styled_message(
             emoji=VOICE_ICON,
             title=VOICE_NAME,
@@ -65,6 +71,7 @@ async def cmd_voiceover(message: types.Message):
         )
 
         if not success:
+            await refund_tokens(user_id, "!озвучка")
             await status_msg.edit_text(
                 format_styled_message(
                     emoji=VOICE_ICON,
@@ -92,10 +99,10 @@ async def cmd_voiceover(message: types.Message):
         )
 
         await db.increment_commands()
-        await db.log_command("!озвучка", message.from_user.id)
-        await spend_tokens(message, "!озвучка")
+        await db.log_command("!озвучка", user_id)
 
     except Exception as e:
+        await refund_tokens(user_id, "!озвучка")
         logger.error(f"❌ Ошибка в cmd_voiceover: {e}", exc_info=True)
         await status_msg.edit_text(
             format_styled_message(

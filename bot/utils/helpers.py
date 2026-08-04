@@ -69,13 +69,40 @@ def format_styled_message(
     return "\n".join(formatted_lines)
 
 
-async def spend_tokens(message: types.Message, command):
+async def freeze_tokens(
+    message: types.Message, user_id: int, command: str, extra_cost: int = 0
+) -> bool:
     from bot.owner_settings.config_getters import is_payments_enabled
     from config import COMMAND_COSTS, VIP_IDS
 
     if await is_payments_enabled():
         from bot.utils.tokens_database import tokens_db
 
-        cost = COMMAND_COSTS.get(command, 0)
-        if cost > 0 and message.from_user.id not in VIP_IDS:
-            await tokens_db.spend_tokens(message.from_user.id, cost)
+        cost = COMMAND_COSTS.get(command, 0) + extra_cost
+        if cost > 0 and user_id not in VIP_IDS:
+            if await tokens_db.spend_tokens(user_id, cost):
+                return True
+
+            balance = await tokens_db.get_balance(user_id)
+            error_msg = (
+                "<b>┌─ ⛽ БАК ПУСТ</b>\n"
+                f"<b>├─</b> Эта команда стоит <b>{cost}</b> токенов.\n"
+                f"<b>├─</b> У тебя осталось: <b>{balance}</b>.\n"
+                "<b>└─</b> Баланс восполнится завтра, или ты можешь его пополнить."
+            )
+            await message.reply(error_msg)
+            return False
+
+    return True
+
+
+async def refund_tokens(user_id: int, command: str, extra_cost: int = 0):
+    from bot.owner_settings.config_getters import is_payments_enabled
+    from config import COMMAND_COSTS, VIP_IDS
+
+    if await is_payments_enabled():
+        from bot.utils.tokens_database import tokens_db
+
+        cost = COMMAND_COSTS.get(command, 0) + extra_cost
+        if cost > 0 and user_id not in VIP_IDS:
+            await tokens_db.add_tokens(user_id, cost)

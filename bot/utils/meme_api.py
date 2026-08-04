@@ -16,7 +16,8 @@ from bot.utils.database import db
 from bot.utils.helpers import (
     format_styled_message,
     create_user_keyboard,
-    spend_tokens,
+    freeze_tokens,
+    refund_tokens,
     get_raw_text,
 )
 import logging
@@ -218,13 +219,9 @@ async def send_meme(
 
     try:
         await method(**kwargs)
-
         await db.increment_memes()
         await db.increment_commands()
         await db.log_command("!мем", target.from_user.id)
-
-        msg_context = target.message if is_callback else target
-        await spend_tokens(msg_context, "!мем")
         return True
 
     except Exception as e:
@@ -233,6 +230,10 @@ async def send_meme(
 
 
 async def cmd_meme(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!мем"):
+        return
+
     raw_text = get_raw_text(message) or ""
     force_favorite = "избранное" in raw_text
 
@@ -244,6 +245,7 @@ async def cmd_meme(message: types.Message):
         success = await send_meme(message, is_callback=False, use_fallback=True)
 
     if not success:
+        await refund_tokens(user_id, "!мем")
         error_msg = format_styled_message(
             emoji="😔",
             title="Ошибка мемов",
@@ -257,8 +259,16 @@ async def cmd_meme(message: types.Message):
 
 
 async def more_meme_callback(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+    if not await freeze_tokens(callback_query.message, user_id, "!мем"):
+        await callback_query.answer()
+        return
+
     await callback_query.answer("🔄 Загружаю новый мем...")
-    await send_meme(callback_query, is_callback=True, use_fallback=False)
+    success = await send_meme(callback_query, is_callback=True, use_fallback=False)
+
+    if not success:
+        await refund_tokens(user_id, "!мем")
 
 
 async def add_favorite_callback(callback_query: types.CallbackQuery):

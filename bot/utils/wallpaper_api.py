@@ -4,7 +4,12 @@ from urllib.parse import quote
 from aiogram import types
 from config import UNSPLASH_API_KEY, COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    freeze_tokens,
+    refund_tokens,
+    get_raw_text,
+)
 
 API_ICON = COMMAND_METADATA["!обои"]["icon"]
 API_NAME = COMMAND_METADATA["!обои"]["name"]
@@ -45,6 +50,10 @@ async def get_wallpaper(query: str) -> dict | None:
 
 
 async def cmd_wallpaper(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!обои"):
+        return
+
     raw_text = get_raw_text(message)
     parts = raw_text.split(maxsplit=1) if raw_text else []
     query = parts[1].strip() if len(parts) > 1 else ""
@@ -61,6 +70,7 @@ async def cmd_wallpaper(message: types.Message):
     wallpaper_data = await get_wallpaper(query)
 
     if not wallpaper_data:
+        await refund_tokens(user_id, "!обои")
         await wait_msg.edit_text(
             format_styled_message(
                 emoji="❌",
@@ -92,10 +102,10 @@ async def cmd_wallpaper(message: types.Message):
         )
 
         await db.increment_commands()
-        await db.log_command("!обои", message.from_user.id)
-        await spend_tokens(message, "!обои")
+        await db.log_command("!обои", user_id)
 
     except Exception as e:
+        await refund_tokens(user_id, "!обои")
         logger.error(f"Ошибка отправки фото (!обои): {e}")
         await wait_msg.edit_text(
             format_styled_message(

@@ -2,7 +2,6 @@ from aiogram import types
 from config import (
     COMMAND_COSTS,
     COMMAND_ALIASES,
-    VIP_IDS,
     WELCOME_TEXT,
     KEYWORD_REACTIONS,
     SIMPLE_ANSWERS,
@@ -36,7 +35,6 @@ from bot.utils.database import db
 from bot.handlers.nsfw_settings import cmd_nsfw_settings
 from bot.utils.whisper_stt import cmd_transcribe, cmd_translate
 from bot.utils.youtube_api import cmd_download_yt
-from bot.utils.tokens_database import tokens_db
 from bot.handlers.payments import cmd_balance
 from bot.utils.currency_api import cmd_currency
 from bot.utils.music_api import cmd_music, cmd_music_by_text
@@ -64,6 +62,7 @@ from bot.owner_settings.config_getters import (
     is_auto_reply_enabled,
     is_reply_to_owner,
 )
+from bot.utils.youtube_transcribe import cmd_youtube_transcribe
 import logging
 
 if POLLINATIONS_ENABLED:
@@ -400,6 +399,7 @@ COMMAND_HANDLERS = {
     "!звук": cmd_replace_audio,
     "!инстант": cmd_myinstants,
     "!отключенные": cmd_disabled_list,
+    "!ютуб_текст": cmd_youtube_transcribe,
 }
 
 if POLLINATIONS_ENABLED:
@@ -417,9 +417,7 @@ async def process_public_commands(message: types.Message):
         return False
 
     text = raw_text
-
     command_trigger = text.split()[0]
-
     base_command = ALIAS_TO_BASE.get(command_trigger)
 
     if not base_command:
@@ -450,54 +448,6 @@ async def process_public_commands(message: types.Message):
         if base_command == "!баланс":
             await cmd_balance(message)
             return True
-
-        user_id = message.from_user.id
-        cost = COMMAND_COSTS.get(base_command, 0)
-
-        if base_command == "!перевести":
-            reply = message.reply_to_message
-            if reply:
-                is_media = any(
-                    [reply.voice, reply.video_note, reply.video, reply.audio]
-                )
-                is_text = bool(reply.text)
-                if is_text and not is_media:
-                    cost = 1
-            else:
-                cost = 0
-
-        elif base_command in [
-            "!ии",
-            "!нейрохам",
-            "!психолог",
-            "!пересказ",
-            "!душнила",
-            "!синьор",
-            "!гопник",
-        ]:
-            reply = message.reply_to_message
-            if reply:
-                if any([reply.voice, reply.audio, reply.video_note, reply.video]):
-                    from config import AI_AUDIO_EXTRA_COST
-
-                    cost += AI_AUDIO_EXTRA_COST
-                elif reply.photo:
-                    from config import AI_VISION_EXTRA_COST
-
-                    cost += AI_VISION_EXTRA_COST
-
-        if cost > 0 and user_id not in VIP_IDS:
-            has_tokens = await tokens_db.has_enough_tokens(user_id, cost)
-            if not has_tokens:
-                balance = await tokens_db.get_balance(user_id)
-                error_msg = (
-                    "<b>┌─ ⛽ БАК ПУСТ</b>\n"
-                    f"<b>├─</b> Эта команда стоит <b>{cost}</b> токенов.\n"
-                    f"<b>├─</b> У тебя осталось: <b>{balance}</b>.\n"
-                    "<b>└─</b> Баланс восполнится завтра, или ты можешь его пополнить."
-                )
-                await message.reply(error_msg)
-                return True
 
     handler = COMMAND_HANDLERS.get(base_command)
     if handler:

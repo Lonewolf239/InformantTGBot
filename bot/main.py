@@ -37,6 +37,7 @@ from bot.utils.games_api import accept_duel_callback, cancel_duel_callback
 from bot.utils.task_queue import queue_manager
 from bot.owner_settings.database import owner_settings_db
 from bot.owner_settings.handlers import system_settings_callback
+from bot.utils.youtube_transcribe import process_yt_transcribe_callback
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -131,8 +132,6 @@ async def callback_handler(callback_query: types.CallbackQuery):
         except (IndexError, ValueError) as e:
             logger.error(f"Ошибка парсинга callback проверки платежа: {e}")
             await callback_query.answer("❌ Ошибка данных проверки", show_alert=True)
-    elif data and data.startswith("yt_dl|"):
-        await process_yt_callback(callback_query)
     elif data and data.startswith("mus_dl|"):
         await process_music_callback(callback_query)
     elif data and data.startswith("mus_page|"):
@@ -151,6 +150,8 @@ async def callback_handler(callback_query: types.CallbackQuery):
         await process_instants_more_callback(callback_query)
     elif data and data.startswith("sys_set:"):
         await system_settings_callback(callback_query)
+    elif data and data.startswith("yt_transcribe|"):
+        await process_yt_transcribe_callback(callback_query)
 
     try:
         await callback_query.answer()

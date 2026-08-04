@@ -4,7 +4,12 @@ from aiogram import types
 from config import COMMAND_METADATA
 from aiogram.types import InlineKeyboardButton
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, create_user_keyboard, spend_tokens
+from bot.utils.helpers import (
+    format_styled_message,
+    create_user_keyboard,
+    freeze_tokens,
+    refund_tokens,
+)
 
 API_ICON = COMMAND_METADATA["!прогноз"]["icon"]
 API_NAME = COMMAND_METADATA["!прогноз"]["name"]
@@ -42,35 +47,39 @@ def get_forecast_keyboard(user_id: int):
 
 
 async def send_forecast(target, is_callback=False):
-    forecast_text = random.choice(FORECASTS)
+    user_id = target.from_user.id
+    message_obj = target.message if is_callback else target
 
+    if not await freeze_tokens(message_obj, user_id, "!прогноз"):
+        if is_callback:
+            await target.answer()
+        return
+
+    forecast_text = random.choice(FORECASTS)
     msg_text = format_styled_message(
         emoji=API_ICON, title=API_NAME, message=forecast_text
     )
-
-    user_id = target.from_user.id
     keyboard = get_forecast_keyboard(user_id)
 
     try:
-        message_obj = target.message if is_callback else target
-
         if is_callback:
             await message_obj.edit_text(msg_text, reply_markup=keyboard)
         else:
             await message_obj.reply(msg_text, reply_markup=keyboard)
 
-        await db.increment_commands()
-        await db.log_command("!прогноз", user_id)
-        await spend_tokens(message_obj, "!прогноз")
+        if not is_callback:
+            await db.increment_commands()
+            await db.log_command("!прогноз", user_id)
 
     except Exception as e:
+        await refund_tokens(user_id, "!прогноз")
         logger.error(f"Ошибка отправки прогноза: {e}")
-
-
-async def cmd_forecast(message: types.Message):
-    await send_forecast(message)
 
 
 async def more_forecast_callback(callback_query: types.CallbackQuery):
     await callback_query.answer("🔄 Заглядываю в хрустальный шар...")
     await send_forecast(callback_query, is_callback=True)
+
+
+async def cmd_forecast(message: types.Message):
+    await send_forecast(message)

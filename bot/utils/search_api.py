@@ -6,7 +6,8 @@ from config import COMMAND_METADATA
 from bot.utils.database import db
 from bot.utils.helpers import (
     format_styled_message,
-    spend_tokens,
+    freeze_tokens,
+    refund_tokens,
     get_raw_text,
     get_reply_raw_text,
 )
@@ -63,6 +64,10 @@ async def search_internet(query: str, limit: int = 6) -> str | None:
 
 
 async def cmd_search(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!поиск"):
+        return
+
     raw_text = get_raw_text(message)
     parts = raw_text.split(maxsplit=1) if raw_text else []
     query = ""
@@ -75,6 +80,7 @@ async def cmd_search(message: types.Message):
             query = raw_reply_text
 
     if not query:
+        await refund_tokens(user_id, "!поиск")
         error_msg = format_styled_message(
             emoji=API_ICON,
             title=API_NAME,
@@ -94,6 +100,7 @@ async def cmd_search(message: types.Message):
     search_text = await search_internet(query)
 
     if not search_text:
+        await refund_tokens(user_id, "!поиск")
         if not DDGS:
             await wait_msg.edit_text(
                 format_styled_message(
@@ -119,5 +126,4 @@ async def cmd_search(message: types.Message):
     await wait_msg.edit_text(result_msg, disable_web_page_preview=True)
 
     await db.increment_commands()
-    await db.log_command("!поиск", message.from_user.id)
-    await spend_tokens(message, "!поиск")
+    await db.log_command("!поиск", user_id)

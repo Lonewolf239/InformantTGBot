@@ -15,7 +15,8 @@ from config import YT_DOWNLOAD_DIR, YT_MAX_FILE_SIZE_MB, COOKIES_FILE, COMMAND_M
 from bot.utils.helpers import (
     create_user_keyboard,
     format_styled_message,
-    spend_tokens,
+    freeze_tokens,
+    refund_tokens,
     get_raw_text,
 )
 
@@ -214,6 +215,10 @@ async def process_download_task(task_data: dict):
     media_type: str = task_data["type"]
     platform: str = task_data.get("platform", "YouTube")
 
+    user_id = original_message.from_user.id
+    if not await freeze_tokens(original_message, user_id, "!скачать"):
+        return
+
     media_path = None
     thumbnail_path = None
 
@@ -231,6 +236,7 @@ async def process_download_task(task_data: dict):
         )
 
         if not media_data or not os.path.exists(media_data["file_path"]):
+            await refund_tokens(user_id, "!скачать")
             await message.edit_text(
                 format_styled_message(
                     emoji="❌",
@@ -245,6 +251,7 @@ async def process_download_task(task_data: dict):
         limit_bytes = YT_MAX_FILE_SIZE_MB * 1024 * 1024
 
         if file_size_bytes > limit_bytes:
+            await refund_tokens(user_id, "!скачать")
             await message.edit_text(
                 format_styled_message(
                     emoji="❌",
@@ -322,8 +329,7 @@ async def process_download_task(task_data: dict):
         from bot.utils.database import db
 
         await db.increment_commands()
-        await db.log_command("!скачать", message.from_user.id)
-        await spend_tokens(message, "!скачать")
+        await db.log_command("!скачать", user_id)
 
         await message.edit_text(
             format_styled_message(
@@ -334,6 +340,7 @@ async def process_download_task(task_data: dict):
         )
 
     except Exception as e:
+        await refund_tokens(user_id, "!скачать")
         logger.error(f"Внутренняя ошибка обработки: {e}")
         await message.edit_text(
             format_styled_message(
@@ -487,29 +494,18 @@ async def cmd_download_yt(message: types.Message):
         )
         os.makedirs(temp_playlist_dir, exist_ok=True)
 
-        from config import COMMAND_COSTS, VIP_IDS
-        from bot.owner_settings.config_getters import is_payments_enabled
-
-        payments_enabled = await is_payments_enabled()
-
         user_id = message.from_user.id
-        is_vip = user_id in VIP_IDS
-        cost = COMMAND_COSTS.get("!скачать", 0)
         insufficient_funds = False
-
-        if payments_enabled:
-            from bot.utils.tokens_database import tokens_db
-
         downloaded_files = []
+
         for idx, entry in enumerate(entries, 1):
-            if payments_enabled and not is_vip and cost > 0:
-                has_tokens = await tokens_db.has_enough_tokens(user_id, cost)
-                if not has_tokens:
-                    insufficient_funds = True
-                    break
+            if not await freeze_tokens(message, user_id, "!скачать"):
+                insufficient_funds = True
+                break
 
             entry_url = entry.get("url") or entry.get("webpage_url") or entry.get("id")
             if not entry_url:
+                await refund_tokens(user_id, "!скачать")
                 continue
             if not str(entry_url).startswith("http"):
                 entry_url = f"https://www.youtube.com/watch?v={entry_url}"
@@ -527,9 +523,8 @@ async def cmd_download_yt(message: types.Message):
 
             if media_data and os.path.exists(media_data["file_path"]):
                 downloaded_files.append(media_data)
-
-                if payments_enabled and not is_vip and cost > 0:
-                    await tokens_db.spend_tokens(user_id, cost)
+            else:
+                await refund_tokens(user_id, "!скачать")
 
         if not downloaded_files:
             if insufficient_funds:
@@ -581,7 +576,7 @@ async def cmd_download_yt(message: types.Message):
             from bot.utils.database import db
 
             await db.increment_commands()
-            await db.log_command("!скачать", message.from_user.id)
+            await db.log_command("!скачать", user_id)
 
             warning_msg = (
                 "\n\n⚠️ <i>Скачивание плейлиста прервано: закончились токены!</i>"
@@ -663,7 +658,7 @@ async def cmd_download_yt(message: types.Message):
         from bot.utils.database import db
 
         await db.increment_commands()
-        await db.log_command("!скачать", message.from_user.id)
+        await db.log_command("!скачать", user_id)
 
         warning_msg = (
             "\n\n⚠️ <i>Скачивание плейлиста прервано: закончились токены! Выдана часть архивов.</i>"

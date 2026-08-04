@@ -4,7 +4,12 @@ from urllib.parse import quote
 from aiogram import types
 from config import NEWS_API_KEY, COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    freeze_tokens,
+    refund_tokens,
+    get_raw_text,
+)
 
 API_ICON = COMMAND_METADATA["!новости"]["icon"]
 API_NAME = COMMAND_METADATA["!новости"]["name"]
@@ -47,6 +52,10 @@ async def get_news(query: str = "") -> str | None:
 
 
 async def cmd_news(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!новости"):
+        return
+
     raw_text = get_raw_text(message)
     parts = raw_text.split(maxsplit=1) if raw_text else []
     query = parts[1].strip() if len(parts) > 1 else ""
@@ -60,6 +69,7 @@ async def cmd_news(message: types.Message):
     news_text = await get_news(query)
 
     if not news_text:
+        await refund_tokens(user_id, "!новости")
         await wait_msg.edit_text(
             format_styled_message(
                 emoji="❌",
@@ -78,7 +88,5 @@ async def cmd_news(message: types.Message):
     )
 
     await wait_msg.edit_text(result_msg, disable_web_page_preview=True)
-
     await db.increment_commands()
-    await db.log_command("!новости", message.from_user.id)
-    await spend_tokens(message, "!новости")
+    await db.log_command("!новости", user_id)

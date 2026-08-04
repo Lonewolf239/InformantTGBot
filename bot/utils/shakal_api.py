@@ -5,7 +5,7 @@ from aiogram import types
 from aiogram.types import FSInputFile
 from config import COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens
+from bot.utils.helpers import format_styled_message, freeze_tokens, refund_tokens
 from bot.utils.mosh import async_mosh
 from bot.utils.queue_wrapper import process_with_queue
 
@@ -61,7 +61,12 @@ async def _process_shakal_video(
 
 
 async def cmd_shakal(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!шакал"):
+        return
+
     if not message.reply_to_message or not message.reply_to_message.video:
+        await refund_tokens(user_id, "!шакал")
         await message.reply(
             format_styled_message(
                 emoji="❌",
@@ -72,6 +77,7 @@ async def cmd_shakal(message: types.Message):
         return
 
     if not message.video:
+        await refund_tokens(user_id, "!шакал")
         await message.reply(
             format_styled_message(
                 emoji="❌",
@@ -91,7 +97,6 @@ async def cmd_shakal(message: types.Message):
         vid1_msg = message.reply_to_message
         vid2_msg = message
 
-    user_id = message.from_user.id
     msg_id = message.message_id
     vid1_path = f"temp_shakal_1_{user_id}_{msg_id}.mp4"
     vid2_path = f"temp_shakal_2_{user_id}_{msg_id}.mp4"
@@ -116,6 +121,7 @@ async def cmd_shakal(message: types.Message):
         )
 
         if not result:
+            await refund_tokens(user_id, "!шакал")
             if status_msg:
                 await status_msg.edit_text(
                     format_styled_message(
@@ -143,10 +149,10 @@ async def cmd_shakal(message: types.Message):
         )
 
         await db.increment_commands()
-        await db.log_command("!шакал", message.from_user.id)
-        await spend_tokens(message, "!шакал")
+        await db.log_command("!шакал", user_id)
 
     except Exception as e:
+        await refund_tokens(user_id, "!шакал")
         logger.error(f"Ошибка команды !шакал: {e}")
         await message.reply(
             format_styled_message(

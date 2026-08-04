@@ -11,7 +11,8 @@ from config import YT_DOWNLOAD_DIR, YT_MAX_FILE_SIZE_MB, COOKIES_FILE, COMMAND_M
 from bot.utils.helpers import (
     format_styled_message,
     create_user_keyboard,
-    spend_tokens,
+    freeze_tokens,
+    refund_tokens,
     get_raw_text,
 )
 from bot.utils.database import db
@@ -201,10 +202,15 @@ def generate_music_keyboard(request_id: str, page: int, user_id: int):
 
 
 async def cmd_music(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!музыка"):
+        return
+
     raw_text = get_raw_text(message)
     args = raw_text.split(maxsplit=1) if raw_text else []
 
     if len(args) < 2:
+        await refund_tokens(user_id, "!музыка")
         error_msg = format_styled_message(
             emoji=API_ICON,
             title=API_NAME,
@@ -224,6 +230,7 @@ async def cmd_music(message: types.Message):
     results = await loop.run_in_executor(None, _sync_search_music, query, 25)
 
     if not results:
+        await refund_tokens(user_id, "!музыка")
         await status_msg.edit_text(
             format_styled_message(
                 emoji="❌",
@@ -234,14 +241,13 @@ async def cmd_music(message: types.Message):
         return
 
     request_id = uuid.uuid4().hex[:8]
-
     music_search_cache[request_id] = {
         "query": query,
         "results": results,
         "total_pages": math.ceil(len(results) / 5),
     }
 
-    keyboard = generate_music_keyboard(request_id, 0, message.from_user.id)
+    keyboard = generate_music_keyboard(request_id, 0, user_id)
     result_text = (
         f"🔎 <b>Результаты по запросу:</b> <i>{query}</i>\n\nВыберите нужный трек ниже:"
     )
@@ -252,11 +258,14 @@ async def cmd_music(message: types.Message):
     )
 
     await db.increment_commands()
-    await db.log_command("!музыка", message.from_user.id)
-    await spend_tokens(message, "!музыка")
+    await db.log_command("!музыка", user_id)
 
 
 async def cmd_music_by_text(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!по_тексту"):
+        return
+
     raw_text = get_raw_text(message)
     args = raw_text.split(maxsplit=1) if raw_text else []
 
@@ -264,6 +273,7 @@ async def cmd_music_by_text(message: types.Message):
     cmd_name = COMMAND_METADATA["!по_тексту"]["name"]
 
     if len(args) < 2:
+        await refund_tokens(user_id, "!по_тексту")
         error_msg = format_styled_message(
             emoji=cmd_icon,
             title=cmd_name,
@@ -345,6 +355,7 @@ async def cmd_music_by_text(message: types.Message):
     )
 
     if not final_results:
+        await refund_tokens(user_id, "!по_тексту")
         await status_msg.edit_text(
             format_styled_message(
                 emoji="❌",
@@ -362,7 +373,7 @@ async def cmd_music_by_text(message: types.Message):
         "total_pages": math.ceil(len(final_results) / 5),
     }
 
-    keyboard = generate_music_keyboard(request_id, 0, message.from_user.id)
+    keyboard = generate_music_keyboard(request_id, 0, user_id)
 
     if best_artist and best_track:
         result_text = f"🎯 <b>Найдено по тексту:</b> <i>{raw_query}</i>\n🎧 <b>Оригинальный трек:</b> {best_artist} — {best_track}\n\nВыберите нужный трек ниже:"
@@ -375,8 +386,7 @@ async def cmd_music_by_text(message: types.Message):
     )
 
     await db.increment_commands()
-    await db.log_command("!по_тексту", message.from_user.id)
-    await spend_tokens(message, "!по_тексту")
+    await db.log_command("!по_тексту", user_id)
 
 
 async def process_music_page_callback(callback: types.CallbackQuery):

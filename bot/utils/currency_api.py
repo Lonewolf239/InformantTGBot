@@ -4,7 +4,12 @@ import re
 from aiogram import types
 from config import COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    freeze_tokens,
+    refund_tokens,
+    get_raw_text,
+)
 
 API_ICON = COMMAND_METADATA["!курс"]["icon"]
 API_NAME = COMMAND_METADATA["!курс"]["name"]
@@ -75,6 +80,7 @@ async def get_exchange_rate(base: str) -> dict:
 async def cmd_currency(message: types.Message):
     raw_text = get_raw_text(message)
     args = raw_text.split(maxsplit=1) if raw_text else []
+    user_id = message.from_user.id
 
     if len(args) < 2:
         error_msg = format_styled_message(
@@ -96,6 +102,9 @@ async def cmd_currency(message: types.Message):
         await message.reply(error_msg)
         return
 
+    if not await freeze_tokens(message, user_id, "!курс"):
+        return
+
     status_msg = await message.reply(
         format_styled_message(
             emoji="⏳", title=API_NAME, message="Запрашиваю свежий курс..."
@@ -105,6 +114,7 @@ async def cmd_currency(message: types.Message):
     data = await get_exchange_rate(from_curr)
 
     if not data or "rates" not in data or to_curr not in data["rates"]:
+        await refund_tokens(user_id, "!курс")
         await status_msg.edit_text(
             format_styled_message(
                 emoji="❌", title=API_NAME, message="Ошибка получения курса с сервера."
@@ -130,5 +140,4 @@ async def cmd_currency(message: types.Message):
     )
 
     await db.increment_commands()
-    await db.log_command("!курс", message.from_user.id)
-    await spend_tokens(message, "!курс")
+    await db.log_command("!курс", user_id)

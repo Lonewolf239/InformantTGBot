@@ -5,7 +5,12 @@ from aiogram import types
 from config import COMMAND_METADATA
 from aiogram.types import InlineKeyboardButton
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, create_user_keyboard, spend_tokens
+from bot.utils.helpers import (
+    format_styled_message,
+    create_user_keyboard,
+    freeze_tokens,
+    refund_tokens,
+)
 
 API_ICON = COMMAND_METADATA["!курс_крипты"]["icon"]
 API_NAME = COMMAND_METADATA["!курс_крипты"]["name"]
@@ -96,9 +101,18 @@ def get_crypto_keyboard(user_id: int):
 
 
 async def send_crypto(target, is_callback=False):
+    user_id = target.from_user.id
+    message_obj = target.message if is_callback else target
+
+    if not await freeze_tokens(message_obj, user_id, "!курс_крипты"):
+        if is_callback:
+            await target.answer()
+        return
+
     rates_lines = await get_top_crypto_rates(limit=5)
 
     if not rates_lines:
+        await refund_tokens(user_id, "!курс_крипты")
         error_msg = format_styled_message(
             emoji="❌",
             title="Ошибка",
@@ -111,15 +125,10 @@ async def send_crypto(target, is_callback=False):
         return
 
     text = "\n".join(rates_lines)
-
     msg_text = format_styled_message(emoji=API_ICON, title=API_NAME, message=text)
-
-    user_id = target.from_user.id
     keyboard = get_crypto_keyboard(user_id)
 
     try:
-        message_obj = target.message if is_callback else target
-
         if is_callback:
             await message_obj.edit_text(msg_text, reply_markup=keyboard)
         else:
@@ -128,10 +137,10 @@ async def send_crypto(target, is_callback=False):
         if not is_callback:
             await db.increment_commands()
             await db.log_command("!курс_крипты", user_id)
-            await spend_tokens(message_obj, "!курс_крипты")
 
     except Exception as e:
         logger.error(f"Ошибка отправки крипты: {e}")
+        await refund_tokens(user_id, "!курс_крипты")
 
 
 async def cmd_crypto(message: types.Message):

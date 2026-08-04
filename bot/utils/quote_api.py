@@ -6,7 +6,12 @@ from aiogram import types
 from config import COMMAND_METADATA
 from aiogram.types import InlineKeyboardButton
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, create_user_keyboard, spend_tokens
+from bot.utils.helpers import (
+    format_styled_message,
+    create_user_keyboard,
+    freeze_tokens,
+    refund_tokens,
+)
 
 API_ICON = COMMAND_METADATA["!цитата"]["icon"]
 API_NAME = COMMAND_METADATA["!цитата"]["name"]
@@ -56,7 +61,6 @@ async def send_quote(target, is_callback=False):
     quote_text = await get_random_quote()
 
     msg_text = format_styled_message(emoji=API_ICON, title=API_NAME, message=quote_text)
-
     user_id = target.from_user.id
     keyboard = get_quote_keyboard(user_id)
 
@@ -70,16 +74,30 @@ async def send_quote(target, is_callback=False):
 
         await db.increment_commands()
         await db.log_command("!цитата", user_id)
-        await spend_tokens(message_obj, "!цитата")
+        return True
 
     except Exception as e:
         logger.error(f"Ошибка отправки цитаты: {e}")
+        return False
 
 
 async def cmd_quote(message: types.Message):
-    await send_quote(message)
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!цитата"):
+        return
+
+    success = await send_quote(message)
+    if not success:
+        await refund_tokens(user_id, "!цитата")
 
 
 async def more_quote_callback(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+    if not await freeze_tokens(callback_query.message, user_id, "!цитата"):
+        await callback_query.answer()
+        return
+
     await callback_query.answer("🔄 Ищу порцию мудрости...")
-    await send_quote(callback_query, is_callback=True)
+    success = await send_quote(callback_query, is_callback=True)
+    if not success:
+        await refund_tokens(user_id, "!цитата")

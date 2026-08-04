@@ -13,7 +13,8 @@ from config import COMMAND_METADATA
 from bot.utils.helpers import (
     format_styled_message,
     create_user_keyboard,
-    spend_tokens,
+    freeze_tokens,
+    refund_tokens,
     get_raw_text,
 )
 from bot.utils.database import db
@@ -159,6 +160,10 @@ async def _handle_expired_request(callback: types.CallbackQuery):
 
 
 async def cmd_myinstants(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!инстант"):
+        return
+
     raw_text = get_raw_text(message)
     args = raw_text.split(maxsplit=1) if raw_text else []
     query = args[1].strip() if len(args) > 1 else None
@@ -174,6 +179,7 @@ async def cmd_myinstants(message: types.Message):
     results = await _scrape_myinstants(query)
 
     if not results:
+        await refund_tokens(user_id, "!инстант")
         await status_msg.edit_text(
             format_styled_message(
                 emoji="❌",
@@ -182,8 +188,6 @@ async def cmd_myinstants(message: types.Message):
             )
         )
         return
-
-    user_id = message.from_user.id
 
     if user_id in user_active_requests:
         old_req_id = user_active_requests[user_id]
@@ -212,7 +216,6 @@ async def cmd_myinstants(message: types.Message):
 
     await db.increment_commands()
     await db.log_command("!инстант", user_id)
-    await spend_tokens(message, "!инстант")
 
 
 async def process_instants_page_callback(callback: types.CallbackQuery):

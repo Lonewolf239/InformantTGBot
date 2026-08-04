@@ -6,7 +6,12 @@ from aiogram import types
 from aiogram.types import BufferedInputFile, InputMediaPhoto
 from config import COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    freeze_tokens,
+    refund_tokens,
+    get_raw_text,
+)
 
 API_ICON = COMMAND_METADATA["!картинка"]["icon"]
 API_NAME = COMMAND_METADATA["!картинка"]["name"]
@@ -91,6 +96,10 @@ async def fetch_image_urls(query: str) -> list[str]:
 
 
 async def cmd_search_image(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!картинка"):
+        return
+
     raw_text = get_raw_text(message)
     parts = raw_text.split(maxsplit=1) if raw_text else []
     query = ""
@@ -103,6 +112,7 @@ async def cmd_search_image(message: types.Message):
         ).strip()
 
     if not query:
+        await refund_tokens(user_id, "!картинка")
         await message.reply(
             format_styled_message(
                 emoji=API_ICON,
@@ -123,6 +133,7 @@ async def cmd_search_image(message: types.Message):
     urls = await fetch_image_urls(query)
 
     if not urls:
+        await refund_tokens(user_id, "!картинка")
         await wait_msg.edit_text(
             format_styled_message(
                 emoji="❌",
@@ -157,6 +168,7 @@ async def cmd_search_image(message: types.Message):
                 continue
 
     if not downloaded_images:
+        await refund_tokens(user_id, "!картинка")
         await wait_msg.edit_text(
             format_styled_message(
                 emoji="❌",
@@ -202,10 +214,10 @@ async def cmd_search_image(message: types.Message):
         )
 
         await db.increment_commands()
-        await db.log_command("!картинка", message.from_user.id)
-        await spend_tokens(message, "!картинка")
+        await db.log_command("!картинка", user_id)
 
     except Exception as e:
+        await refund_tokens(user_id, "!картинка")
         logger.error(
             f"Ошибка отправки медиа-альбома или редактирования статуса ({type(e).__name__}): {e}"
         )

@@ -1,36 +1,41 @@
-import logging
-import os
 import base64
 import io
+import logging
+import os
 from typing import Optional
 import aiohttp
 from aiogram import types
 from config import (
+    AI_AUDIO_EXTRA_COST,
+    AI_MAX_REPLY_LEN,
+    AI_PERSONAS,
+    AI_PROVIDER,
+    AI_REQUEST_TIMEOUT,
+    AI_VISION_EXTRA_COST,
+    COMMAND_METADATA,
+    GROQ_API_KEY,
+    GROQ_MODEL,
+    GROQ_VISION_MODEL,
     OLLAMA_BASE_URL,
     OLLAMA_MODEL,
     OLLAMA_VISION_MODEL,
-    AI_MAX_REPLY_LEN,
-    AI_REQUEST_TIMEOUT,
-    AI_PERSONAS,
-    COMMAND_METADATA,
-    VIP_IDS,
-    COMMAND_COSTS,
-    AI_AUDIO_EXTRA_COST,
-    AI_VISION_EXTRA_COST,
 )
 from bot.utils.database import db
 from bot.utils.helpers import (
     format_styled_message,
+    freeze_tokens,
     get_raw_text,
     get_reply_raw_text,
+    refund_tokens,
 )
-from bot.utils.queue_wrapper import process_with_queue
 from bot.utils.media_core import download_media_file
+from bot.utils.queue_wrapper import process_with_queue
 from bot.utils.whisper_core import transcribe_audio
-from bot.utils.tokens_database import tokens_db
-from bot.owner_settings.config_getters import is_payments_enabled
+from groq import AsyncGroq
 
 logger = logging.getLogger(__name__)
+
+groq_client = AsyncGroq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 
 def split_text(text: str, limit: int = AI_MAX_REPLY_LEN) -> list[str]:
@@ -54,6 +59,52 @@ def split_text(text: str, limit: int = AI_MAX_REPLY_LEN) -> list[str]:
     return [chunk for chunk in chunks if chunk.strip()]
 
 
+def escape_unclosed_markdown(text: str) -> str:
+    chars = list(text)
+    stack = {"*": [], "_": [], "`": []}
+
+    i = 0
+    in_code_block = False
+
+    while i < len(chars):
+        if chars[i] == "\\" and i + 1 < len(chars):
+            i += 2
+            continue
+
+        if i + 2 < len(chars) and chars[i : i + 3] == ["`", "`", "`"]:
+            in_code_block = not in_code_block
+            i += 3
+            continue
+
+        if in_code_block and chars[i] != "`":
+            i += 1
+            continue
+
+        char = chars[i]
+        if char in stack:
+            if stack[char]:
+                stack[char].pop()
+            else:
+                stack[char].append(i)
+        i += 1
+
+    unclosed = sorted(
+        [idx for indices in stack.values() for idx in indices], reverse=True
+    )
+
+    for idx in unclosed:
+        chars.insert(idx, "\\")
+
+    res = "".join(chars)
+
+    if in_code_block:
+        if not res.endswith("\n"):
+            res += "\n"
+        res += "```"
+
+    return res
+
+
 async def ask_local_ai(
     user_prompt: str, system_prompt: str, images: list[str] = None, **kwargs
 ) -> Optional[str]:
@@ -66,6 +117,9 @@ async def ask_local_ai(
     else:
         model_to_use = OLLAMA_MODEL
 
+    max_tokens = kwargs.get("max_tokens", 1024)
+    repeat_penalty = 1.15 if kwargs.get("frequency_penalty", 0.0) > 0 else 1.0
+
     payload = {
         "model": model_to_use,
         "stream": False,
@@ -76,9 +130,8 @@ async def ask_local_ai(
         "options": {
             "temperature": kwargs.get("temperature", 0.4),
             "top_p": kwargs.get("top_p", 0.75),
-            "repeat_penalty": kwargs.get("repeat_penalty", 1.1),
-            "num_ctx": kwargs.get("num_ctx", 1024),
-            "num_predict": kwargs.get("num_predict", 256),
+            "repeat_penalty": repeat_penalty,
+            "num_predict": max_tokens,
         },
     }
 
@@ -100,6 +153,56 @@ async def ask_local_ai(
         except Exception as e:
             logger.error(f"Ошибка при запросе к Ollama: {e}")
             return None
+
+
+async def ask_groq_ai(
+    user_prompt: str, system_prompt: str, images: list[str] = None, **kwargs
+) -> Optional[str]:
+    if not groq_client:
+        logger.error("GROQ_API_KEY не установлен!")
+        return None
+
+    try:
+        if images:
+            model_to_use = GROQ_VISION_MODEL
+            user_content = [{"type": "text", "text": user_prompt}]
+            for img in images:
+                user_content.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{img}"},
+                    }
+                )
+            user_message = {"role": "user", "content": user_content}
+        else:
+            model_to_use = GROQ_MODEL
+            user_message = {"role": "user", "content": user_prompt}
+
+        response = await groq_client.chat.completions.create(
+            model=model_to_use,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                user_message,
+            ],
+            temperature=kwargs.get("temperature", 0.4),
+            top_p=kwargs.get("top_p", 0.75),
+            max_tokens=kwargs.get("max_tokens", 1024),
+            presence_penalty=kwargs.get("presence_penalty", 0.0),
+            frequency_penalty=kwargs.get("frequency_penalty", 0.0),
+            timeout=AI_REQUEST_TIMEOUT,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"Ошибка при запросе к Groq API: {e}")
+        return None
+
+
+async def ask_ai(
+    user_prompt: str, system_prompt: str, images: list[str] = None, **kwargs
+) -> Optional[str]:
+    if AI_PROVIDER == "groq":
+        return await ask_groq_ai(user_prompt, system_prompt, images=images, **kwargs)
+    return await ask_local_ai(user_prompt, system_prompt, images=images, **kwargs)
 
 
 async def unified_ai_worker(
@@ -165,17 +268,17 @@ async def unified_ai_worker(
     else:
         final_prompt = raw_prompt
 
-    user_prompt = persona["prompt_template"].format(prompt=final_prompt)
+    user_prompt = persona.get("prompt_template", "{prompt}").format(prompt=final_prompt)
 
-    return await ask_local_ai(
+    return await ask_ai(
         user_prompt=user_prompt,
         system_prompt=persona["system_prompt"],
         images=base64_images,
-        temperature=persona["temperature"],
-        top_p=persona["top_p"],
-        repeat_penalty=persona["repeat_penalty"],
-        num_ctx=persona["num_ctx"],
-        num_predict=persona["num_predict"],
+        temperature=persona.get("temperature", 0.5),
+        top_p=persona.get("top_p", 0.9),
+        max_tokens=persona.get("max_tokens", 1024),
+        presence_penalty=persona.get("presence_penalty", 0.0),
+        frequency_penalty=persona.get("frequency_penalty", 0.0),
     )
 
 
@@ -189,6 +292,7 @@ async def process_ai_request(message: types.Message, cmd_key: str):
 
     icon = meta["icon"]
     name = meta["name"]
+    user_id = message.from_user.id
 
     raw_text = get_raw_text(message)
     parts = raw_text.split(maxsplit=1) if raw_text else []
@@ -201,17 +305,26 @@ async def process_ai_request(message: types.Message, cmd_key: str):
     reply_msg = message.reply_to_message
 
     action_text = "Анализ запроса"
+    extra_cost = 0
+
     if reply_msg:
         if any(
             [reply_msg.voice, reply_msg.audio, reply_msg.video_note, reply_msg.video]
         ):
             action_text = "Распознавание речи и анализ"
+            extra_cost = AI_AUDIO_EXTRA_COST
         elif reply_msg.photo:
             action_text = "Анализ изображения (Vision)"
+            extra_cost = AI_VISION_EXTRA_COST
+
+    if not await freeze_tokens(message, user_id, cmd_key, extra_cost):
+        return
+
+    target_queue = "lightweights" if AI_PROVIDER == "groq" else "heavyweights"
 
     answer, wait_msg = await process_with_queue(
         message=message,
-        queue_name="heavyweights",
+        queue_name=target_queue,
         icon=icon,
         title=name,
         action_text=action_text,
@@ -224,10 +337,16 @@ async def process_ai_request(message: types.Message, cmd_key: str):
     )
 
     if not answer:
+        await refund_tokens(user_id, cmd_key, extra_cost)
+        error_info = (
+            "Groq API не ответил. Проверь API_KEY."
+            if AI_PROVIDER == "groq"
+            else f"Ollama не ответила. Проверь модели {OLLAMA_MODEL}."
+        )
         error_api = format_styled_message(
             emoji=icon,
             title=name,
-            message=f"❌ Нейросеть не ответила. Проверь, что Ollama запущена и скачаны модели <code>{OLLAMA_MODEL}</code> и <code>{OLLAMA_VISION_MODEL}</code>.",
+            message=f"❌ Нейросеть не ответила. {error_info}",
         )
         if wait_msg:
             try:
@@ -237,6 +356,7 @@ async def process_ai_request(message: types.Message, cmd_key: str):
         return
 
     if answer.startswith("ERROR:"):
+        await refund_tokens(user_id, cmd_key, extra_cost)
         err_type = answer.split("ERROR:", 1)[1]
         if err_type == "EMPTY_PROMPT":
             err_msg = f"❌ Не указан текст или медиа для обработки.\n📝 Напиши текст, либо ответь на текст/голосовое/фото командой <code>{cmd_key}</code>"
@@ -259,7 +379,7 @@ async def process_ai_request(message: types.Message, cmd_key: str):
     first_chunk = format_styled_message(
         emoji=icon,
         title=name,
-        message=f"{chunks[0]}{persona['disclaimer']}",
+        message=escape_unclosed_markdown(f"{chunks[0]}{persona['disclaimer']}"),
         html=False,
     )
 
@@ -269,31 +389,10 @@ async def process_ai_request(message: types.Message, cmd_key: str):
         await message.reply(first_chunk, parse_mode="Markdown")
 
     for chunk in chunks[1:]:
-        await message.answer(chunk, parse_mode="Markdown")
-
-    base_cost = COMMAND_COSTS.get(cmd_key, 0)
-    final_cost = base_cost
-
-    if reply_msg:
-        if any(
-            [reply_msg.voice, reply_msg.audio, reply_msg.video_note, reply_msg.video]
-        ):
-            final_cost += AI_AUDIO_EXTRA_COST
-        elif reply_msg.photo:
-            final_cost += AI_VISION_EXTRA_COST
-
-    if (
-        await is_payments_enabled()
-        and message.from_user.id not in VIP_IDS
-        and final_cost > 0
-    ):
-        await tokens_db.spend_tokens(message.from_user.id, final_cost)
-        logger.info(
-            f"Пользователь {message.from_user.id} потратил {final_cost} токенов на {cmd_key}"
-        )
+        await message.answer(escape_unclosed_markdown(chunk), parse_mode="Markdown")
 
     await db.increment_commands()
-    await db.log_command(cmd_key, message.from_user.id)
+    await db.log_command(cmd_key, user_id)
 
 
 def make_ai_handler(cmd_key: str):

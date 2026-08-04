@@ -4,7 +4,12 @@ from aiogram import types
 from config import COMMAND_METADATA
 from aiogram.types import InlineKeyboardButton
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, create_user_keyboard, spend_tokens
+from bot.utils.helpers import (
+    format_styled_message,
+    create_user_keyboard,
+    freeze_tokens,
+    refund_tokens,
+)
 
 API_ICON = COMMAND_METADATA["!факт"]["icon"]
 API_NAME = COMMAND_METADATA["!факт"]["name"]
@@ -42,9 +47,14 @@ def get_fact_keyboard(user_id: int):
 
 
 async def cmd_fact(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!факт"):
+        return
+
     fact_text = await get_random_fact()
 
     if not fact_text:
+        await refund_tokens(user_id, "!факт")
         error_msg = format_styled_message(
             emoji="❌",
             title="Ошибка",
@@ -54,15 +64,18 @@ async def cmd_fact(message: types.Message):
         return
 
     fact_msg = format_styled_message(emoji=API_ICON, title=API_NAME, message=fact_text)
-
-    await message.reply(fact_msg, reply_markup=get_fact_keyboard(message.from_user.id))
+    await message.reply(fact_msg, reply_markup=get_fact_keyboard(user_id))
 
     await db.increment_commands()
-    await db.log_command("!факт", message.from_user.id)
-    await spend_tokens(message, "!факт")
+    await db.log_command("!факт", user_id)
 
 
 async def more_fact_callback(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+    if not await freeze_tokens(callback_query.message, user_id, "!факт"):
+        await callback_query.answer()
+        return
+
     await callback_query.answer("🔄 Загружаю новый факт...")
 
     fact_text = await get_random_fact()
@@ -71,14 +84,13 @@ async def more_fact_callback(callback_query: types.CallbackQuery):
             emoji=API_ICON, title=API_NAME, message=fact_text
         )
         await callback_query.message.edit_text(
-            fact_msg, reply_markup=get_fact_keyboard(callback_query.from_user.id)
+            fact_msg, reply_markup=get_fact_keyboard(user_id)
         )
-
-        await spend_tokens(callback_query.message, "!факт")
     else:
+        await refund_tokens(user_id, "!факт")
         await callback_query.message.edit_text(
             format_styled_message(
                 emoji="❌", title="Ошибка", message="API Википедии недоступен."
             ),
-            reply_markup=get_fact_keyboard(callback_query.from_user.id),
+            reply_markup=get_fact_keyboard(user_id),
         )

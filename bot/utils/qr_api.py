@@ -3,7 +3,12 @@ from urllib.parse import quote
 from aiogram import types
 from config import COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    freeze_tokens,
+    refund_tokens,
+    get_raw_text,
+)
 
 API_ICON = COMMAND_METADATA["!qr"]["icon"]
 API_NAME = COMMAND_METADATA["!qr"]["name"]
@@ -12,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 async def cmd_qr(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!qr"):
+        return
+
     raw_text = get_raw_text(message)
     parts = raw_text.split(maxsplit=1) if raw_text else []
     text_data = ""
@@ -24,6 +33,7 @@ async def cmd_qr(message: types.Message):
         ).strip()
 
     if not text_data:
+        await refund_tokens(user_id, "!qr")
         await message.reply(
             format_styled_message(
                 emoji=API_ICON,
@@ -47,8 +57,8 @@ async def cmd_qr(message: types.Message):
             await message.reply(f"{caption}\n\n🔗 Скачать QR: {qr_url}")
 
         await db.increment_commands()
-        await db.log_command("!qr", message.from_user.id)
-        await spend_tokens(message, "!qr")
+        await db.log_command("!qr", user_id)
 
     except Exception as e:
+        await refund_tokens(user_id, "!qr")
         logger.error(f"Критическая ошибка генерации QR: {e}")

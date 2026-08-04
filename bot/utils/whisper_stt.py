@@ -5,12 +5,15 @@ import html
 from aiogram.types import FSInputFile
 from config import (
     WHISPER_MAX_DURATION_SECONDS,
-    COMMAND_COSTS,
-    VIP_IDS,
     COMMAND_METADATA,
 )
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    freeze_tokens,
+    refund_tokens,
+    get_raw_text,
+)
 from bot.utils.text_utils import split_text_to_chunks
 from bot.utils.translation_core import resolve_lang_code, translate_text, text_to_speech
 from bot.utils.media_core import (
@@ -21,7 +24,6 @@ from bot.utils.media_core import (
 )
 from bot.utils.whisper_core import transcribe_audio
 from bot.utils.queue_wrapper import process_with_queue
-from bot.owner_settings.config_getters import is_payments_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +43,12 @@ async def _worker_transcribe(reply_msg, bot):
 
 
 async def cmd_transcribe(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!расшифровка"):
+        return
+
     if not message.reply_to_message:
+        await refund_tokens(user_id, "!расшифровка")
         usage_msg = format_styled_message(
             emoji=API_ICON,
             title=API_NAME,
@@ -68,6 +75,7 @@ async def cmd_transcribe(message: types.Message):
     )
 
     if not has_media:
+        await refund_tokens(user_id, "!расшифровка")
         error_type = format_styled_message(
             emoji=API_ICON,
             title=API_NAME,
@@ -104,6 +112,7 @@ async def cmd_transcribe(message: types.Message):
     )
 
     if not result:
+        await refund_tokens(user_id, "!расшифровка")
         if status_msg:
             await status_msg.edit_text(
                 format_styled_message(
@@ -123,6 +132,7 @@ async def cmd_transcribe(message: types.Message):
         pass
 
     if not transcribed_text:
+        await refund_tokens(user_id, "!расшифровка")
         if status_msg:
             await status_msg.edit_text(
                 format_styled_message(
@@ -160,8 +170,7 @@ async def cmd_transcribe(message: types.Message):
         )
 
     await db.increment_commands()
-    await db.log_command("!расшифровка", message.from_user.id)
-    await spend_tokens(message, "!расшифровка")
+    await db.log_command("!расшифровка", user_id)
 
 
 async def _worker_translate_stt(reply_msg, bot):
@@ -176,7 +185,12 @@ async def _worker_translate_stt(reply_msg, bot):
 
 
 async def cmd_translate(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!перевести"):
+        return
+
     if not message.reply_to_message:
+        await refund_tokens(user_id, "!перевести")
         await message.reply(
             format_styled_message(
                 emoji=TRANS_ICON,
@@ -186,7 +200,6 @@ async def cmd_translate(message: types.Message):
         )
         return
 
-    payments_enabled = await is_payments_enabled()
     reply_msg = message.reply_to_message
     has_media = any(
         [reply_msg.voice, reply_msg.video_note, reply_msg.video, reply_msg.audio]
@@ -217,17 +230,11 @@ async def cmd_translate(message: types.Message):
                 )
             )
 
-            if payments_enabled:
-                from bot.utils.tokens_database import tokens_db
-
-                cost = COMMAND_COSTS.get("!перевести", 0)
-                if cost > 0 and message.from_user.id not in VIP_IDS:
-                    await tokens_db.spend_tokens(message.from_user.id, cost)
-
             await db.increment_commands()
-            await db.log_command("!перевести", message.from_user.id)
+            await db.log_command("!перевести", user_id)
             return
         except Exception as e:
+            await refund_tokens(user_id, "!перевести")
             logger.error(f"❌ Ошибка перевода текста: {e}")
             await status_msg.edit_text(
                 format_styled_message(
@@ -239,6 +246,7 @@ async def cmd_translate(message: types.Message):
             return
 
     if not has_media:
+        await refund_tokens(user_id, "!перевести")
         await message.reply(
             format_styled_message(
                 emoji=TRANS_ICON,
@@ -260,6 +268,7 @@ async def cmd_translate(message: types.Message):
     )
 
     if not result or not result[1]:
+        await refund_tokens(user_id, "!перевести")
         if status_msg:
             await status_msg.edit_text(
                 format_styled_message(
@@ -275,6 +284,7 @@ async def cmd_translate(message: types.Message):
 
     try:
         if not original_text:
+            await refund_tokens(user_id, "!перевести")
             if status_msg:
                 await status_msg.edit_text(
                     format_styled_message(
@@ -308,6 +318,7 @@ async def cmd_translate(message: types.Message):
         tts_path = file_path + "_tts.mp3"
 
         if not await text_to_speech(translated_text, tts_path, lang_code=target_lang):
+            await refund_tokens(user_id, "!перевести")
             if status_msg:
                 await status_msg.edit_text(
                     format_styled_message(
@@ -388,6 +399,7 @@ async def cmd_translate(message: types.Message):
                 else:
                     await message.reply_video(video_file, caption=main_caption)
             else:
+                await refund_tokens(user_id, "!перевести")
                 if status_msg:
                     await status_msg.edit_text(
                         format_styled_message(
@@ -413,17 +425,11 @@ async def cmd_translate(message: types.Message):
                 )
             )
 
-        if payments_enabled:
-            from bot.utils.tokens_database import tokens_db
-
-            cost = COMMAND_COSTS.get("!перевести", 0)
-            if cost > 0 and message.from_user.id not in VIP_IDS:
-                await tokens_db.spend_tokens(message.from_user.id, cost)
-
         await db.increment_commands()
-        await db.log_command("!перевести", message.from_user.id)
+        await db.log_command("!перевести", user_id)
 
     except Exception as e:
+        await refund_tokens(user_id, "!перевести")
         logger.error(f"❌ Критическая ошибка в cmd_translate: {e}", exc_info=True)
         if "status_msg" in locals() and status_msg:
             await status_msg.edit_text(

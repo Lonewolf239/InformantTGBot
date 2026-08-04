@@ -5,7 +5,12 @@ from aiogram import types
 from aiogram.types import FSInputFile
 from config import COMMAND_METADATA
 from bot.utils.database import db
-from bot.utils.helpers import format_styled_message, spend_tokens, get_raw_text
+from bot.utils.helpers import (
+    format_styled_message,
+    freeze_tokens,
+    refund_tokens,
+    get_raw_text,
+)
 from bot.utils.youtube_api import _sync_download
 from bot.utils.queue_wrapper import process_with_queue
 
@@ -88,7 +93,12 @@ async def _process_replace_audio(
 
 
 async def cmd_replace_audio(message: types.Message):
+    user_id = message.from_user.id
+    if not await freeze_tokens(message, user_id, "!звук"):
+        return
+
     if not message.reply_to_message:
+        await refund_tokens(user_id, "!звук")
         await message.reply(
             format_styled_message(
                 emoji="❌",
@@ -124,6 +134,7 @@ async def cmd_replace_audio(message: types.Message):
         )
 
     if not video_msg or (not audio_msg and not audio_url):
+        await refund_tokens(user_id, "!звук")
         await message.reply(
             format_styled_message(
                 emoji="❌",
@@ -133,7 +144,6 @@ async def cmd_replace_audio(message: types.Message):
         )
         return
 
-    user_id = message.from_user.id
     msg_id = message.message_id
     vid_path = f"temp_snd_vid_{user_id}_{msg_id}.mp4"
     base_aud_path = f"temp_snd_aud_{user_id}_{msg_id}.media"
@@ -158,6 +168,7 @@ async def cmd_replace_audio(message: types.Message):
         )
 
         if not queue_result:
+            await refund_tokens(user_id, "!звук")
             if status_msg:
                 await status_msg.edit_text(
                     format_styled_message(
@@ -171,6 +182,7 @@ async def cmd_replace_audio(message: types.Message):
         success, actual_aud_path = queue_result
 
         if not success:
+            await refund_tokens(user_id, "!звук")
             await status_msg.edit_text(
                 format_styled_message(
                     emoji="❌",
@@ -199,10 +211,10 @@ async def cmd_replace_audio(message: types.Message):
         )
 
         await db.increment_commands()
-        await db.log_command("!звук", message.from_user.id)
-        await spend_tokens(message, "!звук")
+        await db.log_command("!звук", user_id)
 
     except Exception as e:
+        await refund_tokens(user_id, "!звук")
         logger.error(f"Ошибка команды !звук: {e}")
         await message.reply(
             format_styled_message(
