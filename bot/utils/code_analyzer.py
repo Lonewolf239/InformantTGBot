@@ -3,16 +3,19 @@ import inspect
 import logging
 import re
 import textwrap
+from typing import Optional
+
 from aiogram import types
-from config import COMMAND_METADATA
+from config import AI_PROVIDER, COMMAND_METADATA
 from bot.utils.ai_api import ask_ai
 from bot.utils.database import db
 from bot.utils.helpers import (
     format_styled_message,
     freeze_tokens,
-    refund_tokens,
     get_raw_text,
+    refund_tokens,
 )
+from bot.utils.queue_wrapper import process_with_queue
 
 API_ICON = COMMAND_METADATA["!анализ"]["icon"]
 API_NAME = COMMAND_METADATA["!анализ"]["name"]
@@ -71,8 +74,32 @@ def get_deep_source(func, max_depth=1):
     return "\n\n".join(sources)
 
 
+async def code_explain_worker(source_code: str, base_command: str) -> Optional[str]:
+    system_prompt = (
+        "Ты — дружелюбный ИИ-проводник по возможности бота.\n"
+        "Твоя задача — изучить исходный код команды бота и объяснить РЯДОВОМУ ПОЛЬЗОВАТЕЛЮ (не программисту), "
+        "как и почему эта команда работает.\n\n"
+        "Требования к ответу:\n"
+        "1. Объясняй принцип работы простым, понятным и увлекательным языком. Избегай сложного программистского сленга "
+        "(переменные, функции, AST, декораторы, асинхронность и т.д.) и не вдавайся в ревью кода.\n"
+        "2. НЕ ищи ошибки, баги или узкие места — сосредоточься только на объяснении алгоритма для обычного юзера.\n"
+        "3. Пошагово расскажи: что команда делает в момент вызова, с какими данными работает и какой результат отдаёт.\n"
+        "4. Обязательно используй HTML-теги для оформления (<b>жирный</b>, <i>курсив</i>, <code>код</code>). Категорически запрещено использовать Markdown."
+    )
+
+    user_prompt = (
+        f"Объясни простому пользователю, как работает команда <code>{base_command}</code>, основываясь на её коде:\n\n"
+        f"<pre>{source_code}</pre>"
+    )
+
+    answer = await ask_ai(user_prompt=user_prompt, system_prompt=system_prompt)
+    if answer:
+        answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
+    return answer
+
+
 async def cmd_analyze_code(message: types.Message):
-    from bot.handlers.public import COMMAND_HANDLERS, ALIAS_TO_BASE
+    from bot.handlers.public import ALIAS_TO_BASE, COMMAND_HANDLERS
 
     raw_text = get_raw_text(message)
     args = raw_text.split(maxsplit=1) if raw_text else []
@@ -115,55 +142,43 @@ async def cmd_analyze_code(message: types.Message):
     if not await freeze_tokens(message, user_id, cmd_key):
         return
 
-    system_prompt = (
-        "Ты — Senior Python Developer и опытный AI-анализатор кода. "
-        "Твоя задача — принимать исходный код функций Telegram-бота (на aiogram 3) и проводить их ревью.\n"
-        "Тебе будет передан код основного обработчика (Уровень 1), а также код вспомогательных функций (Уровень 2), которые он вызывает.\n"
-        "1. Кратко объясни логику работы этой цепочки вызовов.\n"
-        "2. Укажи на возможные ошибки, баги, или узкие места.\n"
-        "3. Предложи улучшения.\n"
-        "Отвечай структурированно. Обязательно используй HTML-теги (<b>жирный</b>, <i>курсив</i>, <code>код</code>, <pre>блоки кода</pre>). Категорически запрещено использовать Markdown."
+    target_queue = "lightweights" if AI_PROVIDER == "groq" else "heavyweights"
+
+    answer, wait_msg = await process_with_queue(
+        message=message,
+        queue_name=target_queue,
+        icon=API_ICON,
+        title=API_NAME,
+        action_text="Разбор логики команды",
+        func=code_explain_worker,
+        source_code=source_code,
+        base_command=base_command,
     )
 
-    user_prompt = f"Проанализируй цепочку вызовов для команды <code>{base_command}</code>:\n\n<pre>{source_code}</pre>"
-
-    wait_msg = await message.reply(
-        format_styled_message(
-            emoji="⏳",
-            title=API_NAME,
-            message="<i>Ищу связи, читаю функции и анализирую исходный код...</i>",
+    if not answer:
+        await refund_tokens(user_id, cmd_key)
+        error_msg = format_styled_message(
+            emoji="❌",
+            title="ОШИБКА",
+            message="Нейросеть не ответила или не удалось сформировать объяснение.",
         )
+        if wait_msg:
+            try:
+                await wait_msg.edit_text(error_msg)
+            except Exception:
+                await message.reply(error_msg)
+        return
+
+    formatted_answer = format_styled_message(
+        emoji=API_ICON,
+        title=f"КАК РАБОТАЕТ: {base_command}",
+        message=answer,
     )
 
     try:
-        answer = await ask_ai(user_prompt=user_prompt, system_prompt=system_prompt)
+        await wait_msg.edit_text(formatted_answer)
+    except Exception:
+        await message.reply(formatted_answer)
 
-        if not answer:
-            await refund_tokens(user_id, cmd_key)
-            return await wait_msg.edit_text(
-                format_styled_message(
-                    emoji="❌", title="ОШИБКА", message="Нейросеть не ответила."
-                )
-            )
-
-        answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
-
-        await wait_msg.edit_text(
-            format_styled_message(
-                emoji=API_ICON, title=f"РЕВЬЮ: {base_command}", message=answer
-            )
-        )
-
-        await db.increment_commands()
-        await db.log_command(cmd_key, user_id)
-
-    except Exception as e:
-        logger.error(f"Ошибка при анализе кода ИИ: {e}")
-        await refund_tokens(user_id, cmd_key)
-        await wait_msg.edit_text(
-            format_styled_message(
-                emoji="❌",
-                title="ОШИБКА ИИ",
-                message=f"Произошла ошибка при анализе:\n<code>{e}</code>",
-            )
-        )
+    await db.increment_commands()
+    await db.log_command(cmd_key, user_id)
