@@ -488,7 +488,7 @@ AI_PERSONAS = {
         "max_tokens": 1024,
         "presence_penalty": 0.0,
         "frequency_penalty": 0.0,
-        "disclaimer": "\n\n*⚠️ ИИ может ошибаться. Проверяй важную информацию.*",
+        "disclaimer": "\n\n<b>⚠️ ИИ может ошибаться. Проверяй важную информацию.</b>",
         "strip_quotes": False,
     },
     "!нейрохам": {
@@ -506,7 +506,7 @@ AI_PERSONAS = {
         "max_tokens": 512,
         "presence_penalty": 0.4,
         "frequency_penalty": 0.4,
-        "disclaimer": "\n\n*⚠️ Режим экспериментальный, нейросеть может быть грубой.*",
+        "disclaimer": "\n\n<b>⚠️ Режим экспериментальный, нейросеть может нести чушь.</b>",
         "strip_quotes": True,
     },
     "!психолог": {
@@ -522,7 +522,7 @@ AI_PERSONAS = {
         "max_tokens": 1024,
         "presence_penalty": 0.1,
         "frequency_penalty": 0.2,
-        "disclaimer": "\n\n*⚠️ ИИ не является врачом. При необходимости обратитесь к специалисту.*",
+        "disclaimer": "\n\n<b>⚠️ ИИ не является врачом. При необходимости обратитесь к специалисту.</b>",
         "strip_quotes": False,
     },
     "!пересказ": {
@@ -540,7 +540,7 @@ AI_PERSONAS = {
         "max_tokens": 1024,
         "presence_penalty": 0.0,
         "frequency_penalty": 0.0,
-        "disclaimer": "\n\n*📝 Краткая выжимка (сгенерировано ИИ)*",
+        "disclaimer": "\n\n<b>📝 Краткая выжимка (сгенерировано ИИ)</b>",
         "strip_quotes": False,
     },
     "!душнила": {
@@ -555,7 +555,7 @@ AI_PERSONAS = {
         "max_tokens": 1024,
         "presence_penalty": 0.5,
         "frequency_penalty": 0.5,
-        "disclaimer": "\n\n*⚠️ Режим экспериментальный, нейросеть душнит.*",
+        "disclaimer": "\n\n<b>⚠️ Режим экспериментальный, нейросеть может нести чушь.</b>",
         "strip_quotes": False,
     },
     "!синьор": {
@@ -570,7 +570,7 @@ AI_PERSONAS = {
         "max_tokens": 512,
         "presence_penalty": 0.4,
         "frequency_penalty": 0.4,
-        "disclaimer": "\n\n*⚠️ Режим экспериментальный, ИИ выгорел.*",
+        "disclaimer": "\n\n<b>⚠️ Режим экспериментальный, нейросеть может нести чушь.</b>",
         "strip_quotes": False,
     },
     "!гопник": {
@@ -588,7 +588,7 @@ AI_PERSONAS = {
         "max_tokens": 512,
         "presence_penalty": 0.3,
         "frequency_penalty": 0.4,
-        "disclaimer": "\n\n*⚠️ Режим экспериментальный, ИИ быкует.*",
+        "disclaimer": "\n\n<b>⚠️ Режим экспериментальный, нейросеть может нести чушь.</b>",
         "strip_quotes": True,
     },
     "!шутник": {
@@ -603,7 +603,7 @@ AI_PERSONAS = {
         "max_tokens": 512,
         "presence_penalty": 0.5,
         "frequency_penalty": 0.5,
-        "disclaimer": "\n\n*⚠️ Режим экспериментальный, ИИ шутит.*",
+        "disclaimer": "\n\n<b>⚠️ Режим экспериментальный, нейросеть может нести чушь.</b>",
         "strip_quotes": True,
     },
     "!сказка": {
@@ -618,7 +618,7 @@ AI_PERSONAS = {
         "max_tokens": 1024,
         "presence_penalty": 0.2,
         "frequency_penalty": 0.2,
-        "disclaimer": "\n\n*🧚 Сгенерировано ИИ-Сказочником*",
+        "disclaimer": "\n\n<b>⚠️ Режим экспериментальный, нейросеть может нести чушь.</b>",
         "strip_quotes": True,
     },
     "!бабка": {
@@ -636,7 +636,7 @@ AI_PERSONAS = {
         "max_tokens": 512,
         "presence_penalty": 0.4,
         "frequency_penalty": 0.4,
-        "disclaimer": "\n\n*⚠️ Режим экспериментальный, бабка ворчит.*",
+        "disclaimer": "\n\n<b>⚠️ Режим экспериментальный, нейросеть может нести чушь.</b>",
         "strip_quotes": True,
     },
     "!алкаш": {
@@ -654,7 +654,7 @@ AI_PERSONAS = {
         "max_tokens": 512,
         "presence_penalty": 0.5,
         "frequency_penalty": 0.5,
-        "disclaimer": "\n\n*⚠️ Режим экспериментальный, ИИ в запое.*",
+        "disclaimer": "\n\n<b>⚠️ Режим экспериментальный, нейросеть может нести чушь.</b>",
         "strip_quotes": True,
     },
 }

@@ -1,10 +1,10 @@
 import base64
+import html
 import io
 import logging
 import os
 from typing import Optional
 import aiohttp
-from aiogram.exceptions import TelegramBadRequest
 from aiogram import types
 from config import (
     AI_AUDIO_EXTRA_COST,
@@ -58,52 +58,6 @@ def split_text(text: str, limit: int = AI_MAX_REPLY_LEN) -> list[str]:
         chunks.append(text[:cut].strip())
         text = text[cut:].strip()
     return [chunk for chunk in chunks if chunk.strip()]
-
-
-def escape_unclosed_markdown(text: str) -> str:
-    chars = list(text)
-    stack = {"*": [], "_": [], "`": []}
-
-    i = 0
-    in_code_block = False
-
-    while i < len(chars):
-        if chars[i] == "\\" and i + 1 < len(chars):
-            i += 2
-            continue
-
-        if i + 2 < len(chars) and chars[i : i + 3] == ["`", "`", "`"]:
-            in_code_block = not in_code_block
-            i += 3
-            continue
-
-        if in_code_block and chars[i] != "`":
-            i += 1
-            continue
-
-        char = chars[i]
-        if char in stack:
-            if stack[char]:
-                stack[char].pop()
-            else:
-                stack[char].append(i)
-        i += 1
-
-    unclosed = sorted(
-        [idx for indices in stack.values() for idx in indices], reverse=True
-    )
-
-    for idx in unclosed:
-        chars.insert(idx, "\\")
-
-    res = "".join(chars)
-
-    if in_code_block:
-        if not res.endswith("\n"):
-            res += "\n"
-        res += "```"
-
-    return res
 
 
 async def ask_local_ai(
@@ -380,32 +334,16 @@ async def process_ai_request(message: types.Message, cmd_key: str):
     first_chunk = format_styled_message(
         emoji=icon,
         title=name,
-        message=escape_unclosed_markdown(f"{chunks[0]}{persona['disclaimer']}"),
-        html=False,
+        message=f"{html.escape(chunks[0])}{persona['disclaimer']}",
     )
 
     try:
-        await wait_msg.edit_text(first_chunk, parse_mode="Markdown")
-    except TelegramBadRequest:
-        logger.warning(
-            "Failed to parse Markdown in first_chunk. Falling back to plain text."
-        )
-        try:
-            await wait_msg.edit_text(first_chunk)
-        except Exception:
-            await message.reply(first_chunk)
+        await wait_msg.edit_text(first_chunk)
     except Exception:
-        await message.reply(first_chunk, parse_mode="Markdown")
+        await message.reply(first_chunk)
 
     for chunk in chunks[1:]:
-        safe_chunk = escape_unclosed_markdown(chunk)
-        try:
-            await message.answer(safe_chunk, parse_mode="Markdown")
-        except TelegramBadRequest:
-            logger.warning(
-                "Failed to parse Markdown in subsequent chunk. Falling back to plain text."
-            )
-            await message.answer(safe_chunk)
+        await message.answer(html.escape(chunk))
 
     await db.increment_commands()
     await db.log_command(cmd_key, user_id)
