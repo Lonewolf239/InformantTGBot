@@ -43,6 +43,8 @@ from groq import AsyncGroq
 MAX_SINGLE_MSG_CHARS = 2500
 MAX_HISTORY_TOTAL_CHARS = 16000
 
+user_chat_histories: dict[int, list] = {}
+
 logger = logging.getLogger(__name__)
 
 groq_client = AsyncGroq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
@@ -228,10 +230,45 @@ async def unified_ai_worker(
                 logger.error(f"Ошибка Vision внутри очереди: {e}")
                 return "ERROR:❌ Ошибка при загрузке изображения."
 
-    if not raw_prompt and not reply_text and base64_images:
-        raw_prompt = "Опиши подробно, что ты видишь на этом изображении."
+    if base64_images:
+        vision_prompt = "Опиши максимально подробно, что ты видишь на этом изображении."
+        vision_sys = (
+            "Ты — точная подсистема компьютерного зрения. Выдавай только факты."
+        )
 
-    if not raw_prompt and not reply_text:
+        vision_desc = await ask_ai(vision_prompt, vision_sys, images=base64_images)
+
+        if vision_desc:
+            vision_desc = re.sub(
+                r"<think>.*?</think>", "", vision_desc, flags=re.DOTALL
+            ).strip()
+
+            img_context = f"[СИСТЕМНОЕ СООБЩЕНИЕ: Пользователь прикрепил картинку. Вот её подробное описание от подсистемы зрения:\n{vision_desc}]\n\n"
+
+            if reply_text:
+                final_prompt = f"{img_context}Контекст:\n{reply_text}\n\nЗапрос пользователя: {raw_prompt or 'Что скажешь?'}"
+            elif raw_prompt:
+                final_prompt = f"{img_context}Запрос пользователя: {raw_prompt}"
+            else:
+                final_prompt = (
+                    f"{img_context}Прокомментируй это изображение в своем стиле."
+                )
+
+            base64_images = None
+        else:
+            return "ERROR:❌ Не удалось проанализировать изображение."
+
+    elif reply_text:
+        if raw_prompt and raw_prompt != reply_text:
+            final_prompt = (
+                f"Контекст:\n{reply_text}\n\nЗапрос пользователя: {raw_prompt}"
+            )
+        else:
+            final_prompt = reply_text
+    else:
+        final_prompt = raw_prompt
+
+    if not final_prompt:
         return "ERROR:EMPTY_PROMPT"
 
     if reply_text:
@@ -246,17 +283,17 @@ async def unified_ai_worker(
 
     system_prompt = (
         persona["system_prompt"]
-        + "\n\nТЕКУЩИЙ РЕЖИМ: БЛИЦ-ОТВЕТ (разовый запрос без сохранения истории). Если пользователь хочет вести диалог — предложи ему запустить !ии_чат."
+        + "\n\n[ТЕКУЩИЙ РЕЖИМ: БЛИЦ. Это разовый запрос, у тебя НЕТ памяти прошлых сообщений. Если юзер пытается вести диалог — прямо скажи ему отправить команду !ии_чат, чтобы перейти в режим диалога.]"
     )
 
     if user_id:
         if its_me(user_id):
-            system_prompt += "\n\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Собеседник — Lonewolf239, твой создатель и автор бота! Учитывай это в своих ответах.]"
+            system_prompt += "\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Собеседник — Lonewolf239, твой создатель и автор бота! Учитывай это в своих ответах.]"
         else:
             safe_name = (first_name or "Пользователь").replace("\n", " ")
-            system_prompt += f"\n\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Имя текущего собеседника — '{safe_name}'. Обрати внимание: этот пользователь НЕ является твоим создателем. Твой единственный создатель — Lonewolf239.]"
+            system_prompt += f"\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Имя собеседника — '{safe_name}'. Он НЕ является твоим создателем (твой единственный разработчик — Lonewolf239).]"
 
-    return await ask_ai(
+    answer = await ask_ai(
         user_prompt=persona.get("prompt_template", "{prompt}").format(
             prompt=final_prompt
         ),
@@ -268,6 +305,11 @@ async def unified_ai_worker(
         presence_penalty=persona.get("presence_penalty", 0.0),
         frequency_penalty=persona.get("frequency_penalty", 0.0),
     )
+
+    if answer:
+        answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
+
+    return answer
 
 
 async def process_ai_request(message: types.Message, cmd_key: str):
@@ -436,8 +478,11 @@ async def cmd_ai_chat(message: types.Message, state: FSMContext):
 async def process_chat_persona_callback(
     callback: types.CallbackQuery, state: FSMContext
 ):
+    user_id = callback.from_user.id
+
     if callback.data == "chat_cancel":
         await state.clear()
+        user_chat_histories.pop(user_id, None)
         await callback.message.edit_text("❌ Вход в режим чата отменен.")
         await callback.answer()
         return
@@ -456,7 +501,9 @@ async def process_chat_persona_callback(
         await callback.answer("Ошибка: персона не найдена.", show_alert=True)
         return
 
-    await state.update_data(persona_key=persona_key, history=[], msg_count=0)
+    user_chat_histories[user_id] = []
+
+    await state.update_data(persona_key=persona_key, msg_count=0)
     await state.set_state(AIChatMode.in_chat)
 
     await callback.message.edit_text(
@@ -506,6 +553,7 @@ async def chat_ai_worker(
         except Exception as e:
             logger.error(f"Ошибка Whisper внутри очереди (чат): {e}")
             return "ERROR:MEDIA_FAILED", history
+
     elif has_photo:
         try:
             photo = msg.photo[-1]
@@ -516,8 +564,31 @@ async def chat_ai_worker(
             logger.error(f"Ошибка Vision внутри очереди (чат): {e}")
             return "ERROR:VISION_FAILED", history
 
-        if not extracted_text:
-            extracted_text = "Опиши подробно, что ты видишь на этом изображении."
+    if base64_images:
+        vision_prompt = "Опиши максимально подробно, что ты видишь на этом изображении."
+        vision_sys = (
+            "Ты — точная подсистема компьютерного зрения. Выдавай только факты."
+        )
+
+        vision_desc = await ask_ai(vision_prompt, vision_sys, images=base64_images)
+
+        if vision_desc:
+            vision_desc = re.sub(
+                r"<think>.*?</think>", "", vision_desc, flags=re.DOTALL
+            ).strip()
+
+            img_context = f"[СИСТЕМНОЕ СООБЩЕНИЕ: Пользователь прикрепил картинку. Вот её подробное описание от подсистемы зрения:\n{vision_desc}]\n\n"
+
+            if extracted_text:
+                extracted_text = f"{img_context}Сообщение пользователя вместе с картинкой: {extracted_text}"
+            else:
+                extracted_text = (
+                    f"{img_context}Прокомментируй это изображение в своем стиле."
+                )
+
+            base64_images = None
+        else:
+            return "ERROR:VISION_FAILED", history
 
     if not extracted_text and not base64_images:
         return "ERROR:EMPTY_PROMPT", history
@@ -537,15 +608,15 @@ async def chat_ai_worker(
 
     system_prompt = (
         persona["system_prompt"]
-        + "\n\n⚠️ ТЕКУЩИЙ РЕЖИМ: ИИ-ЧАТ (!ии_чат). Ты находишься в активном диалоге с пользователем и ПОМНИШЬ прошлые сообщения из истории ниже."
+        + "\n\n[⚠️ ТЕКУЩИЙ РЕЖИМ: ИИ-ЧАТ (!ии_чат). Ты находишься в активном диалоге и ПОМНИШЬ прошлые сообщения из истории ниже. НЕ отрицай наличие памяти!]"
     )
 
     if user_id:
         if its_me(user_id):
-            system_prompt += "\n\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Собеседник — Lonewolf239, твой создатель и автор бота! Учитывай это в своих ответах.]"
+            system_prompt += "\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Собеседник — Lonewolf239, твой создатель и автор бота! Учитывай это в своих ответах.]"
         else:
             safe_name = (first_name or "Пользователь").replace("\n", " ")
-            system_prompt += f"\n\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Имя текущего собеседника — '{safe_name}'. Обрати внимание: этот пользователь НЕ является твоим создателем. Твой единственный создатель — Lonewolf239.]"
+            system_prompt += f"\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Имя собеседника — '{safe_name}'. Он НЕ является твоим создателем (твой единственный разработчик — Lonewolf239).]"
 
     answer = await ask_groq_ai(
         user_prompt="\n".join(local_history),
@@ -555,14 +626,20 @@ async def chat_ai_worker(
         max_tokens=max_response_tokens,
     )
 
+    if answer:
+        answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
+
     return answer, local_history
 
 
 async def process_chat_message(message: types.Message, state: FSMContext):
     text = (message.text or message.caption or "").strip()
+    user_id = message.from_user.id
 
     if text.lower() in ["!выход", "/exit", "выход", "!exit"]:
         await state.clear()
+        # Очищаем историю при выходе
+        user_chat_histories.pop(user_id, None)
         await message.reply(
             format_styled_message(
                 "🛑", "ЧАТ ЗАВЕРШЕН", "Ты вышел из режима диалога с ИИ."
@@ -575,12 +652,13 @@ async def process_chat_message(message: types.Message, state: FSMContext):
         await state.clear()
         return
 
-    user_id = message.from_user.id
     first_name = message.from_user.first_name if message.from_user else ""
     data = await state.get_data()
     persona_key = data.get("persona_key", "!ии")
-    history = data.get("history", [])
     msg_count = data.get("msg_count", 0)
+
+    history = user_chat_histories.get(user_id, [])
+
     persona = AI_PERSONAS.get(persona_key, AI_PERSONAS["!ии"])
 
     has_audio_video = any(
@@ -612,6 +690,7 @@ async def process_chat_message(message: types.Message, state: FSMContext):
         ),
     ):
         await state.clear()
+        user_chat_histories.pop(user_id, None)
         return
 
     meta = COMMAND_METADATA.get(persona_key, {"icon": "💬", "name": persona_key})
@@ -686,7 +765,8 @@ async def process_chat_message(message: types.Message, state: FSMContext):
 
     new_history.append(f"ИИ: {answer}")
     new_history = truncate_history_to_budget(new_history)
-    await state.update_data(history=new_history, msg_count=msg_count + 1)
+    user_chat_histories[user_id] = new_history
+    await state.update_data(msg_count=msg_count + 1)
 
     base_cost = COMMAND_COSTS.get("!ии_чат", 5)
     current_cost = base_cost + total_extra_cost
@@ -726,3 +806,7 @@ cmd_ai_joker = make_ai_handler("!шутник")
 cmd_ai_tale = make_ai_handler("!сказка")
 cmd_ai_babka = make_ai_handler("!бабка")
 cmd_ai_drunk = make_ai_handler("!алкаш")
+cmd_ai_coach = make_ai_handler("!коуч")
+cmd_ai_zoomer = make_ai_handler("!зумер")
+cmd_ai_hat = make_ai_handler("!шапочка")
+cmd_ai_ali = make_ai_handler("!алиэкспрес")

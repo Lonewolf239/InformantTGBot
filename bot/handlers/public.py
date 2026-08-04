@@ -33,6 +33,10 @@ from bot.utils.ai_api import (
     cmd_ai_tale,
     cmd_ai_babka,
     cmd_ai_drunk,
+    cmd_ai_coach,
+    cmd_ai_zoomer,
+    cmd_ai_hat,
+    cmd_ai_ali,
 )
 from bot.utils.database import db
 from bot.handlers.nsfw_settings import cmd_nsfw_settings
@@ -384,6 +388,10 @@ COMMAND_HANDLERS = {
     "!сказка": cmd_ai_tale,
     "!бабка": cmd_ai_babka,
     "!алкаш": cmd_ai_drunk,
+    "!коуч": cmd_ai_coach,
+    "!зумер": cmd_ai_zoomer,
+    "!шапочка": cmd_ai_hat,
+    "!алиэкспрес": cmd_ai_ali,
     "!перевести": cmd_translate,
     "!скачать": cmd_download_yt,
     "!трек": cmd_music,
