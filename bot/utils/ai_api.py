@@ -1,5 +1,6 @@
 import base64
 import html
+import re
 import io
 import logging
 import os
@@ -58,6 +59,18 @@ def split_text(text: str, limit: int = AI_MAX_REPLY_LEN) -> list[str]:
         chunks.append(text[:cut].strip())
         text = text[cut:].strip()
     return [chunk for chunk in chunks if chunk.strip()]
+
+
+def format_md_to_html(text: str) -> str:
+    safe_text = html.escape(text)
+
+    safe_text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", safe_text)
+    safe_text = re.sub(r"__(.*?)__", r"<u>\1</u>", safe_text)
+    safe_text = re.sub(r"(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)", r"<i>\1</i>", safe_text)
+    safe_text = re.sub(r"```(.*?)```", r"<pre>\1</pre>", safe_text, flags=re.DOTALL)
+    safe_text = re.sub(r"`(.*?)`", r"<code>\1</code>", safe_text)
+
+    return safe_text
 
 
 async def ask_local_ai(
@@ -334,7 +347,7 @@ async def process_ai_request(message: types.Message, cmd_key: str):
     first_chunk = format_styled_message(
         emoji=icon,
         title=name,
-        message=f"{html.escape(chunks[0])}{persona['disclaimer']}",
+        message=f"{format_md_to_html(chunks[0])}{persona['disclaimer']}",
     )
 
     try:
@@ -343,7 +356,7 @@ async def process_ai_request(message: types.Message, cmd_key: str):
         await message.reply(first_chunk)
 
     for chunk in chunks[1:]:
-        await message.answer(html.escape(chunk))
+        await message.answer(format_md_to_html(chunk))
 
     await db.increment_commands()
     await db.log_command(cmd_key, user_id)
