@@ -7,7 +7,7 @@ from typing import Optional
 
 from aiogram import types
 from config import AI_PROVIDER, COMMAND_METADATA
-from bot.utils.ai_api import ask_ai
+from bot.utils.ai_api import ask_ai, format_md_to_html, split_text
 from bot.utils.database import db
 from bot.utils.helpers import (
     format_styled_message,
@@ -83,8 +83,7 @@ async def code_explain_worker(source_code: str, base_command: str) -> Optional[s
         "1. Объясняй принцип работы простым, понятным и увлекательным языком. Избегай сложного программистского сленга "
         "(переменные, функции, AST, декораторы, асинхронность и т.д.) и не вдавайся в ревью кода.\n"
         "2. НЕ ищи ошибки, баги или узкие места — сосредоточься только на объяснении алгоритма для обычного юзера.\n"
-        "3. Пошагово расскажи: что команда делает в момент вызова, с какими данными работает и какой результат отдаёт.\n"
-        "4. Обязательно используй HTML-теги для оформления (<b>жирный</b>, <i>курсив</i>, <code>код</code>). Категорически запрещено использовать Markdown."
+        "3. Пошагово расскажи: что команда делает в момент вызова, с какими данными работает и какой результат отдаёт."
     )
 
     user_prompt = (
@@ -169,16 +168,21 @@ async def cmd_analyze_code(message: types.Message):
                 await message.reply(error_msg)
         return
 
-    formatted_answer = format_styled_message(
+    chunks = split_text(answer)
+
+    first_chunk = format_styled_message(
         emoji=API_ICON,
         title=f"КАК РАБОТАЕТ: {base_command}",
-        message=answer,
+        message=format_md_to_html(chunks[0]),
     )
 
     try:
-        await wait_msg.edit_text(formatted_answer)
+        await wait_msg.edit_text(first_chunk)
     except Exception:
-        await message.reply(formatted_answer)
+        await message.reply(first_chunk)
+
+    for chunk in chunks[1:]:
+        await message.answer(format_md_to_html(chunk))
 
     await db.increment_commands()
     await db.log_command(cmd_key, user_id)
