@@ -504,7 +504,9 @@ async def cmd_ai_chat(message: types.Message, state: FSMContext):
     for cmd_key, persona in AI_PERSONAS.items():
         name = persona.get("name", cmd_key)
         row.append(
-            InlineKeyboardButton(text=name, callback_data=f"chat_persona|{cmd_key}")
+            InlineKeyboardButton(
+                text=name.lstrip("!"), callback_data=f"chat_persona|{cmd_key}"
+            )
         )
         if len(row) == 2:
             keyboard.append(row)
