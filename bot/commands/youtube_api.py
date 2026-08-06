@@ -19,6 +19,7 @@ from bot.utils.helpers import (
     refund_tokens,
     get_raw_text,
 )
+from bot.utils.registry import register_command
 
 logger = logging.getLogger(__name__)
 
@@ -374,6 +375,7 @@ async def download_worker():
             await asyncio.sleep(1)
 
 
+@register_command("!скачать")
 async def cmd_download_yt(message: types.Message):
     raw_text = get_raw_text(message, normalize=False)
     args = raw_text.split() if raw_text else []

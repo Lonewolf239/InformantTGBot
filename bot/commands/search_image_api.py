@@ -12,6 +12,7 @@ from bot.utils.helpers import (
     refund_tokens,
     get_raw_text,
 )
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!картинка"]["icon"]
 API_NAME = COMMAND_METADATA["!картинка"]["name"]
@@ -95,6 +96,7 @@ async def fetch_image_urls(query: str) -> list[str]:
     return await fetch_from_yahoo(query)
 
 
+@register_command("!картинка")
 async def cmd_search_image(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!картинка"):

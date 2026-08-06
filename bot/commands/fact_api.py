@@ -10,6 +10,7 @@ from bot.utils.helpers import (
     freeze_tokens,
     refund_tokens,
 )
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!факт"]["icon"]
 API_NAME = COMMAND_METADATA["!факт"]["name"]
@@ -46,6 +47,7 @@ def get_fact_keyboard(user_id: int):
     )
 
 
+@register_command("!факт")
 async def cmd_fact(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!факт"):

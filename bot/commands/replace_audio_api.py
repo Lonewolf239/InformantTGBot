@@ -11,8 +11,9 @@ from bot.utils.helpers import (
     refund_tokens,
     get_raw_text,
 )
-from bot.utils.youtube_api import _sync_download
+from bot.commands.youtube_api import _sync_download
 from bot.utils.queue_wrapper import process_with_queue
+from bot.utils.registry import register_command
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,7 @@ async def _process_replace_audio(
         return False, actual_aud_path
 
 
+@register_command("!звук")
 async def cmd_replace_audio(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!звук"):

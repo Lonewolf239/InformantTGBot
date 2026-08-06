@@ -9,6 +9,7 @@ from bot.utils.helpers import (
     freeze_tokens,
     refund_tokens,
 )
+from bot.utils.registry import register_command
 import logging
 
 API_ICON = COMMAND_METADATA["!анекдот"]["icon"]
@@ -55,6 +56,7 @@ def get_joke_keyboard(user_id: int):
     )
 
 
+@register_command("!анекдот")
 async def cmd_joke(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!анекдот"):

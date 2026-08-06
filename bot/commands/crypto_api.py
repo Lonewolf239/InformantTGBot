@@ -11,6 +11,7 @@ from bot.utils.helpers import (
     freeze_tokens,
     refund_tokens,
 )
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!курс_крипты"]["icon"]
 API_NAME = COMMAND_METADATA["!курс_крипты"]["name"]
@@ -143,6 +144,7 @@ async def send_crypto(target, is_callback=False):
         await refund_tokens(user_id, "!курс_крипты")
 
 
+@register_command("!курс_крипты")
 async def cmd_crypto(message: types.Message):
     await send_crypto(message)
 

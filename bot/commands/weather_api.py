@@ -17,6 +17,7 @@ from bot.utils.helpers import (
     refund_tokens,
     get_raw_text,
 )
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!погода"]["icon"]
 API_NAME = COMMAND_METADATA["!погода"]["name"]
@@ -159,6 +160,7 @@ def format_weather_message(weather_data: dict, city_name: str, country: str):
     )
 
 
+@register_command("!погода")
 async def cmd_weather(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!погода"):

@@ -10,6 +10,7 @@ from bot.utils.helpers import (
     refund_tokens,
     get_raw_text,
 )
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!курс"]["icon"]
 API_NAME = COMMAND_METADATA["!курс"]["name"]
@@ -77,6 +78,7 @@ async def get_exchange_rate(base: str) -> dict:
             return None
 
 
+@register_command("!курс")
 async def cmd_currency(message: types.Message):
     raw_text = get_raw_text(message)
     args = raw_text.split(maxsplit=1) if raw_text else []

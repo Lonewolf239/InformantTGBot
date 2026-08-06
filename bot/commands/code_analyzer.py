@@ -4,10 +4,9 @@ import logging
 import re
 import textwrap
 from typing import Optional
-
 from aiogram import types
 from config import AI_PROVIDER, COMMAND_METADATA
-from bot.utils.ai_api import ask_ai, format_md_to_html, split_text
+from bot.commands.ai_api import ask_ai, format_md_to_html, split_text
 from bot.utils.database import db
 from bot.utils.helpers import (
     format_styled_message,
@@ -16,6 +15,7 @@ from bot.utils.helpers import (
     refund_tokens,
 )
 from bot.utils.queue_wrapper import process_with_queue
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!анализ"]["icon"]
 API_NAME = COMMAND_METADATA["!анализ"]["name"]
@@ -97,6 +97,7 @@ async def code_explain_worker(source_code: str, base_command: str) -> Optional[s
     return answer
 
 
+@register_command("!анализ")
 async def cmd_analyze_code(message: types.Message):
     from bot.handlers.public import ALIAS_TO_BASE, COMMAND_HANDLERS
 

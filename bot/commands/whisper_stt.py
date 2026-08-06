@@ -24,6 +24,7 @@ from bot.utils.media_core import (
 )
 from bot.utils.whisper_core import transcribe_audio
 from bot.utils.queue_wrapper import process_with_queue
+from bot.utils.registry import register_command
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ async def _worker_transcribe(reply_msg, bot):
     return text, file_path
 
 
+@register_command("!расшифровка")
 async def cmd_transcribe(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!расшифровка"):
@@ -184,6 +186,7 @@ async def _worker_translate_stt(reply_msg, bot):
     return original_text, file_path, media_type
 
 
+@register_command("!перевести")
 async def cmd_translate(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!перевести"):

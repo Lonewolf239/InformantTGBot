@@ -16,6 +16,7 @@ from bot.utils.helpers import (
     get_raw_text,
 )
 from bot.utils.database import db
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!трек"]["icon"]
 API_NAME = COMMAND_METADATA["!трек"]["name"]
@@ -201,6 +202,7 @@ def generate_music_keyboard(request_id: str, page: int, user_id: int):
     return create_user_keyboard(inline_keyboard, user_id)
 
 
+@register_command("!трек")
 async def cmd_music(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!музыка"):
@@ -261,6 +263,7 @@ async def cmd_music(message: types.Message):
     await db.log_command("!музыка", user_id)
 
 
+@register_command("!по_тексту")
 async def cmd_music_by_text(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!по_тексту"):

@@ -10,7 +10,7 @@ from bot.utils.helpers import its_me
 from config import WELCOME_TEXT
 from bot.utils.database import db
 from bot.state import AIChatMode
-from bot.utils.ai_api import process_chat_message
+from bot.commands.ai_api import process_chat_message
 import logging
 
 logger = logging.getLogger(__name__)

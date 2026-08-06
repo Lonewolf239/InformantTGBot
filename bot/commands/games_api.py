@@ -6,6 +6,7 @@ from aiogram.types import InlineKeyboardButton
 from bot.utils.database import db
 from bot.utils.helpers import format_styled_message, create_user_keyboard, get_raw_text
 from bot.utils.tokens_database import tokens_db
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!рулетка"]["icon"]
 API_NAME = COMMAND_METADATA["!рулетка"]["name"]
@@ -15,6 +16,7 @@ DUEL_NAME = COMMAND_METADATA["!дуэль"]["name"]
 logger = logging.getLogger(__name__)
 
 
+@register_command("!рулетка")
 async def cmd_roulette(message: types.Message):
     raw_text = get_raw_text(message)
     if not raw_text:
@@ -89,6 +91,7 @@ async def cmd_roulette(message: types.Message):
     await db.log_command("!рулетка", user_id)
 
 
+@register_command("!дуэль")
 async def cmd_duel(message: types.Message):
     user_id = message.from_user.id
 

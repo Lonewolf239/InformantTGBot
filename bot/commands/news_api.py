@@ -10,6 +10,7 @@ from bot.utils.helpers import (
     refund_tokens,
     get_raw_text,
 )
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!новости"]["icon"]
 API_NAME = COMMAND_METADATA["!новости"]["name"]
@@ -51,6 +52,7 @@ async def get_news(query: str = "") -> str | None:
             return None
 
 
+@register_command("!новости")
 async def cmd_news(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!новости"):

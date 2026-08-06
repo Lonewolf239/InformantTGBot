@@ -40,6 +40,7 @@ from bot.utils.queue_wrapper import process_with_queue
 from bot.utils.whisper_core import transcribe_audio
 from groq import AsyncGroq
 from bot.utils.api_key_manager import key_manager
+from bot.utils.registry import COMMAND_HANDLERS, register_command
 
 MAX_SINGLE_MSG_CHARS = 2500
 MAX_HISTORY_TOTAL_CHARS = 16000
@@ -488,6 +489,7 @@ def truncate_history_to_budget(
     return history
 
 
+@register_command("!ии_чат", is_enabled=(AI_PROVIDER == "groq"))
 async def cmd_ai_chat(message: types.Message, state: FSMContext):
     if AI_PROVIDER != "groq":
         await message.reply(
@@ -689,7 +691,6 @@ async def process_chat_message(message: types.Message, state: FSMContext):
 
     if text.lower() in ["!выход", "/exit", "выход", "!exit"]:
         await state.clear()
-        # Очищаем историю при выходе
         user_chat_histories.pop(user_id, None)
         await message.reply(
             format_styled_message(
@@ -846,18 +847,5 @@ def make_ai_handler(cmd_key: str):
     return handler
 
 
-cmd_ai = make_ai_handler("!ии")
-cmd_ai_ham = make_ai_handler("!нейрохам")
-cmd_ai_psycho = make_ai_handler("!психолог")
-cmd_ai_summary = make_ai_handler("!пересказ")
-cmd_ai_nerd = make_ai_handler("!душнила")
-cmd_ai_senior = make_ai_handler("!синьор")
-cmd_ai_gopnik = make_ai_handler("!гопник")
-cmd_ai_joker = make_ai_handler("!шутник")
-cmd_ai_tale = make_ai_handler("!сказка")
-cmd_ai_babka = make_ai_handler("!бабка")
-cmd_ai_drunk = make_ai_handler("!алкаш")
-cmd_ai_coach = make_ai_handler("!коуч")
-cmd_ai_zoomer = make_ai_handler("!зумер")
-cmd_ai_hat = make_ai_handler("!шапочка")
-cmd_ai_ali = make_ai_handler("!алиэкспрес")
+for cmd in AI_PERSONAS.keys():
+    COMMAND_HANDLERS[cmd] = make_ai_handler(cmd)

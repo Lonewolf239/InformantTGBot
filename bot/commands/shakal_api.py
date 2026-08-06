@@ -8,6 +8,7 @@ from bot.utils.database import db
 from bot.utils.helpers import format_styled_message, freeze_tokens, refund_tokens
 from bot.utils.mosh import async_mosh
 from bot.utils.queue_wrapper import process_with_queue
+from bot.utils.registry import register_command
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,7 @@ async def _process_shakal_video(
         return False
 
 
+@register_command("!шакал")
 async def cmd_shakal(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!шакал"):

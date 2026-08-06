@@ -22,6 +22,7 @@ from bot.utils.helpers import (
 from bot.utils.database import db
 from bot.utils.queue_wrapper import process_with_queue
 from bot.utils.whisper_core import transcribe_audio
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!ютуб_текст"]["icon"]
 API_NAME = COMMAND_METADATA["!ютуб_текст"]["name"]
@@ -140,6 +141,7 @@ async def _async_download_task(url: str, request_id: str):
     )
 
 
+@register_command("!ютуб_текст")
 async def cmd_youtube_transcribe(message: types.Message):
     raw_text = get_raw_text(message, normalize=False) or ""
     args = raw_text.split(maxsplit=1)

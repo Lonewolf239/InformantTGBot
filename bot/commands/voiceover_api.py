@@ -8,6 +8,7 @@ from config import COMMAND_METADATA
 from bot.utils.database import db
 from bot.utils.helpers import format_styled_message, freeze_tokens, refund_tokens
 from bot.utils.translation_core import text_to_speech
+from bot.utils.registry import register_command
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ VOICE_ICON = COMMAND_METADATA["!озвучка"]["icon"]
 VOICE_NAME = COMMAND_METADATA["!озвучка"]["name"]
 
 
+@register_command("!озвучка")
 async def cmd_voiceover(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!озвучка"):

@@ -8,7 +8,6 @@ import tempfile
 from urllib.parse import quote
 from aiogram import types
 from aiogram.types import FSInputFile, InlineKeyboardButton
-
 from config import COMMAND_METADATA
 from bot.utils.helpers import (
     format_styled_message,
@@ -18,6 +17,7 @@ from bot.utils.helpers import (
     get_raw_text,
 )
 from bot.utils.database import db
+from bot.utils.registry import register_command
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +159,7 @@ async def _handle_expired_request(callback: types.CallbackQuery):
         pass
 
 
+@register_command("!инстант")
 async def cmd_myinstants(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!инстант"):

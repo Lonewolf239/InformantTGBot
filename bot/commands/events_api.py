@@ -10,6 +10,7 @@ from bot.utils.helpers import (
     refund_tokens,
     get_raw_text,
 )
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!афиша"]["icon"]
 API_NAME = COMMAND_METADATA["!афиша"]["name"]
@@ -65,6 +66,7 @@ async def search_global_events(query: str) -> str | None:
             return None
 
 
+@register_command("!афиша")
 async def cmd_events(message: types.Message):
     raw_text = get_raw_text(message)
     parts = raw_text.split(maxsplit=1) if raw_text else []

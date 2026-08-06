@@ -11,6 +11,7 @@ from bot.utils.helpers import (
     get_raw_text,
     get_reply_raw_text,
 )
+from bot.utils.registry import register_command
 
 try:
     from duckduckgo_search import DDGS
@@ -63,6 +64,7 @@ async def search_internet(query: str, limit: int = 6) -> str | None:
         return None
 
 
+@register_command("!поиск")
 async def cmd_search(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!поиск"):

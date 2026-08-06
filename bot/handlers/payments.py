@@ -6,10 +6,10 @@ from config import (
     TOKEN_PRICE_RUB,
     MIN_TOKENS_BUY,
     MAX_TOKENS_BUY,
-    TOKEN_PACKAGES,
     YOOKASSA_SHOP_ID,
     YOOKASSA_SECRET_KEY,
     USE_WEBHOOKS,
+    TOKEN_PACKAGES,
 )
 from bot.payments.yookassa_provider import YookassaProvider
 import logging
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 payment_provider = YookassaProvider(YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY)
 
 
-async def cmd_balance(message: types.Message):
+async def cmd_user_balance(message: types.Message):
     user_id = message.from_user.id
     balance = await tokens_db.get_balance(user_id)
 

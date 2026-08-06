@@ -10,6 +10,7 @@ from bot.utils.helpers import (
     freeze_tokens,
     refund_tokens,
 )
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!кот"]["icon"]
 API_NAME = COMMAND_METADATA["!кот"]["name"]
@@ -85,6 +86,7 @@ async def send_cat(target, is_callback=False):
         await refund_tokens(user_id, "!кот")
 
 
+@register_command("!кот")
 async def cmd_cat(message: types.Message):
     await send_cat(message)
 

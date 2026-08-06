@@ -10,6 +10,7 @@ from bot.utils.helpers import (
     freeze_tokens,
     refund_tokens,
 )
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!прогноз"]["icon"]
 API_NAME = COMMAND_METADATA["!прогноз"]["name"]
@@ -81,5 +82,6 @@ async def more_forecast_callback(callback_query: types.CallbackQuery):
     await send_forecast(callback_query, is_callback=True)
 
 
+@register_command("!прогноз")
 async def cmd_forecast(message: types.Message):
     await send_forecast(message)

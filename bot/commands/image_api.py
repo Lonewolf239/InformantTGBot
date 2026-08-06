@@ -12,6 +12,7 @@ from bot.utils.helpers import (
     refund_tokens,
     get_raw_text,
 )
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!рис"]["icon"]
 API_NAME = COMMAND_METADATA["!рис"]["name"]
@@ -39,6 +40,7 @@ async def generate_flux_image(prompt: str) -> bytes | None:
             return None
 
 
+@register_command("!рис")
 async def cmd_render(message: types.Message):
     raw_text = get_raw_text(message)
     parts = raw_text.split(maxsplit=1) if raw_text else []

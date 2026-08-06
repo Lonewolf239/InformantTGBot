@@ -10,6 +10,7 @@ from bot.utils.helpers import (
     refund_tokens,
     get_raw_text,
 )
+from bot.utils.registry import register_command
 
 API_ICON = COMMAND_METADATA["!обои"]["icon"]
 API_NAME = COMMAND_METADATA["!обои"]["name"]
@@ -49,6 +50,7 @@ async def get_wallpaper(query: str) -> dict | None:
             return None
 
 
+@register_command("!обои")
 async def cmd_wallpaper(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!обои"):

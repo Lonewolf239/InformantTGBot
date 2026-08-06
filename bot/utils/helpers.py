@@ -44,7 +44,7 @@ def format_styled_message(
         bold_start = "*"
         bold_end = "*"
 
-    lines = message.split("\n")
+    lines = message.rstrip("\n").split("\n")
 
     last_content_idx = -1
     for idx in range(len(lines) - 1, -1, -1):

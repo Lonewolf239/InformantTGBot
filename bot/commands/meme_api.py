@@ -20,6 +20,7 @@ from bot.utils.helpers import (
     refund_tokens,
     get_raw_text,
 )
+from bot.utils.registry import register_command
 import logging
 
 API_ICON = COMMAND_METADATA["!мем"]["icon"]
@@ -229,6 +230,7 @@ async def send_meme(
         return False
 
 
+@register_command("!мем")
 async def cmd_meme(message: types.Message):
     user_id = message.from_user.id
     if not await freeze_tokens(message, user_id, "!мем"):

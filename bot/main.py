@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import os
+import importlib
+import pkgutil
 from aiogram import Bot, Dispatcher, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.context import FSMContext
@@ -15,37 +17,46 @@ from bot.utils.database import db
 from bot.utils.tokens_database import tokens_db
 from bot.utils.user_settings import user_settings_db
 from bot.links.handlers import links_callback_handler
-from bot.utils.joke_api import more_joke_callback
-from bot.utils.meme_api import (
+from bot.commands.joke_api import more_joke_callback
+from bot.commands.meme_api import (
     more_meme_callback,
     add_favorite_callback,
     dislike_meme_callback,
 )
 from bot.handlers.nsfw_settings import nsfw_callback_handler
-from bot.utils.youtube_api import download_worker, process_yt_callback
+from bot.commands.youtube_api import download_worker, process_yt_callback
 from bot.handlers.payments import (
     process_buy_tokens_callback,
     process_check_payment_callback,
 )
 from bot.webhooks.yookassa_webhook import setup_yookassa_routes
-from bot.utils.music_api import process_music_callback, process_music_page_callback
-from bot.utils.cat_api import more_cat_callback
-from bot.utils.fact_api import more_fact_callback
-from bot.utils.forecast_api import more_forecast_callback
-from bot.utils.quote_api import more_quote_callback
-from bot.utils.crypto_api import more_crypto_callback
-from bot.utils.games_api import accept_duel_callback, cancel_duel_callback
+from bot.commands.music_api import process_music_callback, process_music_page_callback
+from bot.commands.cat_api import more_cat_callback
+from bot.commands.fact_api import more_fact_callback
+from bot.commands.forecast_api import more_forecast_callback
+from bot.commands.quote_api import more_quote_callback
+from bot.commands.crypto_api import more_crypto_callback
+from bot.commands.games_api import accept_duel_callback, cancel_duel_callback
 from bot.utils.task_queue import queue_manager
 from bot.owner_settings.database import owner_settings_db
 from bot.owner_settings.handlers import system_settings_callback
-from bot.utils.youtube_transcribe import process_yt_transcribe_callback
+from bot.commands.youtube_transcribe import process_yt_transcribe_callback
+import bot.commands
+
+
+def load_all_commands():
+    for _, module_name, _ in pkgutil.iter_modules(bot.commands.__path__):
+        importlib.import_module(f"bot.commands.{module_name}")
+
+
+load_all_commands()
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+tg_bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
 dp.message.middleware(LoggingMiddleware())
@@ -92,6 +103,14 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
 
     if data and data.startswith("links_"):
         await links_callback_handler(callback_query)
+    elif data in ("help_main", "aliases_main", "prices_main"):
+        from bot.handlers.help_menus import process_menu_main_callback
+
+        await process_menu_main_callback(callback_query)
+    elif data and data.startswith(("help_cat_", "aliases_cat_", "prices_cat_")):
+        from bot.handlers.help_menus import process_menu_category_callback
+
+        await process_menu_category_callback(callback_query)
     elif data == "more_joke":
         await more_joke_callback(callback_query)
     elif data == "more_meme":
@@ -138,15 +157,15 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
     elif data and data.startswith("mus_page|"):
         await process_music_page_callback(callback_query)
     elif data and data.startswith("inst_dl|"):
-        from bot.utils.myinstants_api import process_instants_download_callback
+        from bot.commands.myinstants_api import process_instants_download_callback
 
         await process_instants_download_callback(callback_query)
     elif data and data.startswith("inst_pg|"):
-        from bot.utils.myinstants_api import process_instants_page_callback
+        from bot.commands.myinstants_api import process_instants_page_callback
 
         await process_instants_page_callback(callback_query)
     elif data and data.startswith("inst_more|"):
-        from bot.utils.myinstants_api import process_instants_more_callback
+        from bot.commands.myinstants_api import process_instants_more_callback
 
         await process_instants_more_callback(callback_query)
     elif data and data.startswith("sys_set:"):
@@ -155,7 +174,7 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
         await process_yt_transcribe_callback(callback_query)
 
     elif data and data.startswith("chat_persona|") or data == "chat_cancel":
-        from bot.utils.ai_api import process_chat_persona_callback
+        from bot.commands.ai_api import process_chat_persona_callback
 
         await process_chat_persona_callback(callback_query, state)
 
@@ -234,14 +253,14 @@ async def main():
     print("═" * 50)
 
     if USE_WEBHOOKS:
-        web_runner = await start_web_app(bot)
+        web_runner = await start_web_app(tg_bot)
 
     try:
-        await dp.start_polling(bot)
+        await dp.start_polling(tg_bot)
     finally:
         if USE_WEBHOOKS:
             await web_runner.cleanup()
-        await bot.session.close()
+        await tg_bot.session.close()
 
 
 if __name__ == "__main__":
