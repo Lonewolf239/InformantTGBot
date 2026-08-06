@@ -1,30 +1,21 @@
 import base64
-import html
-import re
-import random
 import io
 import logging
 import os
+import re
 from typing import Optional
-import aiohttp
 from aiogram import types
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardButton
 from bot.state import AIChatMode
 from config import (
     AI_AUDIO_EXTRA_COST,
-    AI_MAX_REPLY_LEN,
     AI_PERSONAS,
     AI_PROVIDER,
-    AI_REQUEST_TIMEOUT,
     AI_VISION_EXTRA_COST,
     COMMAND_METADATA,
-    GROQ_MODEL,
-    GROQ_VISION_MODEL,
-    OLLAMA_BASE_URL,
-    OLLAMA_MODEL,
-    OLLAMA_VISION_MODEL,
     COMMAND_COSTS,
+    OLLAMA_MODEL,
 )
 from bot.utils.database import db
 from bot.utils.helpers import (
@@ -39,201 +30,102 @@ from bot.utils.helpers import (
 from bot.utils.media_core import download_media_file
 from bot.utils.queue_wrapper import process_with_queue
 from bot.utils.whisper_core import transcribe_audio
-from groq import AsyncGroq
-from bot.utils.api_key_manager import key_manager
 from bot.utils.registry import COMMAND_HANDLERS, register_command
-
-MAX_SINGLE_MSG_CHARS = 2500
-MAX_HISTORY_TOTAL_CHARS = 16000
-
-user_chat_histories: dict[int, list] = {}
+from bot.utils.ai_core import (
+    ask_ai,
+    ask_groq_ai,
+    split_text,
+    format_md_to_html,
+    truncate_history_to_budget,
+    user_chat_histories,
+    MAX_SINGLE_MSG_CHARS,
+)
 
 logger = logging.getLogger(__name__)
 
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 OPR/107.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:123.0) Gecko/20100101 Firefox/123.0",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:123.0) Gecko/20100101 Firefox/123.0",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Vivaldi/6.5.3206.63",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (iPad; CPU OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 13; Redmi Note 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36",
-]
 
+async def _process_message_media(
+    msg: types.Message, bot, base_text: Optional[str]
+) -> tuple[Optional[str], Optional[list[str]], Optional[str]]:
+    has_audio_video = any([msg.voice, msg.audio, msg.video_note, msg.video])
+    has_photo = bool(msg.photo)
 
-def split_text(text: str, limit: int = AI_MAX_REPLY_LEN) -> list[str]:
-    text = (text or "").strip()
-    if not text:
-        return [""]
-    if len(text) <= limit:
-        return [text]
-    chunks = []
-    while text:
-        if len(text) <= limit:
-            chunks.append(text)
-            break
-        cut = text.rfind("\n", 0, limit)
-        if cut < int(limit * 0.6):
-            cut = text.rfind(" ", 0, limit)
-        if cut <= 0:
-            cut = limit
-        chunks.append(text[:cut].strip())
-        text = text[cut:].strip()
-    return [chunk for chunk in chunks if chunk.strip()]
+    extracted_text = base_text
+    base64_images = None
 
-
-def format_md_to_html(text: str) -> str:
-    safe_text = html.escape(text)
-
-    safe_text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", safe_text)
-    safe_text = re.sub(r"__(.*?)__", r"<u>\1</u>", safe_text)
-    safe_text = re.sub(r"(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)", r"<i>\1</i>", safe_text)
-    safe_text = re.sub(r"```(.*?)```", r"<pre>\1</pre>", safe_text, flags=re.DOTALL)
-    safe_text = re.sub(r"`(.*?)`", r"<code>\1</code>", safe_text)
-
-    return safe_text
-
-
-async def ask_local_ai(
-    user_prompt: str, system_prompt: str, images: list[str] = None, **kwargs
-) -> Optional[str]:
-    url = f"{OLLAMA_BASE_URL.rstrip('/')}/api/chat"
-    user_message = {"role": "user", "content": user_prompt}
-
-    if images:
-        user_message["images"] = images
-        model_to_use = OLLAMA_VISION_MODEL
-    else:
-        model_to_use = OLLAMA_MODEL
-
-    max_tokens = kwargs.get("max_tokens", 1024)
-    repeat_penalty = 1.15 if kwargs.get("frequency_penalty", 0.0) > 0 else 1.0
-
-    payload = {
-        "model": model_to_use,
-        "stream": False,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            user_message,
-        ],
-        "options": {
-            "temperature": kwargs.get("temperature", 0.4),
-            "top_p": kwargs.get("top_p", 0.75),
-            "repeat_penalty": repeat_penalty,
-            "num_predict": max_tokens,
-        },
-    }
-
-    async with aiohttp.ClientSession(
-        timeout=aiohttp.ClientTimeout(total=AI_REQUEST_TIMEOUT)
-    ) as session:
+    if has_audio_video:
         try:
-            async with session.post(url, json=payload) as response:
-                if response.status != 200:
-                    body = await response.text()
-                    logger.error(f"Ошибка Ollama API: {response.status} - {body}")
-                    return None
-                data = await response.json()
-                if data.get("message", {}).get("content"):
-                    return data["message"]["content"].strip()
-                if data.get("response"):
-                    return str(data["response"]).strip()
-                return None
-        except Exception as e:
-            logger.error(f"Ошибка при запросе к Ollama: {e}")
-            return None
-
-
-async def ask_groq_ai(
-    user_prompt: str, system_prompt: str, images: list[str] = None, **kwargs
-) -> Optional[str]:
-    available_keys = key_manager.get_available_keys()
-
-    if not available_keys:
-        logger.error("Все ключи Groq отвалились, в бане или исчерпали лимит токенов!")
-        return None
-
-    last_error = None
-
-    if images:
-        model_to_use = GROQ_VISION_MODEL
-        user_content = [{"type": "text", "text": user_prompt}]
-        for img in images:
-            user_content.append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{img}"},
-                }
-            )
-        user_message = {"role": "user", "content": user_content}
-    else:
-        model_to_use = GROQ_MODEL
-        user_message = {"role": "user", "content": user_prompt}
-
-    for api_key in available_keys:
-        user_agent = random.choice(USER_AGENTS)
-
-        client = AsyncGroq(
-            api_key=api_key, default_headers={"User-Agent": user_agent}, max_retries=0
-        )
-
-        try:
-            response = await client.chat.completions.create(
-                model=model_to_use,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    user_message,
-                ],
-                temperature=kwargs.get("temperature", 0.4),
-                top_p=kwargs.get("top_p", 0.75),
-                max_tokens=kwargs.get("max_tokens", 1024),
-                presence_penalty=kwargs.get("presence_penalty", 0.0),
-                frequency_penalty=kwargs.get("frequency_penalty", 0.0),
-                timeout=AI_REQUEST_TIMEOUT,
-            )
-
-            if response.usage:
-                total_used = response.usage.total_tokens
-                key_manager.add_usage(api_key, total_used)
-
-            return response.choices[0].message.content.strip()
-
-        except Exception as e:
-            err_msg = str(e).lower()
-
-            if "429" in err_msg or "rate_limit_exceeded" in err_msg:
-                logger.warning(
-                    f"Ключ {api_key[:8]}... получил 429 ошибку. Бан на 24 часа."
+            file_path, _ = await download_media_file(msg, bot)
+            if file_path:
+                transcribed = await transcribe_audio(
+                    file_path=file_path, language="auto"
                 )
-                key_manager.ban_key(api_key)
+                if transcribed:
+                    extracted_text = transcribed + (
+                        f"\n\nПодпись: {base_text}" if base_text else ""
+                    )
+                else:
+                    return None, None, "ERROR:MEDIA_FAILED"
+                try:
+                    os.unlink(file_path)
+                except Exception:
+                    pass
             else:
-                logger.warning(
-                    f"Ошибка Groq с ключом {api_key[:8]}... (UA: {user_agent.split('/')[0]}): {e}"
-                )
+                return None, None, "ERROR:MEDIA_FAILED"
+        except Exception as e:
+            logger.error(f"Ошибка Whisper при обработке медиа: {e}")
+            return None, None, "ERROR:MEDIA_FAILED"
 
-            last_error = e
-            continue
+    elif has_photo:
+        try:
+            photo = msg.photo[-1]
+            img_bytes = io.BytesIO()
+            await bot.download(photo, destination=img_bytes)
+            base64_images = [base64.b64encode(img_bytes.getvalue()).decode("utf-8")]
+        except Exception as e:
+            logger.error(f"Ошибка Vision при обработке изображения: {e}")
+            return None, None, "ERROR:VISION_FAILED"
 
-    logger.error(
-        f"Не удалось получить ответ ни с одного из {len(available_keys)} доступных ключей. Последняя ошибка: {last_error}"
-    )
-    return None
+    return extracted_text, base64_images, None
 
 
-async def ask_ai(
-    user_prompt: str, system_prompt: str, images: list[str] = None, **kwargs
-) -> Optional[str]:
-    if AI_PROVIDER == "groq":
-        return await ask_groq_ai(user_prompt, system_prompt, images=images, **kwargs)
-    return await ask_local_ai(user_prompt, system_prompt, images=images, **kwargs)
+async def _get_vision_context(
+    base64_images: list[str],
+) -> tuple[Optional[str], Optional[str]]:
+    vision_prompt = "Опиши максимально подробно, что ты видишь на этом изображении."
+    vision_sys = "Ты — точная подсистема компьютерного зрения. Выдавай только факты."
+    vision_desc = await ask_ai(vision_prompt, vision_sys, images=base64_images)
+
+    if vision_desc:
+        vision_desc = re.sub(
+            r"<think>.*?</think>", "", vision_desc, flags=re.DOTALL
+        ).strip()
+        img_context = f"[СИСТЕМНОЕ СООБЩЕНИЕ: Пользователь прикрепил картинку. Вот её подробное описание от подсистемы зрения:\n{vision_desc}]\n\n"
+        return img_context, None
+    return None, "ERROR:VISION_FAILED"
+
+
+def _build_system_prompt(
+    persona: dict, user_id: int, first_name: str, chat_mode: bool
+) -> str:
+    prompt = persona.get("system_prompt", "")
+
+    if not persona.get("allow_actions", False):
+        prompt += "\n❌ КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО: писать в тексте ответа любые действия, эмоции или звуковые эффекты в круглых или квадратных скобках (например, *улыбнулся*, (шепотом), [вздыхает]). Выдавай только чистую прямую речь и текст, без сценических ремарок!"
+
+    if chat_mode:
+        prompt += "\n\n[⚠️ ТЕКУЩИЙ РЕЖИМ: ИИ-ЧАТ (!ии_чат). Ты находишься в активном диалоге и ПОМНИШЬ прошлые сообщения из истории ниже. НЕ отрицай наличие памяти!]"
+    else:
+        prompt += "\n\n[РЕЖИМ БЕЗ ПАМЯТИ. Предлагай команду !ии_чат ТОЛЬКО если юзер явно зовет общаться, играть или жалуется на забытый контекст. На обычные вопросы отвечай прямо и не упоминай эту команду.]"
+
+    if user_id:
+        if its_me(user_id):
+            prompt += "\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Собеседник — Lonewolf239, твой создатель и автор бота! Учитывай это в своих ответах.]"
+        else:
+            safe_name = (first_name or "Пользователь").replace("\n", " ")
+            prompt += f"\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Имя собеседника — '{safe_name}'. Он НЕ является твоим создателем (твой единственный разработчик — Lonewolf239).]"
+
+    return prompt
 
 
 async def unified_ai_worker(
@@ -244,108 +136,62 @@ async def unified_ai_worker(
     persona: dict,
     user_id: int = 0,
     first_name: str = "",
+    reply_author_name: str = "",
+    reply_author_id: int = 0,
 ) -> Optional[str]:
+
+    extracted_reply_text = reply_text
     base64_images = None
 
     if msg:
-        has_audio_video = any([msg.voice, msg.audio, msg.video_note, msg.video])
-        has_photo = bool(msg.photo)
-
-        if has_audio_video:
-            try:
-                file_path, _ = await download_media_file(msg, bot)
-                if file_path:
-                    transcribed = await transcribe_audio(
-                        file_path=file_path, language="auto"
-                    )
-                    if transcribed:
-                        reply_text = transcribed + (
-                            f"\n\nПодпись к медиа: {reply_text}" if reply_text else ""
-                        )
-                    else:
-                        return "ERROR:❌ Не удалось извлечь текст из медиафайла."
-                    try:
-                        os.unlink(file_path)
-                    except Exception:
-                        pass
-            except Exception as e:
-                logger.error(f"Ошибка Whisper внутри очереди: {e}")
-                return "ERROR:❌ Ошибка при обработке аудиофайла."
-
-        elif has_photo:
-            try:
-                photo = msg.photo[-1]
-                img_bytes = io.BytesIO()
-                await bot.download(photo, destination=img_bytes)
-                img_base64 = base64.b64encode(img_bytes.getvalue()).decode("utf-8")
-                base64_images = [img_base64]
-            except Exception as e:
-                logger.error(f"Ошибка Vision внутри очереди: {e}")
-                return "ERROR:❌ Ошибка при загрузке изображения."
-
-    if base64_images:
-        vision_prompt = "Опиши максимально подробно, что ты видишь на этом изображении."
-        vision_sys = (
-            "Ты — точная подсистема компьютерного зрения. Выдавай только факты."
+        extracted_reply_text, base64_images, err = await _process_message_media(
+            msg, bot, reply_text
         )
+        if err:
+            return err.replace("ERROR:", "ERROR:❌ Ошибка: ")
 
-        vision_desc = await ask_ai(vision_prompt, vision_sys, images=base64_images)
-
-        if vision_desc:
-            vision_desc = re.sub(
-                r"<think>.*?</think>", "", vision_desc, flags=re.DOTALL
-            ).strip()
-
-            img_context = f"[СИСТЕМНОЕ СООБЩЕНИЕ: Пользователь прикрепил картинку. Вот её подробное описание от подсистемы зрения:\n{vision_desc}]\n\n"
-
-            if reply_text:
-                final_prompt = f"{img_context}Контекст:\n{reply_text}\n\nЗапрос пользователя: {raw_prompt or 'Что скажешь?'}"
-            elif raw_prompt:
-                final_prompt = f"{img_context}Запрос пользователя: {raw_prompt}"
-            else:
-                final_prompt = (
-                    f"{img_context}Прокомментируй это изображение в своем стиле."
-                )
-
-            base64_images = None
-        else:
+    img_context = ""
+    if base64_images:
+        img_context, err = await _get_vision_context(base64_images)
+        if err:
             return "ERROR:❌ Не удалось проанализировать изображение."
+        base64_images = None
 
-    elif reply_text:
-        if raw_prompt and raw_prompt != reply_text:
+    if img_context:
+        if extracted_reply_text:
+            author_info = f"пользователя {reply_author_name}"
+            if its_me(reply_author_id):
+                author_info = "твоего создателя (Lonewolf239)"
+            elif reply_author_id == bot.id:
+                author_info = "тебя самого (бота)"
+            final_prompt = f"{img_context}[КОНТЕКСТ: Сообщение от {author_info}]:\n{extracted_reply_text}\n\nЗапрос текущего пользователя: {raw_prompt or 'Что скажешь?'}"
+        elif raw_prompt:
+            final_prompt = f"{img_context}Запрос пользователя: {raw_prompt}"
+        else:
+            final_prompt = f"{img_context}Прокомментируй это изображение в своем стиле."
+
+    elif extracted_reply_text:
+        author_info = f"пользователя {reply_author_name}"
+        if its_me(reply_author_id):
+            author_info = "твоего создателя (Lonewolf239)"
+        elif reply_author_id == bot.id:
+            author_info = "тебя самого (бота)"
+
+        reply_context = f"[ВНИМАНИЕ: Пользователь отвечает на сообщение от {author_info}. Текст этого сообщения:\n«{extracted_reply_text}»]\n\n"
+
+        if raw_prompt and raw_prompt != extracted_reply_text:
             final_prompt = (
-                f"Контекст:\n{reply_text}\n\nЗапрос пользователя: {raw_prompt}"
+                f"{reply_context}Ответ/Запрос текущего пользователя: {raw_prompt}"
             )
         else:
-            final_prompt = reply_text
+            final_prompt = f"{reply_context}Ответь на это сообщение."
     else:
         final_prompt = raw_prompt
 
     if not final_prompt:
         return "ERROR:EMPTY_PROMPT"
 
-    if reply_text:
-        if raw_prompt and raw_prompt != reply_text:
-            final_prompt = (
-                f"Контекст:\n{reply_text}\n\nЗапрос пользователя: {raw_prompt}"
-            )
-        else:
-            final_prompt = reply_text
-    else:
-        final_prompt = raw_prompt
-
-    system_prompt = (
-        persona["system_prompt"]
-        + "\n❌ КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО: писать в тексте ответа любые действия, эмоции или звуковые эффекты в круглых или квадратных скобках (например, *улыбнулся*, (шепотом), [вздыхает]). Выдавай только чистую прямую речь и текст, без сценических ремарок!"
-        + "\n\n[ТЕКУЩИЙ РЕЖИМ: БЛИЦ. Это разовый запрос, у тебя НЕТ памяти прошлых сообщений. Если юзер пытается вести диалог — прямо скажи ему отправить команду !ии_чат, чтобы перейти в режим диалога.]"
-    )
-
-    if user_id:
-        if its_me(user_id):
-            system_prompt += "\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Собеседник — Lonewolf239, твой создатель и автор бота! Учитывай это в своих ответах.]"
-        else:
-            safe_name = (first_name or "Пользователь").replace("\n", " ")
-            system_prompt += f"\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Имя собеседника — '{safe_name}'. Он НЕ является твоим создателем (твой единственный разработчик — Lonewolf239).]"
+    system_prompt = _build_system_prompt(persona, user_id, first_name, chat_mode=False)
 
     answer = await ask_ai(
         user_prompt=persona.get("prompt_template", "{prompt}").format(
@@ -364,6 +210,65 @@ async def unified_ai_worker(
         answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
 
     return answer
+
+
+async def chat_ai_worker(
+    msg: types.Message,
+    bot,
+    text: str,
+    history: list,
+    persona: dict,
+    user_id: int,
+    first_name: str = "",
+) -> tuple[Optional[str], list]:
+
+    extracted_text, base64_images, err = await _process_message_media(msg, bot, text)
+    if err:
+        return err, history
+
+    img_context = ""
+    if base64_images:
+        img_context, err = await _get_vision_context(base64_images)
+        if err:
+            return err, history
+        base64_images = None
+
+        if extracted_text:
+            extracted_text = f"{img_context}Сообщение пользователя вместе с картинкой: {extracted_text}"
+        else:
+            extracted_text = (
+                f"{img_context}Прокомментируй это изображение в своем стиле."
+            )
+
+    if not extracted_text and not base64_images:
+        return "ERROR:EMPTY_PROMPT", history
+
+    if len(extracted_text) > MAX_SINGLE_MSG_CHARS:
+        extracted_text = extracted_text[:MAX_SINGLE_MSG_CHARS] + "..."
+
+    local_history = history.copy()
+    local_history.append(
+        f"Пользователь ({first_name or 'Пользователь'}): {extracted_text}"
+    )
+    if len(local_history) > 10:
+        local_history = local_history[-10:]
+    local_history = truncate_history_to_budget(local_history)
+
+    max_response_tokens = min(persona.get("max_tokens", 1024), 1024)
+    system_prompt = _build_system_prompt(persona, user_id, first_name, chat_mode=True)
+
+    answer = await ask_groq_ai(
+        user_prompt="\n".join(local_history),
+        system_prompt=system_prompt,
+        images=base64_images,
+        temperature=persona.get("temperature", 0.5),
+        max_tokens=max_response_tokens,
+    )
+
+    if answer:
+        answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
+
+    return answer, local_history
 
 
 async def process_ai_request(message: types.Message, cmd_key: str):
@@ -388,7 +293,6 @@ async def process_ai_request(message: types.Message, cmd_key: str):
         raw_prompt = parts[1].strip()
 
     reply_msg = message.reply_to_message
-
     action_text = "Анализ запроса"
     extra_cost = 0
 
@@ -407,6 +311,13 @@ async def process_ai_request(message: types.Message, cmd_key: str):
 
     target_queue = "lightweights" if AI_PROVIDER == "groq" else "heavyweights"
 
+    reply_author_name = (
+        reply_msg.from_user.first_name if (reply_msg and reply_msg.from_user) else ""
+    )
+    reply_author_id = (
+        reply_msg.from_user.id if (reply_msg and reply_msg.from_user) else 0
+    )
+
     answer, wait_msg = await process_with_queue(
         message=message,
         queue_name=target_queue,
@@ -421,6 +332,8 @@ async def process_ai_request(message: types.Message, cmd_key: str):
         persona=persona,
         user_id=user_id,
         first_name=first_name,
+        reply_author_name=reply_author_name,
+        reply_author_id=reply_author_id,
     )
 
     if not answer:
@@ -431,9 +344,7 @@ async def process_ai_request(message: types.Message, cmd_key: str):
             else f"Ollama не ответила. Проверь модели {OLLAMA_MODEL}."
         )
         error_api = format_styled_message(
-            emoji=icon,
-            title=name,
-            message=f"❌ Нейросеть не ответила. {error_info}",
+            emoji=icon, title=name, message=f"❌ Нейросеть не ответила. {error_info}"
         )
         if wait_msg:
             try:
@@ -462,7 +373,6 @@ async def process_ai_request(message: types.Message, cmd_key: str):
         answer = answer.strip().strip('"').strip("'").strip("«").strip("»")
 
     chunks = split_text(answer)
-
     first_chunk = format_styled_message(
         emoji=icon,
         title=name,
@@ -479,16 +389,6 @@ async def process_ai_request(message: types.Message, cmd_key: str):
 
     await db.increment_commands()
     await db.log_command(cmd_key, user_id)
-
-
-def truncate_history_to_budget(
-    history: list[str], max_chars: int = MAX_HISTORY_TOTAL_CHARS
-) -> list[str]:
-    total_chars = sum(len(entry) for entry in history)
-    while history and total_chars > max_chars:
-        removed = history.pop(0)
-        total_chars -= len(removed)
-    return history
 
 
 @register_command("!ии_чат", is_enabled=(AI_PROVIDER == "groq"))
@@ -558,10 +458,8 @@ async def process_chat_persona_callback(
         return
 
     user_chat_histories[user_id] = []
-
     await state.update_data(persona_key=persona_key, msg_count=0)
     await state.set_state(AIChatMode.in_chat)
-
     await callback.message.edit_text(
         format_styled_message(
             "✅",
@@ -570,123 +468,6 @@ async def process_chat_persona_callback(
         )
     )
     await callback.answer()
-
-
-async def chat_ai_worker(
-    msg: types.Message,
-    bot,
-    text: str,
-    history: list,
-    persona: dict,
-    user_id: int,
-    first_name: str = "",
-) -> tuple[Optional[str], list]:
-    has_audio_video = any([msg.voice, msg.audio, msg.video_note, msg.video])
-    has_photo = bool(msg.photo)
-
-    extracted_text = text
-    base64_images = None
-
-    if has_audio_video:
-        try:
-            file_path, _ = await download_media_file(msg, bot)
-            if file_path:
-                transcribed = await transcribe_audio(
-                    file_path=file_path, language="auto"
-                )
-                if transcribed:
-                    extracted_text = transcribed + (
-                        f"\n\nПодпись: {text}" if text else ""
-                    )
-                else:
-                    return "ERROR:MEDIA_FAILED", history
-                try:
-                    os.unlink(file_path)
-                except Exception:
-                    pass
-            else:
-                return "ERROR:MEDIA_FAILED", history
-        except Exception as e:
-            logger.error(f"Ошибка Whisper внутри очереди (чат): {e}")
-            return "ERROR:MEDIA_FAILED", history
-
-    elif has_photo:
-        try:
-            photo = msg.photo[-1]
-            img_bytes = io.BytesIO()
-            await bot.download(photo, destination=img_bytes)
-            base64_images = [base64.b64encode(img_bytes.getvalue()).decode("utf-8")]
-        except Exception as e:
-            logger.error(f"Ошибка Vision внутри очереди (чат): {e}")
-            return "ERROR:VISION_FAILED", history
-
-    if base64_images:
-        vision_prompt = "Опиши максимально подробно, что ты видишь на этом изображении."
-        vision_sys = (
-            "Ты — точная подсистема компьютерного зрения. Выдавай только факты."
-        )
-
-        vision_desc = await ask_ai(vision_prompt, vision_sys, images=base64_images)
-
-        if vision_desc:
-            vision_desc = re.sub(
-                r"<think>.*?</think>", "", vision_desc, flags=re.DOTALL
-            ).strip()
-
-            img_context = f"[СИСТЕМНОЕ СООБЩЕНИЕ: Пользователь прикрепил картинку. Вот её подробное описание от подсистемы зрения:\n{vision_desc}]\n\n"
-
-            if extracted_text:
-                extracted_text = f"{img_context}Сообщение пользователя вместе с картинкой: {extracted_text}"
-            else:
-                extracted_text = (
-                    f"{img_context}Прокомментируй это изображение в своем стиле."
-                )
-
-            base64_images = None
-        else:
-            return "ERROR:VISION_FAILED", history
-
-    if not extracted_text and not base64_images:
-        return "ERROR:EMPTY_PROMPT", history
-
-    if len(extracted_text) > MAX_SINGLE_MSG_CHARS:
-        extracted_text = extracted_text[:MAX_SINGLE_MSG_CHARS] + "..."
-
-    local_history = history.copy()
-    local_history.append(
-        f"Пользователь ({first_name or 'Пользователь'}): {extracted_text}"
-    )
-    if len(local_history) > 10:
-        local_history = local_history[-10:]
-    local_history = truncate_history_to_budget(local_history)
-
-    max_response_tokens = min(persona.get("max_tokens", 1024), 1024)
-
-    system_prompt = (
-        persona["system_prompt"]
-        + "\n❌ КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО: писать в тексте ответа любые действия, эмоции или звуковые эффекты в круглых или квадратных скобках (например, *улыбнулся*, (шепотом), [вздыхает]). Выдавай только чистую прямую речь и текст, без сценических ремарок!"
-        + "\n\n[⚠️ ТЕКУЩИЙ РЕЖИМ: ИИ-ЧАТ (!ии_чат). Ты находишься в активном диалоге и ПОМНИШЬ прошлые сообщения из истории ниже. НЕ отрицай наличие памяти!]"
-    )
-
-    if user_id:
-        if its_me(user_id):
-            system_prompt += "\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Собеседник — Lonewolf239, твой создатель и автор бота! Учитывай это в своих ответах.]"
-        else:
-            safe_name = (first_name or "Пользователь").replace("\n", " ")
-            system_prompt += f"\n[СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Имя собеседника — '{safe_name}'. Он НЕ является твоим создателем (твой единственный разработчик — Lonewolf239).]"
-
-    answer = await ask_groq_ai(
-        user_prompt="\n".join(local_history),
-        system_prompt=system_prompt,
-        images=base64_images,
-        temperature=persona.get("temperature", 0.5),
-        max_tokens=max_response_tokens,
-    )
-
-    if answer:
-        answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
-
-    return answer, local_history
 
 
 async def process_chat_message(message: types.Message, state: FSMContext):
@@ -712,16 +493,13 @@ async def process_chat_message(message: types.Message, state: FSMContext):
     data = await state.get_data()
     persona_key = data.get("persona_key", "!ии")
     msg_count = data.get("msg_count", 0)
-
     history = user_chat_histories.get(user_id, [])
-
     persona = AI_PERSONAS.get(persona_key, AI_PERSONAS["!ии"])
 
     has_audio_video = any(
         [message.voice, message.audio, message.video_note, message.video]
     )
     has_photo = bool(message.photo)
-
     media_extra_cost = 0
     action_text = "Анализ запроса"
 
@@ -826,8 +604,10 @@ async def process_chat_message(message: types.Message, state: FSMContext):
 
     base_cost = COMMAND_COSTS.get("!ии_чат", 5)
     current_cost = base_cost + total_extra_cost
-
-    token_info = f"\n\n<i>🪙 Стоимость сообщения: {current_cost} токенов</i>"
+    token_info = (
+        f"\n\n<i>🪙 Стоимость сообщения: {current_cost} токенов</i>\n"
+        f"<i>🛑 Для выхода из чата напиши <code>!выход</code></i>"
+    )
     disclaimer = persona.get("disclaimer", "")
 
     formatted_answer = f"{format_md_to_html(answer)}{token_info}{disclaimer}"

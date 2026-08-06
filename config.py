@@ -949,6 +949,7 @@ AI_PERSONAS = {
         "frequency_penalty": 0.5,
         "disclaimer": "\n\n<b>⚠️ Режим экспериментальный, нейросеть может нести чушь.</b>",
         "strip_quotes": True,
+        "allow_actions": True,
     },
     "!коуч": {
         "system_prompt": (
@@ -1102,6 +1103,7 @@ AI_PERSONAS = {
         "frequency_penalty": 0.5,
         "disclaimer": "\n\n<b>⚠️ Режим экспериментальный, нейросеть может нести чушь.</b>",
         "strip_quotes": True,
+        "allow_actions": True,
     },
     "!пират": {
         "system_prompt": (
@@ -1202,6 +1204,7 @@ AI_PERSONAS = {
         "frequency_penalty": 0.6,
         "disclaimer": "\n\n<b>⚠️ Режим экспериментальный, нейросеть может нести чушь.</b>",
         "strip_quotes": True,
+        "allow_actions": True,
     },
     "!детектив": {
         "system_prompt": (
