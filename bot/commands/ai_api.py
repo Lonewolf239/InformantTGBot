@@ -9,7 +9,7 @@ from typing import Optional
 import aiohttp
 from aiogram import types
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton
 from bot.state import AIChatMode
 from config import (
     AI_AUDIO_EXTRA_COST,
@@ -34,6 +34,7 @@ from bot.utils.helpers import (
     get_reply_raw_text,
     refund_tokens,
     its_me,
+    create_user_keyboard,
 )
 from bot.utils.media_core import download_media_file
 from bot.utils.queue_wrapper import process_with_queue
@@ -518,7 +519,6 @@ async def cmd_ai_chat(message: types.Message, state: FSMContext):
     keyboard.append(
         [InlineKeyboardButton(text="❌ Отмена", callback_data="chat_cancel")]
     )
-    markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
 
     await message.reply(
         format_styled_message(
@@ -526,7 +526,7 @@ async def cmd_ai_chat(message: types.Message, state: FSMContext):
             "ИИ-ЧАТ",
             "Выбери персону для начала диалога. \nДля выхода из чата напиши <code>!выход</code>.",
         ),
-        reply_markup=markup,
+        reply_markup=create_user_keyboard(keyboard, message.from_user.id),
     )
     await state.set_state(AIChatMode.choosing_persona)
 
