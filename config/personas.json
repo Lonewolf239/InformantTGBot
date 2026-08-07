@@ -341,7 +341,7 @@
     "max_tokens": 1024,
     "presence_penalty": 0.2,
     "frequency_penalty": 0.2,
-    "disclaimer": "\n\n<b>👤 Сгенерировано цифровым двойником</b>",
+    "disclaimer": "\n\n<b>⚠️ Режим экспериментальный, нейросеть может нести чушь.</b>",
     "strip_quotes": true
   }
 }
