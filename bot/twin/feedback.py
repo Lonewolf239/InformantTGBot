@@ -1,5 +1,6 @@
 from aiogram import types
 from aiogram.types import InlineKeyboardButton
+from aiogram.exceptions import TelegramBadRequest
 from config import OWNER_ID
 from bot.twin.database import twin_db
 from bot.utils.helpers import create_user_keyboard
@@ -51,7 +52,12 @@ async def handle_feedback_callback(callback_query: types.CallbackQuery, data: st
         return
 
     ok = await twin_db.set_feedback_rating(feedback_id, rating)
-    if ok:
-        await callback_query.answer(f"Принято: {FEEDBACK_LABELS[rating]}")
-    else:
+    if not ok:
         await callback_query.answer("Не удалось сохранить оценку", show_alert=True)
+        return
+
+    await callback_query.answer(f"Принято: {FEEDBACK_LABELS[rating]}")
+    try:
+        await callback_query.message.edit_reply_markup(reply_markup=None)
+    except TelegramBadRequest:
+        pass

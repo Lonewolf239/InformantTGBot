@@ -10,15 +10,29 @@ from bot.owner_settings.handlers import cmd_system_settings
 from bot.utils.registry import OWNER_COMMAND_HANDLERS, register_owner_command
 
 
+OWNER_GROUP_LABELS = {
+    "admin": "🛠 АДМИНИСТРИРОВАНИЕ",
+    "twin": "🧬 ЦИФРОВОЙ ДВОЙНИК",
+}
+
+
 @lru_cache(maxsize=1)
 def get_owner_help_text():
-    lines = []
-    for cmd, data in OWNER_COMMAND_METADATA.items():
-        args = f" {data['args']}" if "args" in data else ""
-        lines.append(f"<code>{cmd}{args}</code>")
-    lines.append("Публичная справка: <code>!помощь</code>")
+    sections = []
+    for group_id, label in OWNER_GROUP_LABELS.items():
+        lines = []
+        for cmd, data in OWNER_COMMAND_METADATA.items():
+            if data.get("group") != group_id:
+                continue
+            args = f" {data['args']}" if "args" in data else ""
+            icon = data.get("icon", "🔹")
+            lines.append(f"<b>{icon}</b> <code>{cmd}{args}</code> — {data['desc']}")
+        if lines:
+            sections.append(f"<b>{label}</b>\n" + "\n".join(lines))
 
-    return format_styled_message("👑", "КОМАНДЫ ВЛАДЕЛЬЦА", "\n".join(lines))
+    sections.append("Публичная справка: <code>!помощь</code>")
+
+    return format_styled_message("👑", "КОМАНДЫ ВЛАДЕЛЬЦА", "\n\n".join(sections))
 
 
 async def process_owner_commands(message: types.Message):
