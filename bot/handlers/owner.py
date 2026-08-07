@@ -5,8 +5,9 @@ from bot.utils.database import db
 from bot.links.handlers import cmd_links, cmd_links_stats
 from config import OWNER_COMMAND_METADATA
 from functools import lru_cache
-from bot.utils.helpers import get_raw_text, format_styled_message
+from bot.utils.helpers import its_me, get_raw_text, format_styled_message
 from bot.owner_settings.handlers import cmd_system_settings
+from bot.utils.registry import OWNER_COMMAND_HANDLERS, register_owner_command
 
 
 @lru_cache(maxsize=1)
@@ -21,36 +22,27 @@ def get_owner_help_text():
 
 
 async def process_owner_commands(message: types.Message):
+    if not its_me(message.from_user.id):
+        return False
+
     raw_text = get_raw_text(message)
     if not raw_text:
         return False
 
-    text = raw_text
+    command_trigger = raw_text.split()[0]
+    handler = OWNER_COMMAND_HANDLERS.get(command_trigger)
+    if not handler:
+        return False
 
-    commands = {
-        "!отошёл": cmd_away_on,
-        "!вернулся": cmd_away_off,
-        "!статус": cmd_status,
-        "!ownerhelp": cmd_owner_help,
-        "/help": cmd_owner_help,
-        "!статистика": cmd_stats,
-        "!сброс_таймеров": cmd_reset_timers,
-        "!ссылки": cmd_links,
-        "!линкстат": cmd_links_stats,
-        "!ждущие": cmd_waiting,
-        "!nsfw": cmd_nsfw_stats,
-        "!система": cmd_system_settings,
-    }
-
-    if text.startswith("!очистить_статус"):
-        return await cmd_clear_status(message)
-
-    if text in commands:
-        return await commands[text](message)
-
-    return False
+    return await handler(message)
 
 
+register_owner_command("!ссылки")(cmd_links)
+register_owner_command("!линкстат")(cmd_links_stats)
+register_owner_command("!система")(cmd_system_settings)
+
+
+@register_owner_command("!отошёл")
 async def cmd_away_on(message: types.Message):
     if not await state.is_away_mode:
         await state.set_away_mode(True)
@@ -75,6 +67,7 @@ async def cmd_away_on(message: types.Message):
     return True
 
 
+@register_owner_command("!вернулся")
 async def cmd_away_off(message: types.Message):
     if await state.is_away_mode:
         awaiting_users = await state.get_awaiting_users()
@@ -125,6 +118,7 @@ async def cmd_away_off(message: types.Message):
     return True
 
 
+@register_owner_command("!статус")
 async def cmd_status(message: types.Message):
     state_info = await state.get_stats()
     status_text = (
@@ -147,6 +141,7 @@ async def cmd_status(message: types.Message):
     return True
 
 
+@register_owner_command("!ждущие")
 async def cmd_waiting(message: types.Message):
     if not await state.is_away_mode:
         await message.reply(
@@ -194,12 +189,15 @@ async def cmd_waiting(message: types.Message):
     return True
 
 
+@register_owner_command("!ownerhelp")
+@register_owner_command("/help")
 async def cmd_owner_help(message: types.Message):
     await message.reply(get_owner_help_text())
     await db.increment_commands()
     return True
 
 
+@register_owner_command("!статистика")
 async def cmd_stats(message: types.Message):
     full_stats = await db.get_full_stats()
     state_info = await state.get_stats()
@@ -256,6 +254,7 @@ async def cmd_stats(message: types.Message):
     return True
 
 
+@register_owner_command("!сброс_таймеров")
 async def cmd_reset_timers(message: types.Message):
     await state.reset_session()
     await message.reply(
@@ -265,6 +264,7 @@ async def cmd_reset_timers(message: types.Message):
     return True
 
 
+@register_owner_command("!очистить_статус")
 async def cmd_clear_status(message: types.Message):
     try:
         raw_text = get_raw_text(message)
@@ -289,6 +289,7 @@ async def cmd_clear_status(message: types.Message):
     return True
 
 
+@register_owner_command("!nsfw")
 async def cmd_nsfw_stats(message: types.Message):
     from bot.utils.user_settings import user_settings_db
 
