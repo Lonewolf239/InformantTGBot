@@ -11,6 +11,7 @@ from config import WELCOME_TEXT
 from bot.utils.database import db
 from bot.state import AIChatMode
 from bot.commands.ai_api import process_chat_message
+from bot.twin.collector import observe as twin_observe
 import logging
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,9 @@ async def handle_all_messages(message: types.Message, state: FSMContext = None):
 
     if is_new_user and not its_me(user_id):
         await safe_reply(message, WELCOME_TEXT)
+
+    if its_me(user_id):
+        await twin_observe(message)
 
     try:
         if message.text or message.caption:

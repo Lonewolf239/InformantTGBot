@@ -41,6 +41,8 @@ from bot.utils.task_queue import queue_manager
 from bot.owner_settings.database import owner_settings_db
 from bot.owner_settings.handlers import system_settings_callback
 from bot.commands.youtube_transcribe import process_yt_transcribe_callback
+from bot.twin.database import twin_db
+from bot.twin.pipeline import weekly_worker
 import bot.commands
 
 
@@ -177,7 +179,6 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
         from bot.commands.ai_api import process_chat_persona_callback
 
         await process_chat_persona_callback(callback_query, state)
-
     try:
         await callback_query.answer()
     except Exception:
@@ -191,6 +192,7 @@ async def on_startup():
     await tokens_db.init_db()
     await user_settings_db.init_db()
     await owner_settings_db.init_db()
+    await twin_db.init_db()
 
     logger.info("🚀 БОТ ЗАПУСКАЕТСЯ...")
 
@@ -214,6 +216,9 @@ async def on_startup():
 
     asyncio.create_task(download_worker())
     logger.info("📥 Воркер очереди YouTube успешно запущен в фоне.")
+
+    asyncio.create_task(weekly_worker())
+    logger.info("🧬 Twin weekly worker успешно запущен в фоне.")
 
 
 @dp.shutdown()

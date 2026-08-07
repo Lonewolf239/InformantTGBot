@@ -139,7 +139,6 @@ async def unified_ai_worker(
     reply_author_name: str = "",
     reply_author_id: int = 0,
 ) -> Optional[str]:
-
     extracted_reply_text = reply_text
     base64_images = None
 
@@ -191,6 +190,21 @@ async def unified_ai_worker(
     if not final_prompt:
         return "ERROR:EMPTY_PROMPT"
 
+    if persona.get("is_twin", False):
+        from bot.twin.persona import ask_twin
+
+        answer = await ask_twin(
+            user_prompt=final_prompt,
+            user_id=user_id,
+            first_name=first_name,
+            temperature=persona.get("temperature", 0.7),
+            top_p=persona.get("top_p", 0.9),
+            max_tokens=persona.get("max_tokens", 1024),
+            presence_penalty=persona.get("presence_penalty", 0.3),
+            frequency_penalty=persona.get("frequency_penalty", 0.3),
+        )
+        return answer
+
     system_prompt = _build_system_prompt(persona, user_id, first_name, chat_mode=False)
 
     answer = await ask_ai(
@@ -221,6 +235,33 @@ async def chat_ai_worker(
     user_id: int,
     first_name: str = "",
 ) -> tuple[Optional[str], list]:
+
+    if persona.get("is_twin"):
+        from bot.twin.persona import (
+            _assemble_system_prompt,
+            _resolve_needed_knowledge,
+            _maybe_learn_from_owner,
+        )
+        from bot.utils.helpers import its_me
+        import asyncio
+
+        if user_id and its_me(user_id):
+            asyncio.create_task(_maybe_learn_from_owner(text))
+
+        system_prompt = await _assemble_system_prompt(
+            user_id, first_name, chat_mode=True
+        )
+
+        knowledge_lines = await _resolve_needed_knowledge(text)
+        if knowledge_lines:
+            system_prompt += (
+                "\n\n[ИЗВЕСТНЫЕ ФАКТЫ О ТЕБЕ, ЕСЛИ РЕЛЕВАНТНЫ ЗАПРОСУ]:\n"
+                + "\n".join(f"- {line}" for line in knowledge_lines)
+            )
+    else:
+        system_prompt = _build_system_prompt(
+            persona, user_id, first_name, chat_mode=True
+        )
 
     extracted_text, base64_images, err = await _process_message_media(msg, bot, text)
     if err:
@@ -255,7 +296,6 @@ async def chat_ai_worker(
     local_history = truncate_history_to_budget(local_history)
 
     max_response_tokens = min(persona.get("max_tokens", 1024), 1024)
-    system_prompt = _build_system_prompt(persona, user_id, first_name, chat_mode=True)
 
     answer = await ask_groq_ai(
         user_prompt="\n".join(local_history),

@@ -10,6 +10,7 @@ DB_PATH = os.path.join(
 
 async def init_links_db():
     async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("PRAGMA journal_mode=WAL;")
         await db.execute("""
             CREATE TABLE IF NOT EXISTS saved_links (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
