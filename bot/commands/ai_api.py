@@ -237,27 +237,44 @@ async def chat_ai_worker(
 ) -> tuple[Optional[str], list]:
 
     if persona.get("is_twin"):
+        from bot.twin.database import twin_db
         from bot.twin.persona import (
             _assemble_system_prompt,
             _resolve_needed_knowledge,
+            _resolve_similar_examples,
             _maybe_learn_from_owner,
+            _plan_reaction,
+            _format_plan_note,
+            SPLIT_INSTRUCTION_NOTE,
+            TWIN_BACKGROUND_QUEUE,
         )
         from bot.utils.helpers import its_me
+        from bot.utils.task_queue import queue_manager
         import asyncio
 
-        if user_id and its_me(user_id):
-            asyncio.create_task(_maybe_learn_from_owner(text))
+        is_owner = bool(user_id and its_me(user_id))
+        if is_owner:
+            await queue_manager.add_task(TWIN_BACKGROUND_QUEUE, _maybe_learn_from_owner, text)
+        elif user_id:
+            asyncio.create_task(twin_db.upsert_contact_seen(user_id, first_name))
+
+        access_level = await twin_db.get_access_level(user_id, is_owner)
 
         system_prompt = await _assemble_system_prompt(
             user_id, first_name, chat_mode=True
         )
 
-        knowledge_lines = await _resolve_needed_knowledge(text)
+        knowledge_lines = await _resolve_needed_knowledge(text, access_level)
         if knowledge_lines:
             system_prompt += (
                 "\n\n[ИЗВЕСТНЫЕ ФАКТЫ О ТЕБЕ, ЕСЛИ РЕЛЕВАНТНЫ ЗАПРОСУ]:\n"
                 + "\n".join(f"- {line}" for line in knowledge_lines)
             )
+        system_prompt += await _resolve_similar_examples(text)
+
+        plan = await _plan_reaction(text)
+        system_prompt += _format_plan_note(plan)
+        system_prompt += SPLIT_INSTRUCTION_NOTE
     else:
         system_prompt = _build_system_prompt(
             persona, user_id, first_name, chat_mode=True
@@ -288,25 +305,44 @@ async def chat_ai_worker(
         extracted_text = extracted_text[:MAX_SINGLE_MSG_CHARS] + "..."
 
     local_history = history.copy()
-    local_history.append(
-        f"Пользователь ({first_name or 'Пользователь'}): {extracted_text}"
-    )
-    if len(local_history) > 10:
-        local_history = local_history[-10:]
+    if len(local_history) > 9:
+        local_history = local_history[-9:]
     local_history = truncate_history_to_budget(local_history)
 
     max_response_tokens = min(persona.get("max_tokens", 1024), 1024)
 
-    answer = await ask_groq_ai(
-        user_prompt="\n".join(local_history),
-        system_prompt=system_prompt,
-        images=base64_images,
-        temperature=persona.get("temperature", 0.5),
-        max_tokens=max_response_tokens,
-    )
+    if persona.get("is_twin"):
+        from bot.twin.persona import generate_twin_reply, SPLIT_MARKER
 
+        answer = await generate_twin_reply(
+            extracted_text,
+            system_prompt,
+            {
+                "temperature": persona.get("temperature", 0.5),
+                "max_tokens": max_response_tokens,
+            },
+            history=local_history,
+            images=base64_images,
+            use_candidates=True,
+        )
+        history_answer = answer.replace(SPLIT_MARKER, "\n") if answer else answer
+    else:
+        answer = await ask_groq_ai(
+            user_prompt=extracted_text,
+            system_prompt=system_prompt,
+            images=base64_images,
+            history=local_history,
+            temperature=persona.get("temperature", 0.5),
+            max_tokens=max_response_tokens,
+        )
+        if answer:
+            answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
+        history_answer = answer
+
+    local_history.append({"role": "user", "content": extracted_text})
     if answer:
-        answer = re.sub(r"<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
+        local_history.append({"role": "assistant", "content": history_answer})
+    local_history = truncate_history_to_budget(local_history)
 
     return answer, local_history
 
@@ -316,7 +352,9 @@ async def process_ai_request(message: types.Message, cmd_key: str):
     meta = COMMAND_METADATA.get(cmd_key, {"icon": "🤖", "name": "ИИ"})
 
     if not persona:
-        await message.reply(f"❌ Настройки для {cmd_key} не найдены.")
+        await message.reply(
+            format_styled_message("❌", "ОШИБКА", f"Настройки для {cmd_key} не найдены.")
+        )
         return
 
     icon = meta["icon"]
@@ -412,7 +450,19 @@ async def process_ai_request(message: types.Message, cmd_key: str):
     if persona.get("strip_quotes"):
         answer = answer.strip().strip('"').strip("'").strip("«").strip("»")
 
-    chunks = split_text(answer)
+    feedback_keyboard = None
+    if persona.get("is_twin"):
+        from bot.twin.persona import split_twin_answer
+        from bot.twin.feedback import build_feedback_keyboard
+
+        pieces = split_twin_answer(answer) or [answer]
+        feedback_keyboard = await build_feedback_keyboard(
+            user_id, raw_prompt or reply_text or "", answer
+        )
+    else:
+        pieces = [answer]
+
+    chunks = [c for piece in pieces for c in split_text(piece)]
     first_chunk = format_styled_message(
         emoji=icon,
         title=name,
@@ -420,9 +470,9 @@ async def process_ai_request(message: types.Message, cmd_key: str):
     )
 
     try:
-        await wait_msg.edit_text(first_chunk)
+        await wait_msg.edit_text(first_chunk, reply_markup=feedback_keyboard)
     except Exception:
-        await message.reply(first_chunk)
+        await message.reply(first_chunk, reply_markup=feedback_keyboard)
 
     for chunk in chunks[1:]:
         await message.answer(format_md_to_html(chunk))
@@ -479,7 +529,9 @@ async def process_chat_persona_callback(
     if callback.data == "chat_cancel":
         await state.clear()
         user_chat_histories.pop(user_id, None)
-        await callback.message.edit_text("❌ Вход в режим чата отменен.")
+        await callback.message.edit_text(
+            format_styled_message("❌", "ИИ-ЧАТ", "Вход в режим чата отменен.")
+        )
         await callback.answer()
         return
 
@@ -525,7 +577,9 @@ async def process_chat_message(message: types.Message, state: FSMContext):
         return
 
     if AI_PROVIDER != "groq":
-        await message.reply("❌ ИИ-чат отключен (режим провайдера изменён).")
+        await message.reply(
+            format_styled_message("❌", "ИИ-ЧАТ", "ИИ-чат отключен (режим провайдера изменён).")
+        )
         await state.clear()
         return
 
@@ -637,8 +691,6 @@ async def process_chat_message(message: types.Message, state: FSMContext):
                 await message.reply(formatted_error)
         return
 
-    new_history.append(f"ИИ: {answer}")
-    new_history = truncate_history_to_budget(new_history)
     user_chat_histories[user_id] = new_history
     await state.update_data(msg_count=msg_count + 1)
 
@@ -650,15 +702,26 @@ async def process_chat_message(message: types.Message, state: FSMContext):
     )
     disclaimer = persona.get("disclaimer", "")
 
-    formatted_answer = f"{format_md_to_html(answer)}{token_info}{disclaimer}"
-    chunks = split_text(formatted_answer)
+    feedback_keyboard = None
+    if persona.get("is_twin"):
+        from bot.twin.persona import split_twin_answer
+        from bot.twin.feedback import build_feedback_keyboard
+
+        pieces = split_twin_answer(answer) or [answer]
+        feedback_keyboard = await build_feedback_keyboard(user_id, text, answer)
+    else:
+        pieces = [answer]
+
+    formatted_pieces = [format_md_to_html(p) for p in pieces]
+    formatted_pieces[-1] = formatted_pieces[-1] + token_info + disclaimer
+    chunks = [c for piece in formatted_pieces for c in split_text(piece)]
 
     first_chunk = format_styled_message(emoji=icon, title=name, message=chunks[0])
 
     try:
-        await wait_msg.edit_text(first_chunk)
+        await wait_msg.edit_text(first_chunk, reply_markup=feedback_keyboard)
     except Exception:
-        await message.reply(first_chunk)
+        await message.reply(first_chunk, reply_markup=feedback_keyboard)
 
     for chunk in chunks[1:]:
         await message.answer(chunk)

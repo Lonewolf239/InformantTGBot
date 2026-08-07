@@ -10,7 +10,7 @@ from bot.links.database import (
     get_stats,
 )
 from bot.links.keyboard import create_submenu_keyboard, create_unviewed_list_keyboard
-from bot.utils.helpers import get_raw_text
+from bot.utils.helpers import get_raw_text, format_styled_message
 from config import OWNER_ID
 import logging
 
@@ -49,9 +49,12 @@ async def process_incoming_link(message: types.Message):
     if saved_count > 0:
         emoji = "🎵" if saved_count == 1 else "📚"
         await message.reply(
-            f"<b>┌─ {emoji} ССЫЛКА СОХРАНЕНА</b>\n"
-            f"├─ Сохранено ссылок: {saved_count}\n"
-            f"└─ Владелец увидит их в меню <code>!ссылки</code>"
+            format_styled_message(
+                emoji,
+                "ССЫЛКА СОХРАНЕНА",
+                f"Сохранено ссылок: {saved_count}\n"
+                "Владелец увидит их в меню <code>!ссылки</code>",
+            )
         )
         return True
 
@@ -61,7 +64,7 @@ async def process_incoming_link(message: types.Message):
 async def cmd_links(message: types.Message):
     if message.from_user.id != OWNER_ID:
         await message.reply(
-            "<b>┌─ ❌ Ошибка</b>\n└─ Эта команда только для владельца бота."
+            format_styled_message("❌", "Ошибка", "Эта команда только для владельца бота.")
         )
         return True
 
@@ -81,11 +84,14 @@ async def cmd_links_stats(message: types.Message):
 
     stats = await get_stats()
     await message.reply(
-        "<b>┌─ 📊 СТАТИСТИКА ССЫЛОК</b>\n"
-        f"<b>├─ 📎 Всего ссылок:</b> {stats['total']}\n"
-        f"<b>├─ 👀 Непросмотренных:</b> {stats['unviewed']}\n"
-        f"<b>├─ 📋 Типов сервисов:</b> {stats['types_count']}\n"
-        f"<b>└─ 👥 Отправителей:</b> {stats['senders_count']}"
+        format_styled_message(
+            "📊",
+            "СТАТИСТИКА ССЫЛОК",
+            f"📎 Всего ссылок: {stats['total']}\n"
+            f"👀 Непросмотренных: {stats['unviewed']}\n"
+            f"📋 Типов сервисов: {stats['types_count']}\n"
+            f"👥 Отправителей: {stats['senders_count']}",
+        )
     )
     return True
 
@@ -138,8 +144,9 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
                     )
                 else:
                     await callback_query.message.edit_text(
-                        "<b>┌─ 🎉 ВСЕ ССЫЛКИ ПРОСМОТРЕНЫ</b>\n"
-                        "└─ Больше нет непросмотренных ссылок!"
+                        format_styled_message(
+                            "🎉", "ВСЕ ССЫЛКИ ПРОСМОТРЕНЫ", "Больше нет непросмотренных ссылок!"
+                        )
                     )
             else:
                 await callback_query.answer("❌ Ссылка не найдена", show_alert=True)
@@ -163,9 +170,12 @@ async def links_callback_handler(callback_query: types.CallbackQuery):
             await callback_query.message.edit_text(text, reply_markup=reply_markup)
         else:
             await callback_query.message.edit_text(
-                f"<b>┌─ ✅ ОТМЕЧЕНО</b>\n"
-                f"├─ Отмечено как просмотренные: {marked_count} ссылок\n"
-                f"└─ 🎉 Больше нет непросмотренных ссылок!"
+                format_styled_message(
+                    "✅",
+                    "ОТМЕЧЕНО",
+                    f"Отмечено как просмотренные: {marked_count} ссылок\n"
+                    "🎉 Больше нет непросмотренных ссылок!",
+                )
             )
 
     elif data == "links_refresh":

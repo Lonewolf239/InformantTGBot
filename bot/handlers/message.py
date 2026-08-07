@@ -6,12 +6,13 @@ from bot.handlers.public import process_public_commands
 from bot.handlers.rp import process_rp_command
 from bot.handlers.auto_reply import check_auto_reply
 from bot.links.handlers import process_incoming_link
-from bot.utils.helpers import its_me
+from bot.utils.helpers import its_me, format_styled_message
 from config import WELCOME_TEXT
 from bot.utils.database import db
 from bot.state import AIChatMode
 from bot.commands.ai_api import process_chat_message
 from bot.twin.collector import observe as twin_observe
+from bot.twin.interview import try_handle_sequential_message
 import logging
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,9 @@ async def handle_all_messages(message: types.Message, state: FSMContext = None):
     try:
         if message.text or message.caption:
             if its_me(user_id):
+                if await try_handle_sequential_message(message):
+                    return
+
                 if await process_owner_commands(message):
                     return
 
@@ -77,4 +81,6 @@ async def handle_all_messages(message: types.Message, state: FSMContext = None):
 
     except Exception as e:
         logger.error(f"Ошибка в handle_all_messages: {e}", exc_info=True)
-        await safe_reply(message, "❌ Произошла внутренняя ошибка")
+        await safe_reply(
+            message, format_styled_message("❌", "ОШИБКА", "Произошла внутренняя ошибка")
+        )

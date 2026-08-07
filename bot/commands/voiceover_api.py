@@ -89,7 +89,11 @@ async def cmd_voiceover(message: types.Message):
         )
         await message.reply_voice(
             voice=voice_file,
-            caption=f"<b>🗣️ Озвучено ({detected_lang}):</b>\n<i>{caption_text}</i>",
+            caption=format_styled_message(
+                emoji=VOICE_ICON,
+                title=f"Озвучено ({detected_lang})",
+                message=f"<i>{caption_text}</i>",
+            ),
         )
 
         await status_msg.edit_text(

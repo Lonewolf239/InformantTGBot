@@ -30,31 +30,28 @@ async def build_main_menu_data(view_type: str, user_id: int):
         status_emoji = "🚶‍♂️" if is_away else "🟢"
         status_text = "режим ОТОШЁЛ активен" if is_away else "режим ОНЛАЙН"
 
-        text = (
-            "<b>┌─ 🤖 МЕНЮ КОМАНД</b>\n"
-            "<b>├─</b> Выбери нужную категорию ниже, чтобы\n"
-            "<b>├─</b> посмотреть список доступных команд.\n"
-            "<b>│</b>\n"
-            "<b>├─ 🔗 <i>Авто-сохранение ссылок</i></b>\n"
-            "<b>├─   Отправь ссылку на музыку/видео, и она</b>\n"
-            "<b>├─   появится у владельца в !ссылки</b>\n"
-            "<b>│</b>\n"
-            f"<b>├─ {status_emoji} Статус:</b> {status_text}\n"
-            "<b>└─ 🤖 Автоответ:</b> Мгновенный при включённом режиме"
+        text = format_styled_message(
+            "🤖",
+            "МЕНЮ КОМАНД",
+            "Выбери нужную категорию ниже, чтобы посмотреть список доступных команд.\n\n"
+            "🔗 <i>Авто-сохранение ссылок</i>\n"
+            "Отправь ссылку на музыку/видео, и она появится у владельца в !ссылки\n\n"
+            f"{status_emoji} Статус: {status_text}\n"
+            "🤖 Автоответ: Мгновенный при включённом режиме",
         )
     elif view_type == "aliases":
-        text = (
-            "<b>┌─ 🔀 СИНОНИМЫ КОМАНД (АЛИАСЫ)</b>\n"
-            "<b>├─</b> Выбери категорию ниже.\n"
-            "<b>└─</b> <i>Регистр букв значения не имеет.</i>"
+        text = format_styled_message(
+            "🔀",
+            "СИНОНИМЫ КОМАНД (АЛИАСЫ)",
+            "Выбери категорию ниже.\n<i>Регистр букв значения не имеет.</i>",
         )
     elif view_type == "prices":
-        text = (
-            "<b>┌─ 💰 ПРАЙС-ЛИСТ КОМАНД</b>\n"
-            f"<b>├─ 🎁 Ежедневный лимит:</b> {DEFAULT_DAILY_TOKENS} токенов\n"
-            "<b>├─ 💳 Узнать свой баланс:</b> <code>!баланс</code>\n"
-            "<b>│</b>\n"
-            "<b>└─</b> Выбери категорию ниже:"
+        text = format_styled_message(
+            "💰",
+            "ПРАЙС-ЛИСТ КОМАНД",
+            f"🎁 Ежедневный лимит: {DEFAULT_DAILY_TOKENS} токенов\n"
+            "💳 Узнать свой баланс: <code>!баланс</code>\n\n"
+            "Выбери категорию ниже:",
         )
 
     buttons = [
@@ -142,80 +139,3 @@ async def send_universal_menu(message: types.Message, view_type: str, cmd_name: 
     await db.increment_commands()
     await db.log_command(cmd_name, message.from_user.id)
     return True
-
-
-async def get_main_help_text() -> str:
-    from bot.state import state
-
-    is_away = await state.is_away_mode
-
-    status_emoji = "🚶‍♂️" if is_away else "🟢"
-    status_text = "режим ОТОШЁЛ активен" if is_away else "режим ОНЛАЙН"
-
-    text = (
-        "<b>┌─ 🤖 МЕНЮ КОМАНД</b>\n"
-        "<b>├─</b> Выбери нужную категорию ниже, чтобы\n"
-        "<b>├─</b> посмотреть список доступных команд.\n"
-        "<b>│</b>\n"
-        "<b>├─ 🔗 <i>Авто-сохранение ссылок</i></b>\n"
-        "<b>├─   Отправь ссылку на музыку/видео, и она</b>\n"
-        "<b>├─   появится у владельца в !ссылки</b>\n"
-        "<b>│</b>\n"
-        f"<b>├─ {status_emoji} Статус:</b> {status_text}\n"
-        "<b>└─ 🤖 Автоответ:</b> Мгновенный при включённом режиме"
-    )
-    return text
-
-
-async def send_help_menu(
-    target: types.Message | types.CallbackQuery, is_edit: bool = False
-):
-    buttons = []
-
-    for group_id, group_name in HELP_GROUPS.items():
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    text=group_name, callback_data=f"help_cat_{group_id}"
-                )
-            ]
-        )
-
-    user_id = target.from_user.id
-    keyboard = create_user_keyboard(buttons, user_id)
-    text = await get_main_help_text()
-
-    if is_edit:
-        await target.message.edit_text(text, reply_markup=keyboard)
-    else:
-        await target.reply(text, reply_markup=keyboard)
-
-
-async def process_help_category(call: types.CallbackQuery, group_id: str):
-    category_name = HELP_GROUPS.get(group_id, "Команды")
-    text = ""
-    payments_on = await is_payments_enabled()
-
-    for cmd, data in COMMAND_METADATA.items():
-        if data.get("group") == group_id and not data.get("disabled", False):
-            if not payments_on and cmd in ("!прайс", "!баланс", "!рулетка", "!дуэль"):
-                continue
-
-            args_str = f" {data['args']}" if "args" in data else ""
-            text += (
-                f"<b>{data['icon']}</b> <code>{cmd}</code>{args_str} — {data['desc']}\n"
-            )
-
-    buttons = [
-        [InlineKeyboardButton(text="🔙 Назад в меню", callback_data="help_main")]
-    ]
-
-    keyboard = create_user_keyboard(buttons, call.from_user.id)
-    await call.message.edit_text(
-        format_styled_message(emoji="", title=category_name.upper(), message=text),
-        reply_markup=keyboard,
-    )
-
-
-async def process_help_main(call: types.CallbackQuery):
-    await send_help_menu(call, is_edit=True)

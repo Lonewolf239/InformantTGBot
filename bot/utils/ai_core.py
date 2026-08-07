@@ -76,17 +76,25 @@ def format_md_to_html(text: str) -> str:
 
 
 def truncate_history_to_budget(
-    history: list[str], max_chars: int = MAX_HISTORY_TOTAL_CHARS
-) -> list[str]:
-    total_chars = sum(len(entry) for entry in history)
+    history: list[dict], max_chars: int = MAX_HISTORY_TOTAL_CHARS
+) -> list[dict]:
+    def _entry_len(entry: dict) -> int:
+        content = entry.get("content", "")
+        return len(content) if isinstance(content, str) else 0
+
+    total_chars = sum(_entry_len(entry) for entry in history)
     while history and total_chars > max_chars:
         removed = history.pop(0)
-        total_chars -= len(removed)
+        total_chars -= _entry_len(removed)
     return history
 
 
 async def ask_local_ai(
-    user_prompt: str, system_prompt: str, images: list[str] = None, **kwargs
+    user_prompt: str,
+    system_prompt: str,
+    images: list[str] = None,
+    history: list[dict] = None,
+    **kwargs,
 ) -> Optional[str]:
     url = f"{OLLAMA_BASE_URL.rstrip('/')}/api/chat"
     user_message = {"role": "user", "content": user_prompt}
@@ -100,13 +108,15 @@ async def ask_local_ai(
     max_tokens = kwargs.get("max_tokens", 1024)
     repeat_penalty = 1.15 if kwargs.get("frequency_penalty", 0.0) > 0 else 1.0
 
+    messages = [{"role": "system", "content": system_prompt}]
+    if history:
+        messages.extend(history)
+    messages.append(user_message)
+
     payload = {
         "model": model_to_use,
         "stream": False,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            user_message,
-        ],
+        "messages": messages,
         "options": {
             "temperature": kwargs.get("temperature", 0.4),
             "top_p": kwargs.get("top_p", 0.75),
@@ -136,7 +146,11 @@ async def ask_local_ai(
 
 
 async def ask_groq_ai(
-    user_prompt: str, system_prompt: str, images: list[str] = None, **kwargs
+    user_prompt: str,
+    system_prompt: str,
+    images: list[str] = None,
+    history: list[dict] = None,
+    **kwargs,
 ) -> Optional[str]:
     available_keys = key_manager.get_available_keys()
 
@@ -161,6 +175,11 @@ async def ask_groq_ai(
         model_to_use = GROQ_MODEL
         user_message = {"role": "user", "content": user_prompt}
 
+    messages = [{"role": "system", "content": system_prompt}]
+    if history:
+        messages.extend(history)
+    messages.append(user_message)
+
     for api_key in available_keys:
         user_agent = random.choice(USER_AGENTS)
         client = AsyncGroq(
@@ -170,10 +189,7 @@ async def ask_groq_ai(
         try:
             response = await client.chat.completions.create(
                 model=model_to_use,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    user_message,
-                ],
+                messages=messages,
                 temperature=kwargs.get("temperature", 0.4),
                 top_p=kwargs.get("top_p", 0.75),
                 max_tokens=kwargs.get("max_tokens", 1024),
@@ -210,8 +226,16 @@ async def ask_groq_ai(
 
 
 async def ask_ai(
-    user_prompt: str, system_prompt: str, images: list[str] = None, **kwargs
+    user_prompt: str,
+    system_prompt: str,
+    images: list[str] = None,
+    history: list[dict] = None,
+    **kwargs,
 ) -> Optional[str]:
     if AI_PROVIDER == "groq":
-        return await ask_groq_ai(user_prompt, system_prompt, images=images, **kwargs)
-    return await ask_local_ai(user_prompt, system_prompt, images=images, **kwargs)
+        return await ask_groq_ai(
+            user_prompt, system_prompt, images=images, history=history, **kwargs
+        )
+    return await ask_local_ai(
+        user_prompt, system_prompt, images=images, history=history, **kwargs
+    )

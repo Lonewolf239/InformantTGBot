@@ -1,17 +1,18 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot.links.database import get_type_emoji_and_name, format_date
+from bot.utils.helpers import format_styled_message
 
 
 def create_submenu_keyboard(grouped_links: dict):
     if not grouped_links:
-        return "<b>┌─ 🎉 НОВЫХ ССЫЛОК НЕТ</b>\n└─ Кто-нибудь пришлёт вам музыку.", None
+        return (
+            format_styled_message("🎉", "НОВЫХ ССЫЛОК НЕТ", "Кто-нибудь пришлёт вам музыку."),
+            None,
+        )
 
     total_count = sum(grouped_links.values())
-    text = (
-        "<b>┌─ 📬 НОВЫЕ ССЫЛКИ</b>\n"
-        f"<b>├─ Всего:</b> {total_count} шт.\n"
-        "<b>│</b>\n"
-        "<b>└─ Выберите категорию:</b>"
+    text = format_styled_message(
+        "📬", "НОВЫЕ ССЫЛКИ", f"Всего: {total_count} шт.\n\nВыберите категорию:"
     )
 
     keyboard = []
@@ -39,7 +40,9 @@ def create_unviewed_list_keyboard(links: list, link_type: str, page: int = 0) ->
     if not links:
         emoji, type_name = get_type_emoji_and_name(link_type)
         return (
-            f"<b>┌─ {emoji} НЕТ ССЫЛОК</b>\n└─ В категории <b>{type_name}</b> нет непросмотренных ссылок.",
+            format_styled_message(
+                emoji, "НЕТ ССЫЛОК", f"В категории <b>{type_name}</b> нет непросмотренных ссылок."
+            ),
             None,
         )
 
@@ -50,12 +53,12 @@ def create_unviewed_list_keyboard(links: list, link_type: str, page: int = 0) ->
 
     emoji, type_name = get_type_emoji_and_name(link_type)
 
-    text = f"<b>┌─ {emoji} {type_name}</b>\n" f"<b>├─ Всего:</b> {len(links)} шт.\n"
-
+    body = f"Всего: {len(links)} шт.\n"
     if total_pages > 1:
-        text += f"<b>├─ Страница:</b> {page + 1}/{total_pages}\n"
+        body += f"Страница: {page + 1}/{total_pages}\n"
+    body += "\nНажмите на ссылку, чтобы открыть:"
 
-    text += "<b>│</b>\n" "<b>└─ Нажмите на ссылку, чтобы открыть:</b>"
+    text = format_styled_message(emoji, type_name, body)
 
     keyboard = []
     for link in page_links:

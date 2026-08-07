@@ -16,6 +16,7 @@ class OwnerSettingsDB:
             "payments_enabled": 1,
             "auto_reply_enabled": 1,
             "reply_to_owner": 0,
+            "twin_feedback_enabled": 1,
         }
 
     async def init_db(self):

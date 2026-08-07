@@ -4,6 +4,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ==========================================
+# CONFIG LOADER
+# ==========================================
+
+
+def load_json_config(filename):
+    path = os.path.join("config", filename)
+    with open(path, "r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+# ==========================================
+# OWNER & ACCESS CONTROL
+# ==========================================
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID", "0"))
 
@@ -14,25 +29,22 @@ vip_str = os.getenv("VIP_IDS", "")
 VIP_IDS = set(map(int, filter(None, vip_str.split(",")))) if vip_str else set()
 VIP_IDS.add(OWNER_ID)
 
+BOT_LINK = "https://t.me/Lonewolf239_informantBOT"
+
+# ==========================================
+# PAYMENTS & TOKEN ECONOMY
+# ==========================================
+
 YOOKASSA_SHOP_ID = os.getenv("YOOKASSA_SHOP_ID", "")
 YOOKASSA_SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY", "")
 
 USE_WEBHOOKS = False
-
-BOT_LINK = "https://t.me/Lonewolf239_informantBOT"
 
 DEFAULT_DAILY_TOKENS = 50
 TOKEN_PRICE_RUB = 2
 MIN_TOKENS_BUY = 50
 MAX_TOKENS_BUY = 5000
 TOKEN_PACKAGES = [50, 100, 250, 500, 1000, 5000]
-
-
-def load_json_config(filename):
-    path = os.path.join("config", filename)
-    with open(path, "r", encoding="utf-8") as file:
-        return json.load(file)
-
 
 # ==========================================
 # UNIFIED COMMAND REGISTRY (Icons, Names, Prices, Arguments, Description)
@@ -57,6 +69,10 @@ HELP_GROUPS = {
 COMMAND_METADATA = load_json_config("commands.json")
 COMMAND_ALIASES = load_json_config("aliases.json")
 OWNER_COMMAND_METADATA = load_json_config("owner_commands.json")
+
+COMMAND_COSTS = {
+    cmd: data["cost"] for cmd, data in COMMAND_METADATA.items() if data["cost"] > 0
+}
 
 # ==========================================
 # THIRD-PARTY API SETTINGS
@@ -84,7 +100,7 @@ WEATHER_FORECAST_URL = "https://api.openweathermap.org/data/2.5/forecast"
 TRANSLATE_API_URL = "https://translate.googleapis.com/translate_a/single"
 
 # ==========================================
-# AI SETTINGS (Ollama & Whisper)
+# AI SETTINGS (Ollama & Groq)
 # ==========================================
 
 AI_PROVIDER = "groq"  # "groq" / "local"
@@ -105,6 +121,9 @@ AI_VISION_EXTRA_COST = 5
 
 AI_PERSONAS = load_json_config("personas.json")
 
+# ==========================================
+# SPEECH RECOGNITION (Whisper)
+# ==========================================
 
 WHISPER_MODEL = "base"
 WHISPER_MAX_DURATION_SECONDS = 360
@@ -122,34 +141,22 @@ YT_MAX_FILE_SIZE_MB = 50
 COOKIES_FILE = "cookies.txt"
 
 # ==========================================
-# Kinopoisk Api Unofficial
+# EXTERNAL API KEYS
 # ==========================================
 
+# Kinopoisk Api Unofficial
 KINOPOISK_API_KEY = os.getenv("KINOPOISK_API_KEY", "")
 
-# ==========================================
 # pollinations.ai
-# ==========================================
-
 POLLINATIONS_API_KEY = os.getenv("POLLINATIONS_API_KEY", "")
 
-
-# ==========================================
 # NewsAPI.org
-# ==========================================
-
 NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 
-# ==========================================
 # Unsplash Developers
-# ==========================================
-
 UNSPLASH_API_KEY = os.getenv("UNSPLASH_API_KEY", "")
 
-# ==========================================
 # Ticketmaster Developer Portal
-# ==========================================
-
 TICKETMASTER_API_KEY = os.getenv("TICKETMASTER_API_KEY", "")
 
 # ==========================================
@@ -172,20 +179,10 @@ WELCOME_TEXT = (
 )
 
 AWAY_MESSAGES = load_json_config("away_messages.json")
-
-
 KEYWORD_REACTIONS = load_json_config("keyword_reactions.json")
-
 SFW_RP_ACTIONS = load_json_config("sfw_rp_actions.json")
-
 NSFW_RP_ACTIONS = load_json_config("nsfw_rp_actions.json")
-
 SIMPLE_ANSWERS = load_json_config("simple_answers.json")
-
 BACKUP_JOKES = load_json_config("backup_jokes.json")
 
 NSFW_ENABLED_BY_DEFAULT = 0
-
-COMMAND_COSTS = {
-    cmd: data["cost"] for cmd, data in COMMAND_METADATA.items() if data["cost"] > 0
-}

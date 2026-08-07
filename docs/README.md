@@ -17,160 +17,133 @@ git clone https://github.com/Lonewolf239/InformantTGBot.git
 cd InformantTGBot
 pip install -r requirements.txt
 cp dotenv_template .env
-python main.py
+python -m bot.main
 ```
-
----
-
-## Features
-
-<!-- FEATURES_TABLE_START -->
-| | Feature | Description |
-|---|---------|-------------|
-| 🌐 | **Переводчик** | `!перевести` — Translates text |
-| 👾 | **Шакализатор** | `!шакал -начало` — Merges videos |
-| 🎧 | **Замена звука** | `!звук` — Replaces sound |
-| 🎙️ | **Расшифровка речи** | `!расшифровка` — Transcribes speech |
-| 🧠 | **ИИ-помощник** | `!ии [текст]` — Helps AI |
-| 🤬 | **Нейрохам** | `!нейрохам [текст]` — Responds rudely |
-| 🛋 | **ИИ-Психолог** | `!психолог [текст]` — Listens to problems |
-| 📝 | **Краткий пересказ** | `!пересказ [текст]` — Retells text |
-| 🤓 | **ИИ-Душнила** | `!душнила [текст]` — Suffocates with questions |
-| 💻 | **Senior ИИ** | `!синьор [текст]` — Responds like a senior |
-| 🧢 | **ИИ-Гопник** | `!гопник [текст]` — Answers based on concepts |
-| 🤡 | **ИИ-Шутник** | `!шутник [тема]` — Makes up jokes |
-| 🧚 | **ИИ-Сказочник** | `!сказка [тема]` — Tells stories |
-| 👵 | **ИИ-Бабка** | `!бабка [тема]` — Grumbles like a grandma |
-| 🥴 | **ИИ-Алкаш** | `!алкаш [тема]` — Talks drunk |
-| 💸 | **ИИ-Коуч** | `!коуч [текст]` — Sells success |
-| 📱 | **ИИ-Зумер** | `!зумер [текст]` — Speaks slang |
-| 🛸 | **Конспиролог** | `!шапочка [текст]` — Sees conspiracies |
-| 🛒 | **AliExpress** | `!алиэкспрес [текст]` — Sells through aliexpress |
-| 🔊 | **Озвучка текста** | `!озвучка` — Voices text |
-| 🔊 | **Мемные звуки** | `!инстант [запрос]` — Searches for meme sounds |
-| 🎬 | **Загрузчик медиа** | `!скачать [ссылка]` — Downloads media |
-| 📝 | **Текст из YouTube** | `!ютуб_текст [ссылка]` — Translates video |
-| 🎵 | **Поиск музыки** | `!трек [название]` — Finds music |
-| 🎤 | **Поиск по тексту** | `!по_тексту [слова из песни]` — Finds a song |
-| 📚 | **Википедия** | `!вики [запрос]` — Searches Wikipedia |
-| 🎬 | **Кино-Поиск** | `!кино [название]` — Shows a movie |
-| 🪙 | **Курс Криптовалют** | `!курс_крипты` — Shows rates |
-| 🔍 | **Поиск картинок** | `!картинка [запрос]` — Finds images |
-| 🌤️ | **Погода** | `!погода [город]` — Shows weather |
-| 🖼️ | **Мем** | `!мем [избранное]` — Displays meme |
-| 🐱 | **Котёнок** | `!кот` — Displays kitty |
-| 📖 | **Факт** | `!факт` — Displays fact |
-| 🔎 | **Поиск в сети** | `!поиск [запрос]` — Searches for information |
-| 🔮 | **Прогноз** | `!прогноз` — Displays forecast |
-| 💭 | **Цитата** | `!цитата` — Displays quote |
-| 📱 | **QR-код** | `!qr [текст]` — Generates qr |
-| 🎰 | **Рулетка** | `!рулетка [ставка]` — Plays roulette |
-| ⚔️ | **Дуэль** | `!дуэль [ставка]` — Challenges to a duel |
-| 🎭 | **RP Команды** | `!рп` — Displays rp |
-| 💱 | **Курс Валют** | `!курс [сумма] [валюты]` — Shows exchange rate |
-| 🔀 | **Алиасы** | `!алиасы` — Outputs all aliases |
-| 💳 | **Баланс кошелька** | `!баланс` — Shows balance |
-| 💰 | **Прайс-лист** | `!прайс` — Displays pricing |
-| ⚙️ | **Настройки** | `!настройки` — Changes settings |
-| 🤖 | **О боте** | `!о_боте` — Shows information |
-| 🍩 | **Донат** | `!donut` — Supports the author |
-| ℹ️ | **Помощь** | `!помощь` — Shows help |
-| 🚀 | **Старт** | `!старт` — Launches the bot |
-| 📰 | **Новости** | `!новости` — Shows news |
-| 🎟 | **Афиша** | `!афиша` — Shows the poster |
-| 🖼 | **Обои** | `!обои` — Shows wallpapers |
-| 🚫 | **Отключенные команды** | `!отключенные` — Shows disabled |
-| 💬 | **ИИ-ЧАТ** | `!ии_чат` — Launches chat |
-| 👑 | **Owner Commands** | `---` |
-| 🚶‍♂️ | **Отошёл** | `!отошёл` — Turns on autoresponse |
-| 🏠 | **Вернулся** | `!вернулся` — Turns off autoresponse |
-| 📊 | **Статус** | `!статус` — Shows status |
-| 📈 | **Статистика** | `!статистика` — Shows statistics |
-| ⏱ | **Сброс таймеров** | `!сброс_таймеров` — Resets timers |
-| 🧹 | **Очистить статус** | `!очистить_статус [id]` — Clears status |
-| 🔗 | **Ссылки** | `!ссылки` — Manages links |
-| 📊 | **Статистика ссылок** | `!линкстат` — Shows statistics |
-| ⏳ | **Ждущие** | `!ждущие` — Displays the list |
-| 🔞 | **NSFW** | `!nsfw` — Checks settings |
-| ⚙️ | **Система** | `!система` — Configures the system |
-<!-- FEATURES_TABLE_END -->
 
 ---
 
 ## Commands (all commands are in Russian)
 
 <!-- COMMANDS_SECTION_START -->
-### Owner (`!ownerhelp`)
-- `!отошёл` – Turn on autoresponse mode
-- `!вернулся` – Turn off autoresponse mode
-- `!статус` – Current bot operation status
-- `!статистика` – Full bot statistics
-- `!сброс_таймеров` – Reset current session
-- `!очистить_статус [id]` – Clear user status
-- `!ссылки` – Bot link management
-- `!линкстат` – Link click statistics
-- `!ждущие` – Waiting for response list
-- `!nsfw` – NSFW settings statistics
-- `!система` – System settings
+### 🧠 AI & Personas
+| | Command | Description |
+|---|---|---|
+| 🧠 | `!ии [текст]` | запрос к локальной нейросети |
+| 🤬 | `!нейрохам [текст]` | агрессивный ИИ-ответ |
+| 🛋 | `!психолог [текст]` | эмпатичный ИИ, который выслушает и поддержит |
+| 📝 | `!пересказ [текст]` | выжимка главного из большого текста |
+| 🤓 | `!душнила [текст]` | душный и придирчивый ответ |
+| 💻 | `!синьор [текст]` | ответ от выгоревшего программиста |
+| 🧢 | `!гопник [текст]` | ответ по понятиям |
+| 🤡 | `!шутник [тема]` | сочиняет анекдоты на лету |
+| 🧚 | `!сказка [тема]` | сочиняет сказки и истории |
+| 👵 | `!бабка [тема]` | ворчит как бабка у подъезда |
+| 🥴 | `!алкаш [тема]` | вещает из состояния глубокого запоя |
+| 💸 | `!коуч [текст]` | успешный успех, крипта и выдуманные курсы |
+| 📱 | `!зумер [текст]` | жертва ТикТока, общается сленгом |
+| 🛸 | `!шапочка [текст]` | везде видит заговор рептилоидов и 5G |
+| 🛒 | `!алиэкспрес [текст]` | отвечает кривым машинным переводом SEO-товаров |
+| 🔮 | `!гадалка [вопрос]` | предсказывает судьбу и раскидывает таро |
+| 🗄 | `!бюрократ [текст]` | требует справки и гоняет по кабинетам |
+| 🗿 | `!философ [вопрос]` | экзистенциальный кризис на любой вопрос |
+| ⚔️ | `!рыцарь [текст]` | благородный воин, говорит высоким штилем |
+| 🐈 | `!котик [текст]` | нейросеть с лапками (и завышенным ЧСВ) |
+| 🏴‍☠️ | `!пират [текст]` | морской волк, ром и пиастры |
+| 🚨 | `!паникер [текст]` | во всём видит конец света |
+| ⛪️ | `!проповедник [текст]` | фанатичный гуру странного культа |
+| 👩‍👧 | `!мамуля [текст]` | гиперопекающая виртуальная мать |
+| 👽 | `!пришелец [текст]` | изучает жалких землян |
+| 📎 | `!скрепка [текст]` | глючный ассистент из 90-х |
+| 🕵️‍♂️ | `!детектив [текст]` | нуарный сыщик с депрессией |
+| 🍳 | `!шеф [текст]` | орёт и критикует как Гордон Рамзи |
+| 💪 | `!качок [текст]` | тупой качок, думает только о массе и протеине |
+| 🎢 | `!биполяр [текст]` | эмоциональные качели от эйфории до глубокой депрессии |
+| 👤 | `!я [текст]` | цифровой двойник Lonewolf239 |
+| 💬 | `!ии_чат` | интерактивный диалог с персонами |
+| 🧬 | `!двойник_стиль (реплай на владельца)` | разобрать СТИЛЬ/МЫШЛЕНИЕ/ТЕМЫ-профиль из сообщения владельца и обновить личность двойника |
+| 📚 | `!двойник_факты (реплай на владельца)` | извлечь факты о владельце из его сообщения в базу знаний двойника |
+| 🧩 | `!двойник_блок identity_core|negative_rules (реплай)` | вручную задать неизменяемый блок личности двойника |
+| 🔒 | `!двойник_видимость ключ public|friends|private` | задать уровень приватности факта в базе знаний двойника |
+| 🕰 | `!двойник_версии identity_core|negative_rules|speech_style` | показать историю версий блока личности двойника |
+| ⏪ | `!двойник_откат блок id` | откатить блок личности двойника к прошлой версии |
+| 👥 | `!двойник_контакт (реплай) [близкий|приятель|знакомый|чужой]` | посмотреть или задать тип отношений с собеседником |
+| 🧪 | `!двойник_тест` | прогнать контрольные сценарии и проверить, не деградировал ли двойник |
+| ❓ | `!двойник_вопросы [кол-во]` | получить пачку вопросов для интервью двойника |
+| ✍️ | `!двойник_ответы 1. ... 2. ...` | отправить ответы на вопросы интервью двойника пачкой |
+| 🚫 | `!двойник_отмена` | отменить активную сессию вопросов двойника |
+| 🗣 | `!двойник_подряд [кол-во]` | начать интервью двойника в последовательном режиме, по одному вопросу |
+| ⏭ | `!двойник_пропустить` | пропустить текущий вопрос последовательного интервью |
+| 📥 | `!двойник_импорт (файл result.json)` | импортировать историю переписки из экспорта Telegram |
+| 🧬 | `!двойник_меню` | меню отслеживания и настройки цифрового двойника |
 
-### Public (`!помощь`)
-- `!перевести` – translation and voiceover
-- `!шакал -начало` – merges 2 videos (respond to the 1st video with the 2nd)
-- `!звук` – replaces sound in video (respond to video with an audio file)
-- `!расшифровка` – text from audio/video
-- `!ии [текст]` – request to local neural network
-- `!нейрохам [текст]` – aggressive AI response
-- `!психолог [текст]` – empathic AI that listens and supports
-- `!пересказ [текст]` – extracting the main point from a large text
-- `!душнила [текст]` – suffocating and nitpicky response
-- `!синьор [текст]` – response from a burned-out programmer
-- `!гопник [текст]` – answers based on concepts
-- `!шутник [тема]` – makes up jokes on the fly
-- `!сказка [тема]` – makes up tales and stories
-- `!бабка [тема]` – grumbles like a grandma by the entrance
-- `!алкаш [тема]` – speaks from a state of deep intoxication
-- `!коуч [текст]` – successful success, crypto and fictional courses
-- `!зумер [текст]` – victim of TikTok, communicates in slang
-- `!шапочка [текст]` – sees a conspiracy of reptiloids and 5G everywhere
-- `!алиэкспрес [текст]` – answers with curved machine translation of SEO goods
-- `!озвучка` – translates text into voice
-- `!инстант [запрос]` – searching and downloading meme sounds
-- `!скачать [ссылка]` – uploading from YouTube, TikTok, etc.
-- `!ютуб_текст [ссылка]` – download video and translate to text
-- `!трек [название]` – searching and downloading music
-- `!по_тексту [слова из песни]` – find a song by text snippet
-- `!вики [запрос]` – searching Wikipedia
-- `!кино [название]` – movie card from KinoPoisk
-- `!курс_крипты` – top coin rates in $
-- `!картинка [запрос]` – searching for images on the web
-- `!погода [город]` – current weather
-- `!мем [избранное]` – random meme or favorite
-- `!кот` – random kitty
-- `!факт` – random fact from Wikipedia
-- `!поиск [запрос]` – searching for info on the internet (6 results)
-- `!прогноз` – random forecast for the day
-- `!цитата` – wise thought
-- `!qr [текст]` – quickly generate QR code
-- `!рулетка [ставка]` – token-based games
-- `!дуэль [ставка]` – challenge to a duel for tokens
-- `!рп` – list of RP commands
-- `!курс [сумма] [валюты]` – currency converter
-- `!алиасы` – list of all command synonyms
-- `!баланс` – wallet and token purchase
-- `!прайс` – command cost
-- `!настройки` – bot settings (NSFW etc.)
-- `!о_боте` – technical information
-- `!donut` – support the author
-- `!помощь` – this menu
-- `!старт` – welcome message
-- `!новости` – main news
-- `!афиша` – where to go today
-- `!обои` – juicy 4k pictures
-- `!отключенные` – list of non-working commands and reasons
-- `!ии_чат` – interactive dialogue with personas
+### 🎬 Media & Downloads
+| | Command | Description |
+|---|---|---|
+| 🌐 | `!перевести` | перевод и озвучка |
+| 👾 | `!шакал -начало` | склеивает 2 видео (ответь на 1-е видео командой со 2-м) |
+| 🎧 | `!звук` | заменяет звук в видео (ответь на видео аудио-файлом) |
+| 🎙️ | `!расшифровка` | текст из аудио/видео |
+| 🔊 | `!озвучка` | перевод текста в голос |
+| 🔊 | `!инстант [запрос]` | поиск и скачивание мемных звуков |
+| 🎬 | `!скачать [ссылка]` | загрузка с YouTube, TikTok и т.п. |
+| 📝 | `!ютуб_текст [ссылка]` | скачать видео и перевести в текст |
+| 🎵 | `!трек [название]` | поиск и скачивание музыки |
+| 🎤 | `!по_тексту [слова из песни]` | найти песню по отрывку текста |
+| 🎬 | `!кино [название]` | карточка фильма из Кинопоиска |
+| 🔍 | `!картинка [запрос]` | поиск картинок в сети |
+| 🖼 | `!обои` | сочные картинки 4k |
+
+### 🎭 Fun & Games
+| | Command | Description |
+|---|---|---|
+| 🖼️ | `!мем [избранное]` | случайный мем или из избранного |
+| 🐱 | `!кот` | случайный котик |
+| 📖 | `!факт` | случайный факт из Википедии |
+| 🔮 | `!прогноз` | случайный прогноз на день |
+| 💭 | `!цитата` | мудрая мысль |
+| 🎰 | `!рулетка [ставка]` | азартные игры на токены |
+| ⚔️ | `!дуэль [ставка]` | вызвать на дуэль за токены |
+| 🎭 | `!рп` | список RP-команд |
+
+### 🛠 Utilities
+| | Command | Description |
+|---|---|---|
+| 💻 | `!анализ [команда]` | ревью исходного кода команды |
+| 📚 | `!вики [запрос]` | поиск по Википедии |
+| 🪙 | `!курс_крипты` | курсы топ монет в $ |
+| 🌤️ | `!погода [город]` | текущая погода |
+| 🔎 | `!поиск [запрос]` | поиск инфы в интернете (6 результатов) |
+| 📱 | `!qr [текст]` | быстро сгенерировать QR-код |
+| 💱 | `!курс [сумма] [валюты]` | конвертер валют |
+| 🔀 | `!алиасы` | список всех синонимов команд |
+| 💳 | `!баланс` | кошелёк и покупка токенов |
+| 💰 | `!прайс` | стоимость команд |
+| ⚙️ | `!настройки` | настройки бота (NSFW и др.) |
+| 🤖 | `!о_боте` | техническая информация |
+| 🍩 | `!donut` | поддержать автора |
+| ℹ️ | `!помощь` | это меню |
+| 🚀 | `!старт` | приветственное сообщение |
+| 📰 | `!новости` | главные новости |
+| 🎟 | `!афиша` | куда сходить сегодня |
+| 🚫 | `!отключенные` | список неработающих команд и причины |
+
+### 👑 Owner Commands (`!ownerhelp`)
+| | Command | Description |
+|---|---|---|
+| 🚶‍♂️ | `!отошёл` | Включить режим автоответа |
+| 🏠 | `!вернулся` | Выключить режим автоответа |
+| 📊 | `!статус` | Текущий статус работы бота |
+| 📈 | `!статистика` | Полная статистика бота |
+| ⏱ | `!сброс_таймеров` | Сбросить текущую сессию |
+| 🧹 | `!очистить_статус [id]` | Очистить статус пользователя |
+| 🔗 | `!ссылки` | Управление ссылками бота |
+| 📊 | `!линкстат` | Статистика переходов по ссылкам |
+| ⏳ | `!ждущие` | Список ожидающих ответа |
+| 🔞 | `!nsfw` | Статистика NSFW настроек |
+| ⚙️ | `!система` | Системные настройки |
 
 **RP commands** (reply to a message):
-SFW: `!обнять`, `!поцеловать`, `!ударить`, `!шлепнуть`, `!укусить`, `!погладить`, `!пнуть`, `!толкнуть`, `!ущипнуть`, `!прижать_к_стене`, `!ткнуть_по_носику`, `!лизнуть`, `!задушить`.
+SFW: `!обнять`, `!поцеловать`, `!ударить`, `!шлепнуть`, `!укусить`, `!погладить`, `!пнуть`, `!толкнуть`, `!ущипнуть`, `!прижать_к_стене`, `!ткнуть_по_носику`, `!лизнуть`, `!задушить`.  
 When NSFW enabled: `!отсосать`, `!выебать`, `!трахнуть`, `!кончить`, `!раздеть`, `!оттрахать`, `!поставить_на_колени`, `!схватить_за_член`, `!схватить_за_жопу`, `!отлизать`.
 <!-- COMMANDS_SECTION_END -->
 
@@ -214,6 +187,8 @@ POLLINATIONS_API_KEY=xxx
 - `bot_links.db` – saved URLs (type, sender, viewed)
 - `user_settings.db` – NSFW preferences
 - `bot_tokens.db` – user token balances
+- `owner_settings.db` – owner-configurable toggles (payments, auto-reply, twin feedback, etc.)
+- `twin.db` – digital twin data (knowledge base, dialogue examples, contacts, prompt history)
 
 ---
 
@@ -221,6 +196,6 @@ POLLINATIONS_API_KEY=xxx
 
 - Daily token limit is replenished every midnight (`DEFAULT_DAILY_TOKENS = 50`).
 - Commands cost tokens (see `!прайс`). VIP users (including owner) pay nothing.
-- Payments via YooKassa are optional; set `PAYMENTS_ENABLED = True` in `config.py` (default is `True` if credentials provided).
+- Payments via YooKassa are optional and toggled at runtime via owner settings (`!настройки` menu), not a config.py flag.
 - The bot can run with long polling (default) or webhooks (set `USE_WEBHOOKS = True` for YooKassa callbacks).
 - For business accounts, the bot handles `business_message` and `business_connection` events.

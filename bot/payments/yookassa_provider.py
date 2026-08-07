@@ -35,3 +35,15 @@ class YookassaProvider(BasePaymentProvider):
             return payment.status
 
         return await asyncio.to_thread(_check)
+
+    async def get_payment(self, payment_id: str) -> dict:
+        def _get():
+            payment = Payment.find_one(payment_id)
+            metadata = payment.metadata or {}
+            return {
+                "status": payment.status,
+                "user_id": int(metadata.get("user_id", 0)),
+                "amount": int(metadata.get("amount", 0)),
+            }
+
+        return await asyncio.to_thread(_get)

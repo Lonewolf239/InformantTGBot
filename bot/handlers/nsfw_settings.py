@@ -3,6 +3,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import NSFW_RP_ACTIONS
 from bot.utils.user_settings import user_settings_db
 from bot.utils.database import db
+from bot.utils.helpers import format_styled_message
 from aiogram.exceptions import TelegramBadRequest
 
 
@@ -35,22 +36,19 @@ async def get_nsfw_status_text(user_id: int, username: str) -> str:
     enabled = await user_settings_db.get_nsfw_setting(user_id)
     status = "🔞 ВКЛЮЧЕНЫ" if enabled else "✅ ВЫКЛЮЧЕНЫ"
 
-    rp_commands_list = []
-    for cmd, action in NSFW_RP_ACTIONS.items():
-        emoji = action[0] if action else "🔞"
-        rp_commands_list.append(f"<b>├─ {emoji}</b> <code>{cmd}</code>")
-
+    rp_commands_list = [
+        f"{action[0] if action else '🔞'} <code>{cmd}</code>"
+        for cmd, action in NSFW_RP_ACTIONS.items()
+    ]
     rp_commands_text = "\n".join(rp_commands_list)
     display_name = f"@{username}" if username else f"id{user_id}"
 
-    return (
-        f"<b>┌─ 🔞 НАСТРОЙКИ NSFW ({display_name})</b>\n"
-        f"<b>├─ 📊 Текущий статус:</b> {status}\n"
-        "<b>│</b>\n"
-        "<b>├─ 🔞 NSFW команды:</b>\n"
-        f"{rp_commands_text}\n"
-        "<b>│</b>\n"
-        "<b>└─ 🔘 Используй кнопки ниже для изменения</b>"
+    return format_styled_message(
+        "🔞",
+        f"НАСТРОЙКИ NSFW ({display_name})",
+        f"📊 Текущий статус: {status}\n\n"
+        f"🔞 NSFW команды:\n{rp_commands_text}\n\n"
+        "🔘 Используй кнопки ниже для изменения",
     )
 
 

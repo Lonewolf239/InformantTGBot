@@ -5,22 +5,19 @@ from bot.utils.database import db
 from bot.links.handlers import cmd_links, cmd_links_stats
 from config import OWNER_COMMAND_METADATA
 from functools import lru_cache
-from bot.utils.helpers import get_raw_text
+from bot.utils.helpers import get_raw_text, format_styled_message
 from bot.owner_settings.handlers import cmd_system_settings
 
 
 @lru_cache(maxsize=1)
 def get_owner_help_text():
-    lines = ["<b>┌─ 👑 КОМАНДЫ ВЛАДЕЛЬЦА</b>"]
-
+    lines = []
     for cmd, data in OWNER_COMMAND_METADATA.items():
         args = f" {data['args']}" if "args" in data else ""
-        lines.append(f"<b>├─</b> <code>{cmd}{args}</code>")
+        lines.append(f"<code>{cmd}{args}</code>")
+    lines.append("Публичная справка: <code>!помощь</code>")
 
-    lines.append("<b>│</b>")
-    lines.append("<b>└─ 📖 Публичная справка:</b> <code>!помощь</code>")
-
-    return "\n".join(lines)
+    return format_styled_message("👑", "КОМАНДЫ ВЛАДЕЛЬЦА", "\n".join(lines))
 
 
 async def process_owner_commands(message: types.Message):
@@ -58,15 +55,22 @@ async def cmd_away_on(message: types.Message):
     if not await state.is_away_mode:
         await state.set_away_mode(True)
         await message.reply(
-            "<b>┌─ 🚶‍♂️ Режим «ОТОШЁЛ»</b>\n"
-            "<b>├─ Статус:</b> Включён\n"
-            "<b>├─ Действие:</b> Автоответ приходит мгновенно, 1 раз на пользователя\n"
-            "<b>└─ Выключение:</b> <code>!вернулся</code>"
+            format_styled_message(
+                "🚶‍♂️",
+                "Режим «ОТОШЁЛ»",
+                "Статус: Включён\n"
+                "Действие: Автоответ приходит мгновенно, 1 раз на пользователя\n"
+                "Выключение: <code>!вернулся</code>",
+            )
         )
         await db.increment_away_toggled()
     else:
         await message.reply(
-            "<b>┌─ ⚠️ Ошибка</b>\n└─ Режим «отошёл» уже включён! Чтобы выключить — напиши <code>!вернулся</code>"
+            format_styled_message(
+                "⚠️",
+                "Ошибка",
+                "Режим «отошёл» уже включён! Чтобы выключить — напиши <code>!вернулся</code>",
+            )
         )
     return True
 
@@ -79,15 +83,14 @@ async def cmd_away_off(message: types.Message):
         await state.reset_session()
         await state.set_away_mode(False)
 
-        report = (
-            "<b>┌─ 🏠 Режим «ОТОШЁЛ» ВЫКЛЮЧЕН</b>\n"
-            "<b>├─ Статус:</b> Выключен\n"
-            "<b>├─ Автоответчик:</b> Отключён\n"
-            f"<b>├─ 👥 Ожидали ответа:</b> {awaiting_count} человек\n"
+        body = (
+            "Статус: Выключен\n"
+            "Автоответчик: Отключён\n"
+            f"👥 Ожидали ответа: {awaiting_count} человек\n"
         )
 
         if awaiting_count > 0:
-            report += "<b>│</b>\n<b>├─ 📋 СПИСОК ОЖИДАВШИХ:</b>\n"
+            body += "\n📋 СПИСОК ОЖИДАВШИХ:\n"
 
             for user in awaiting_users:
                 name = user["name"]
@@ -100,17 +103,24 @@ async def cmd_away_off(message: types.Message):
 
                 msg_time = user.get("first_msg_time")
                 time_str = msg_time.strftime("%H:%M") if msg_time else "?"
-                report += f"<b>├─</b> {link} — {time_str}\n"
+                body += f"{link} — {time_str}\n"
 
-            report += "<b>│</b>\n<b>└─ 💡 Напиши им, когда будет время!</b>"
+            body += "\n💡 Напиши им, когда будет время!"
         else:
-            report += "<b>└─ 💤 За время отсутствия никто не писал</b>"
+            body += "💤 За время отсутствия никто не писал"
 
-        await message.reply(report, disable_web_page_preview=True)
+        await message.reply(
+            format_styled_message("🏠", "Режим «ОТОШЁЛ» ВЫКЛЮЧЕН", body),
+            disable_web_page_preview=True,
+        )
         await db.increment_away_toggled()
     else:
         await message.reply(
-            "<b>┌─ ✅ Информация</b>\n└─ Ты и так в режиме онлайн! Чтобы включить «отошёл» — напиши <code>!отошёл</code>"
+            format_styled_message(
+                "✅",
+                "Информация",
+                "Ты и так в режиме онлайн! Чтобы включить «отошёл» — напиши <code>!отошёл</code>",
+            )
         )
     return True
 
@@ -122,13 +132,17 @@ async def cmd_status(message: types.Message):
         if state_info["is_away"]
         else "🟢 ОНЛАЙН (автоответ выключен)"
     )
+    total_auto_replies = await stats.auto_replies_sent
 
     await message.reply(
-        "<b>┌─ 📊 Текущий статус</b>\n"
-        f"<b>├─ Режим:</b> {status_text}\n"
-        f"<b>├─ Получили автоответ:</b> {state_info['auto_replied_count']}\n"
-        f"<b>├─ Ожидают ответа:</b> {state_info['awaiting_count']}\n"
-        f"<b>└─ Всего автоответов за всё время:</b> {stats.auto_replies_sent}"
+        format_styled_message(
+            "📊",
+            "Текущий статус",
+            f"Режим: {status_text}\n"
+            f"Получили автоответ: {state_info['auto_replied_count']}\n"
+            f"Ожидают ответа: {state_info['awaiting_count']}\n"
+            f"Всего автоответов за всё время: {total_auto_replies}",
+        )
     )
     return True
 
@@ -136,7 +150,9 @@ async def cmd_status(message: types.Message):
 async def cmd_waiting(message: types.Message):
     if not await state.is_away_mode:
         await message.reply(
-            "<b>┌─ ℹ️ Инфо</b>\n└─ Режим «отошёл» не активен, список ожидающих пуст."
+            format_styled_message(
+                "ℹ️", "Инфо", "Режим «отошёл» не активен, список ожидающих пуст."
+            )
         )
         return True
 
@@ -145,7 +161,7 @@ async def cmd_waiting(message: types.Message):
 
     if count == 0:
         await message.reply(
-            "<b>┌─ 📭 Пусто</b>\n└─ Пока никто не написал в твоё отсутствие."
+            format_styled_message("📭", "Пусто", "Пока никто не написал в твоё отсутствие.")
         )
         return True
 
@@ -163,20 +179,18 @@ async def cmd_waiting(message: types.Message):
         msg_time = user.get("first_msg_time")
         time_str = msg_time.strftime("%H:%M") if msg_time else "?"
 
-        users_list.append(f"<b>├─</b> {link} — {time_str}")
+        users_list.append(f"{link} — {time_str}")
 
-    report = (
-        "<b>┌─ 📋 КТО ЖДЁТ ОТВЕТА</b>\n"
-        f"<b>├─ Всего:</b> {count}\n"
-        f"<b>│</b>\n"
+    body = (
+        f"Всего: {count}\n\n"
         + "\n".join(users_list[:20])
-        + ("\n<b>├─</b> ...и другие" if count > 20 else "")
-        + "\n"
-        "<b>│</b>\n"
-        "<b>└─ 💡 Напиши !вернулся, чтобы очистить список</b>"
+        + ("\n...и другие" if count > 20 else "")
+        + "\n\n💡 Напиши !вернулся, чтобы очистить список"
     )
 
-    await message.reply(report, disable_web_page_preview=False)
+    await message.reply(
+        format_styled_message("📋", "КТО ЖДЁТ ОТВЕТА", body), disable_web_page_preview=False
+    )
     return True
 
 
@@ -201,14 +215,13 @@ async def cmd_stats(message: types.Message):
         else:
             name = f"<a href='{user['user_link']}'>{user['username']}</a>"
 
-        top_users_lines.append(f"├─ {index}. {name}: {user['messages']} сообщений")
-    top_users_text = "\n".join(top_users_lines)
+        top_users_lines.append(f"{index}. {name}: {user['messages']} сообщений")
+    top_users_text = "\n".join(top_users_lines) or "(пока пусто)"
 
     top_commands_lines = [
-        f"<b>├─</b> {cmd['command']}: {cmd['count']}"
-        for cmd in full_stats.get("top_commands", [])
+        f"{cmd['command']}: {cmd['count']}" for cmd in full_stats.get("top_commands", [])
     ]
-    top_commands_text = "\n".join(top_commands_lines)
+    top_commands_text = "\n".join(top_commands_lines) or "(пока пусто)"
 
     metrics = {
         "total_messages": full_stats.get("total_messages", 0),
@@ -222,27 +235,23 @@ async def cmd_stats(message: types.Message):
         "users": full_stats.get("users_count", 0),
     }
 
-    reply_text = (
-        "<b>┌─ 📊 СТАТИСТИКА БОТА</b>\n"
-        f"<b>├─ Сообщений:</b> {metrics['total_messages']}\n"
-        f"<b>├─ Автоответов (всего):</b> {metrics['auto_replies_total']}\n"
-        f"<b>├─ Автоответов (текущая сессия):</b> {metrics['auto_replies_session']}\n"
-        f"<b>├─ RP действий:</b> {metrics['rp_actions']}\n"
-        f"<b>├─ Анекдотов:</b> {metrics['jokes']}\n"
-        f"<b>├─ Мемов:</b> {metrics['memes']}\n"
-        f"<b>├─ Команд:</b> {metrics['commands']}\n"
-        f"<b>├─ Переключений режима:</b> {metrics['away_toggles']}\n"
-        f"<b>├─ Аптайм:</b> {hours}ч {minutes}мин\n"
-        f"<b>├─ Уникальных собеседников:</b> {metrics['users']}\n"
-        f"<b>│</b>\n"
-        f"<b>├─ 🏆 Топ пользователей:</b>\n{top_users_text}\n"
-        f"<b>│</b>\n"
-        f"<b>├─ 📋 Популярные команды:</b>\n{top_commands_text}\n"
-        f"<b>│</b>\n"
-        f"<b>└─ 📍 Режим:</b> {'Отошёл' if await state.is_away_mode else 'Онлайн'}"
+    body = (
+        f"Сообщений: {metrics['total_messages']}\n"
+        f"Автоответов (всего): {metrics['auto_replies_total']}\n"
+        f"Автоответов (текущая сессия): {metrics['auto_replies_session']}\n"
+        f"RP действий: {metrics['rp_actions']}\n"
+        f"Анекдотов: {metrics['jokes']}\n"
+        f"Мемов: {metrics['memes']}\n"
+        f"Команд: {metrics['commands']}\n"
+        f"Переключений режима: {metrics['away_toggles']}\n"
+        f"Аптайм: {hours}ч {minutes}мин\n"
+        f"Уникальных собеседников: {metrics['users']}\n\n"
+        f"🏆 Топ пользователей:\n{top_users_text}\n\n"
+        f"📋 Популярные команды:\n{top_commands_text}\n\n"
+        f"📍 Режим: {'Отошёл' if await state.is_away_mode else 'Онлайн'}"
     )
 
-    await message.reply(reply_text)
+    await message.reply(format_styled_message("📊", "СТАТИСТИКА БОТА", body))
     await db.increment_commands()
     return True
 
@@ -250,7 +259,7 @@ async def cmd_stats(message: types.Message):
 async def cmd_reset_timers(message: types.Message):
     await state.reset_session()
     await message.reply(
-        "<b>┌─ ✅ Сброс</b>\n└─ Все таймеры и статусы автоответа сброшены!"
+        format_styled_message("✅", "Сброс", "Все таймеры и статусы автоответа сброшены!")
     )
     await db.increment_commands()
     return True
@@ -266,11 +275,15 @@ async def cmd_clear_status(message: types.Message):
         target_id = int(text.split()[1])
         await state.clear_user_status(target_id)
         await message.reply(
-            f"<b>┌─ ✅ Очистка статуса</b>\n└─ Статус пользователя {target_id} очищен!"
+            format_styled_message(
+                "✅", "Очистка статуса", f"Статус пользователя {target_id} очищен!"
+            )
         )
     except (IndexError, ValueError):
         await message.reply(
-            "<b>┌─ ❌ Ошибка</b>\n└─ Используй: <code>!очистить_статус [user_id]</code>"
+            format_styled_message(
+                "❌", "Ошибка", "Используй: <code>!очистить_статус [user_id]</code>"
+            )
         )
     await db.increment_commands()
     return True
@@ -279,12 +292,14 @@ async def cmd_clear_status(message: types.Message):
 async def cmd_nsfw_stats(message: types.Message):
     from bot.utils.user_settings import user_settings_db
 
-    stats = await user_settings_db.get_stats()
-    text = (
-        "<b>┌─ 🔞 СТАТИСТИКА NSFW НАСТРОЕК</b>\n"
-        f"<b>├─ 👥 Всего настроек:</b> {stats['total_users']}\n"
-        f"<b>├─ 🔞 NSFW включено:</b> {stats['nsfw_enabled']}\n"
-        f"<b>├─ ✅ NSFW выключено:</b> {stats['nsfw_disabled']}\n"
-        "<b>└─ 📊 Пользователи сами выбирают режим</b>"
+    nsfw_stats = await user_settings_db.get_stats()
+    text = format_styled_message(
+        "🔞",
+        "СТАТИСТИКА NSFW НАСТРОЕК",
+        f"👥 Всего настроек: {nsfw_stats['total_users']}\n"
+        f"🔞 NSFW включено: {nsfw_stats['nsfw_enabled']}\n"
+        f"✅ NSFW выключено: {nsfw_stats['nsfw_disabled']}\n"
+        "📊 Пользователи сами выбирают режим",
     )
     await message.reply(text)
+    return True

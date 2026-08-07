@@ -115,21 +115,37 @@ async def process_check_payment_callback(
         return
 
     try:
-        status = await payment_provider.check_payment(payment_id)
+        payment_info = await payment_provider.get_payment(payment_id)
     except Exception as e:
         logger.error(f"Ошибка проверки платежа: {e}")
         await callback_query.answer("❌ Ошибка соединения с кассой", show_alert=True)
         return
 
+    status = payment_info["status"]
+
     if status == "succeeded":
         user_id = callback_query.from_user.id
-        await tokens_db.add_tokens(user_id, amount)
+        if payment_info["user_id"] != user_id or not payment_info["amount"]:
+            await callback_query.answer(
+                "❌ Данные платежа не совпадают, обратись к владельцу бота.",
+                show_alert=True,
+            )
+            return
+
+        if not await tokens_db.claim_payment(payment_id):
+            await callback_query.answer(
+                "ℹ️ Этот платёж уже был зачислен ранее.", show_alert=True
+            )
+            return
+
+        credited_amount = payment_info["amount"]
+        await tokens_db.add_tokens(user_id, credited_amount)
         new_balance = await tokens_db.get_balance(user_id)
 
         success_text = format_styled_message(
             emoji="✅",
             title="Оплата успешно прошла!",
-            message=f"Начислено: {amount} токенов.\nТвой новый баланс: {new_balance} шт.\nСпасибо за поддержку бота!",
+            message=f"Начислено: {credited_amount} токенов.\nТвой новый баланс: {new_balance} шт.\nСпасибо за поддержку бота!",
         )
         await callback_query.message.edit_text(success_text, reply_markup=None)
         await callback_query.answer(

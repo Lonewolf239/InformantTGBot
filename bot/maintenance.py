@@ -4,6 +4,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from config import BOT_TOKEN, COMMAND_ALIASES, SFW_RP_ACTIONS, NSFW_RP_ACTIONS
+from bot.utils.helpers import format_styled_message
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -19,10 +20,11 @@ ALL_COMMANDS = {
 ALL_COMMANDS.update(cmd.lower() for cmd in SFW_RP_ACTIONS.keys())
 ALL_COMMANDS.update(cmd.lower() for cmd in NSFW_RP_ACTIONS.keys())
 
-MAINTENANCE_TEXT = (
-    "<b>┌─ ⚠️ БОТ ОТКЛЮЧЕН</b>\n"
-    "<b>├─</b> Я временно ушёл в оффлайн на техобслуживание или обновление.\n"
-    "<b>└─</b> Сейчас команды недоступны. Попробуй позже."
+MAINTENANCE_TEXT = format_styled_message(
+    "⚠️",
+    "БОТ ОТКЛЮЧЕН",
+    "Я временно ушёл в оффлайн на техобслуживание или обновление.\n"
+    "Сейчас команды недоступны. Попробуй позже.",
 )
 
 

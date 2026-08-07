@@ -2,11 +2,13 @@ from aiogram import types
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.owner_settings.database import owner_settings_db
 from bot.utils.database import db
+from bot.utils.helpers import format_styled_message
 
 SETTINGS_NAMES = {
     "payments_enabled": "💳 Платежи (Токены)",
     "auto_reply_enabled": "🤖 Автоответ",
     "reply_to_owner": "👑 Отвечать владельцу",
+    "twin_feedback_enabled": "🧬 Кнопки оценки двойника",
 }
 
 
@@ -26,8 +28,8 @@ async def send_settings_menu(message: types.Message | types.CallbackQuery):
 
     builder.adjust(1)
 
-    text = (
-        "<b>┌─ ⚙️ СИСТЕМНЫЕ НАСТРОЙКИ БОТА</b>\n└─ Нажми на кнопку, чтобы переключить:"
+    text = format_styled_message(
+        "⚙️", "СИСТЕМНЫЕ НАСТРОЙКИ БОТА", "Нажми на кнопку, чтобы переключить:"
     )
 
     if isinstance(message, types.CallbackQuery):

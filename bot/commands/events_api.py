@@ -73,9 +73,6 @@ async def cmd_events(message: types.Message):
     query = parts[1].strip() if len(parts) > 1 else ""
     user_id = message.from_user.id
 
-    if not await freeze_tokens(message, user_id, "!афиша"):
-        return
-
     if not query:
         error_msg = format_styled_message(
             emoji=API_ICON,
@@ -83,6 +80,9 @@ async def cmd_events(message: types.Message):
             message="❌ <b>Укажи город или артиста.</b>\n📝 Пример: <code>!афиша London</code> или <code>!афиша Rammstein</code>",
         )
         await message.reply(error_msg)
+        return
+
+    if not await freeze_tokens(message, user_id, "!афиша"):
         return
 
     wait_msg = await message.reply(

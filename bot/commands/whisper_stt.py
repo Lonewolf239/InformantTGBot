@@ -104,7 +104,7 @@ async def cmd_transcribe(message: types.Message):
 
     result, status_msg = await process_with_queue(
         message=message,
-        queue_name="whisper",
+        queue_name="heavyweights",
         icon=API_ICON,
         title=API_NAME,
         action_text=f"Скачиваю и распознаю ({media_type_text})",

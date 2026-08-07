@@ -1,6 +1,6 @@
 import random
 from bot.state import state
-from bot.utils.helpers import its_me
+from bot.utils.helpers import its_me, format_styled_message
 from config import AWAY_MESSAGES
 from bot.utils.database import db
 
@@ -19,7 +19,7 @@ async def check_auto_reply(message):
         )
 
         if await state.should_send_auto_reply(user_id):
-            away_msg = f"<b>┌─ 🤖 АВТООТВЕТЧИК</b>\n└─ {random.choice(AWAY_MESSAGES)}"
+            away_msg = format_styled_message("🤖", "АВТООТВЕТЧИК", random.choice(AWAY_MESSAGES))
             await message.reply(away_msg)
             await db.increment_auto_replies()
             await db.mark_auto_reply_sent(user_id, away_msg)

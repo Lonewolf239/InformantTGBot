@@ -2,7 +2,7 @@ from aiogram import types
 from bot.utils.database import db
 from bot.utils.user_settings import user_settings_db
 from config import SFW_RP_ACTIONS, NSFW_RP_ACTIONS
-from bot.utils.helpers import get_raw_text
+from bot.utils.helpers import get_raw_text, format_styled_message
 
 
 async def process_rp_command(message: types.Message):
@@ -29,19 +29,24 @@ async def process_rp_command(message: types.Message):
 
         if not sender_nsfw_enabled:
             await message.reply(
-                "<b>┌─ 🔞 NSFW БЛОКИРОВКА</b>\n"
-                "├─ У тебя отключены NSFW команды в <code>!настройках</code>\n"
-                "└─ 🔘 Включи их чтобы использовать"
+                format_styled_message(
+                    "🔞",
+                    "NSFW БЛОКИРОВКА",
+                    "У тебя отключены NSFW команды в <code>!настройках</code>\n"
+                    "🔘 Включи их чтобы использовать",
+                )
             )
             return True
 
         if not target_nsfw_enabled:
             await message.reply(
-                "<b>┌─ 🔞 NSFW БЛОКИРОВКА</b>\n"
-                "├─ У пользователя, которому ты адресуешь это действие,\n"
-                "├─ NSFW команды ОТКЛЮЧЕНЫ в его настройках!\n"
-                "│\n"
-                "└─ 🔘 Уважай выбор других пользователей"
+                format_styled_message(
+                    "🔞",
+                    "NSFW БЛОКИРОВКА",
+                    "У пользователя, которому ты адресуешь это действие,\n"
+                    "NSFW команды ОТКЛЮЧЕНЫ в его настройках!\n\n"
+                    "🔘 Уважай выбор других пользователей",
+                )
             )
             return True
 
@@ -62,20 +67,22 @@ async def execute_rp_action(
     target = message.reply_to_message.from_user
 
     if target.id == message.from_user.id:
-        await message.reply("<b>┌─ ❌ Ошибка</b>\n└─ Нельзя использовать на себе!")
+        await message.reply(
+            format_styled_message("❌", "Ошибка", "Нельзя использовать на себе!")
+        )
         return True
 
     sender_name = message.from_user.first_name or "Неизвестный"
     target_name = target.first_name or "Неизвестный"
 
     emoji = "🔞" if is_nsfw else "🎭"
-    response = f"<b>┌─ {emoji} RP действие</b>\n└─ {sender_name} {action} {target_name}"
+    body = f"{sender_name} {action} {target_name}"
 
     custom_text = parts[1] if len(parts) > 1 else ""
     if custom_text:
-        response += f" со словами: <i>«{custom_text}»</i>"
+        body += f" со словами: <i>«{custom_text}»</i>"
 
-    await message.reply(response)
+    await message.reply(format_styled_message(emoji, "RP действие", body))
     await db.increment_rp_actions()
     await db.log_rp_action(message.from_user.id, target.id, command, custom_text)
     return True

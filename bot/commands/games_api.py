@@ -172,12 +172,13 @@ async def cmd_duel(message: types.Message):
         ]
     )
 
-    challenge_text = (
-        f"{DUEL_ICON} <b>ВЫЗОВ НА ДУЭЛЬ!</b>\n\n"
+    challenge_text = format_styled_message(
+        DUEL_ICON,
+        "ВЫЗОВ НА ДУЭЛЬ!",
         f"👤 Инициатор: {message.from_user.mention_html()}\n"
         f"🎯 Соперник: {message.reply_to_message.from_user.mention_html()}\n"
         f"💰 Ставка: <b>{amount} токенов</b> с каждого!\n\n"
-        f"<i>Принять вызов может только соперник, отменить — участники.</i>"
+        f"<i>Принять вызов может только соперник, отменить — участники.</i>",
     )
 
     await message.reply(challenge_text, reply_markup=keyboard)

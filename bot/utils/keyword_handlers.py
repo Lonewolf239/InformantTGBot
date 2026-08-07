@@ -5,6 +5,7 @@ from aiogram.types import FSInputFile, BufferedInputFile
 import mutagen
 import random
 from mutagen.id3 import ID3
+from bot.utils.helpers import format_styled_message
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ async def bad_nickname(message: types.Message):
     from bot.utils.tokens_database import tokens_db
 
     result = await tokens_db.penalize_user(message.from_user.id, penalty_amount=10)
-    await message.reply(result)
+    await message.reply(format_styled_message("⚠️", "ШТРАФ", result))
     return True
 
 

@@ -25,7 +25,25 @@ class TokensDB:
                     last_reset_date TEXT
                 )
             """)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS processed_payments (
+                    payment_id TEXT PRIMARY KEY,
+                    processed_at TEXT NOT NULL
+                )
+            """)
             await db.commit()
+
+    async def claim_payment(self, payment_id: str) -> bool:
+        async with aiosqlite.connect(DB_PATH) as db:
+            try:
+                await db.execute(
+                    "INSERT INTO processed_payments (payment_id, processed_at) VALUES (?, ?)",
+                    (payment_id, datetime.datetime.now(datetime.timezone.utc).isoformat()),
+                )
+                await db.commit()
+                return True
+            except aiosqlite.IntegrityError:
+                return False
 
     def _get_today_str(self):
         return datetime.date.today().isoformat()

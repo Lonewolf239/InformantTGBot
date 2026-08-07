@@ -3,15 +3,17 @@ import json
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from bot.twin.database import twin_db
+from bot.twin.database import twin_db, TWIN_BACKGROUND_QUEUE
 from bot.utils.ai_core import ask_ai
+from bot.utils.task_queue import queue_manager
 
 logger = logging.getLogger(__name__)
 
 CYCLE_INTERVAL_DAYS = 7
 CHECK_INTERVAL_SECONDS = 6 * 60 * 60
 MIN_SAMPLES_TO_RUN = 12
-PRIMARY_BLOCK_NAME = "personality"
+PRIMARY_BLOCK_NAME = "speech_style"
+STATE_TTL_DAYS = 14
 
 META_LAST_RUN_KEY = "last_cycle_run"
 
@@ -32,9 +34,9 @@ EXTRACTOR_SYSTEM = (
 
 GENERATOR_SYSTEM = (
     "Ты пишешь техническое описание стиля речи и мышления человека для "
-    "системного промпта его ИИ-двойника. На основе списка черт и текущего "
-    "состояния собери ОДИН связный блок инструкций: как двойнику говорить "
-    "и рассуждать, чтобы это было похоже на реального человека. Только "
+    "системного промпта его ИИ-двойника. На основе списка устойчивых черт "
+    "собери ОДИН связный блок инструкций: как двойнику говорить и "
+    "рассуждать, чтобы это было похоже на реального человека. Только "
     "конкретные, применимые инструкции (лексика, длина фраз, характерные "
     "обороты, типичные реакции) — без общих слов вроде 'будь дружелюбным'. "
     "80-120 слов. Ответь только текстом блока, без заголовков и пояснений."
@@ -112,13 +114,8 @@ async def _run_extractor(samples_text: str) -> tuple[list[str], list[str]]:
     return traits, state
 
 
-async def _run_generator(traits: list[str], state: list[str]) -> str | None:
-    prompt = (
-        "ЧЕРТЫ:\n"
-        + "\n".join(f"- {t}" for t in traits)
-        + "\n\nСОСТОЯНИЕ:\n"
-        + "\n".join(f"- {s}" for s in state)
-    )
+async def _run_generator(traits: list[str]) -> str | None:
+    prompt = "ЧЕРТЫ:\n" + "\n".join(f"- {t}" for t in traits)
     return await ask_ai(
         user_prompt=prompt,
         system_prompt=GENERATOR_SYSTEM,
@@ -171,7 +168,7 @@ async def _run_distiller(samples_text: str) -> list[tuple[str, str, str]]:
 
 
 async def run_weekly_cycle() -> bool:
-    samples = await twin_db.get_all_raw_samples()
+    samples = await twin_db.get_unprocessed_raw_samples()
 
     if len(samples) < MIN_SAMPLES_TO_RUN:
         logger.info(
@@ -190,29 +187,34 @@ async def run_weekly_cycle() -> bool:
         )
         return False
 
-    candidate_block = await _run_generator(traits, state)
-    if not candidate_block:
-        logger.error(
-            "🧬 Twin pipeline: генератор не дал результата, пул сохранён для повтора"
-        )
-        return False
+    if traits:
+        candidate_block = await _run_generator(traits)
+        if not candidate_block:
+            logger.error(
+                "🧬 Twin pipeline: генератор не дал результата, пул сохранён для повтора"
+            )
+            return False
 
-    old_block = await twin_db.get_prompt_block(PRIMARY_BLOCK_NAME) or ""
-    final_block = await _run_judge(old_block, candidate_block)
-    if final_block:
-        await twin_db.upsert_prompt_block(PRIMARY_BLOCK_NAME, final_block)
-        logger.info("🧬 Twin pipeline: блок '%s' обновлён", PRIMARY_BLOCK_NAME)
-    else:
-        logger.warning("🧬 Twin pipeline: судья не дал результата, блок не тронут")
+        old_block = await twin_db.get_prompt_block(PRIMARY_BLOCK_NAME) or ""
+        final_block = await _run_judge(old_block, candidate_block)
+        if final_block:
+            await twin_db.upsert_prompt_block(PRIMARY_BLOCK_NAME, final_block)
+            logger.info("🧬 Twin pipeline: блок '%s' обновлён", PRIMARY_BLOCK_NAME)
+        else:
+            logger.warning("🧬 Twin pipeline: судья не дал результата, блок не тронут")
+
+    if state:
+        await twin_db.set_state(state, STATE_TTL_DAYS)
+        logger.info("🧬 Twin pipeline: текущее состояние обновлено")
 
     facts = await _run_distiller(samples_text)
     for key, category, value in facts:
         await twin_db.upsert_knowledge(key, value, category)
     logger.info("🧬 Twin pipeline: в базу знаний записано фактов: %s", len(facts))
 
-    await twin_db.clear_pool()
+    await twin_db.mark_samples_processed([s["id"] for s in samples])
     await twin_db.set_meta(META_LAST_RUN_KEY, datetime.now(timezone.utc).isoformat())
-    logger.info("🧬 Twin pipeline: цикл обслуживания успешно завершён, пул очищен")
+    logger.info("🧬 Twin pipeline: цикл обслуживания успешно завершён")
     return True
 
 
@@ -232,7 +234,10 @@ async def weekly_worker() -> None:
     while True:
         try:
             if await _is_cycle_due():
-                await run_weekly_cycle()
+                future, _position = await queue_manager.add_task(
+                    TWIN_BACKGROUND_QUEUE, run_weekly_cycle
+                )
+                await future
         except Exception as e:
             logger.error(
                 "🧬 Twin pipeline: необработанная ошибка цикла: %s", e, exc_info=True
@@ -244,10 +249,12 @@ async def get_status() -> dict:
     pool_size = await twin_db.get_pool_size()
     blocks = await twin_db.get_all_prompt_blocks()
     keys = await twin_db.list_knowledge_keys()
+    dialogue_examples_count = await twin_db.get_dialogue_examples_count()
     last_run = await twin_db.get_meta(META_LAST_RUN_KEY, "ещё не запускался")
     return {
         "pool_size": pool_size,
         "blocks": list(blocks.keys()),
         "knowledge_count": len(keys),
+        "dialogue_examples_count": dialogue_examples_count,
         "last_cycle_run": last_run,
     }

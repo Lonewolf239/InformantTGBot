@@ -11,3 +11,7 @@ class BasePaymentProvider(ABC):
     @abstractmethod
     async def check_payment(self, payment_id: str) -> str:
         pass
+
+    @abstractmethod
+    async def get_payment(self, payment_id: str) -> dict:
+        pass

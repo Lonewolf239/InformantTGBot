@@ -43,6 +43,9 @@ from bot.owner_settings.handlers import system_settings_callback
 from bot.commands.youtube_transcribe import process_yt_transcribe_callback
 from bot.twin.database import twin_db
 from bot.twin.pipeline import weekly_worker
+from bot.twin.interview import init_interview_db
+from bot.twin.collector import periodic_flush_worker, flush_pending
+from bot.utils.callback_registry import register_callback, dispatch_callback
 import bot.commands
 
 
@@ -81,6 +84,171 @@ async def business_connect(connection: types.BusinessConnection):
     )
 
 
+@register_callback(prefix=("links_",))
+async def _route_links(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await links_callback_handler(cq)
+
+
+@register_callback(exact=("help_main", "aliases_main", "prices_main"))
+async def _route_help_main(cq: types.CallbackQuery, state: FSMContext, data: str):
+    from bot.handlers.help_menus import process_menu_main_callback
+
+    await process_menu_main_callback(cq)
+
+
+@register_callback(prefix=("help_cat_", "aliases_cat_", "prices_cat_"))
+async def _route_help_category(cq: types.CallbackQuery, state: FSMContext, data: str):
+    from bot.handlers.help_menus import process_menu_category_callback
+
+    await process_menu_category_callback(cq)
+
+
+@register_callback(exact=("more_joke",))
+async def _route_more_joke(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await more_joke_callback(cq)
+
+
+@register_callback(exact=("more_meme",))
+async def _route_more_meme(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await more_meme_callback(cq)
+
+
+@register_callback(prefix=("duel_accept:",))
+async def _route_duel_accept(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await accept_duel_callback(cq)
+
+
+@register_callback(prefix=("duel_cancel:",))
+async def _route_duel_cancel(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await cancel_duel_callback(cq)
+
+
+@register_callback(exact=("more_cat",))
+async def _route_more_cat(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await more_cat_callback(cq)
+
+
+@register_callback(exact=("more_fact",))
+async def _route_more_fact(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await more_fact_callback(cq)
+
+
+@register_callback(exact=("more_forecast",))
+async def _route_more_forecast(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await more_forecast_callback(cq)
+
+
+@register_callback(exact=("more_quote",))
+async def _route_more_quote(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await more_quote_callback(cq)
+
+
+@register_callback(exact=("more_crypto",))
+async def _route_more_crypto(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await more_crypto_callback(cq)
+
+
+@register_callback(prefix=("fav_meme",))
+async def _route_fav_meme(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await add_favorite_callback(cq)
+
+
+@register_callback(prefix=("dislike_meme|",))
+async def _route_dislike_meme(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await dislike_meme_callback(cq)
+
+
+@register_callback(prefix=("nsfw_",))
+async def _route_nsfw(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await nsfw_callback_handler(cq)
+
+
+@register_callback(prefix=("yt_dl|",))
+async def _route_yt_dl(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await process_yt_callback(cq)
+
+
+@register_callback(prefix=("buy_tokens:",))
+async def _route_buy_tokens(cq: types.CallbackQuery, state: FSMContext, data: str):
+    try:
+        amount = int(data.split(":")[1])
+        await process_buy_tokens_callback(cq, amount)
+    except (IndexError, ValueError):
+        await cq.answer("❌ Ошибка данных", show_alert=True)
+
+
+@register_callback(prefix=("cp|",))
+async def _route_check_payment(cq: types.CallbackQuery, state: FSMContext, data: str):
+    try:
+        _, payment_id, amount_str = data.split("|")
+        await process_check_payment_callback(cq, payment_id, int(amount_str))
+    except (IndexError, ValueError) as e:
+        logger.error(f"Ошибка парсинга callback проверки платежа: {e}")
+        await cq.answer("❌ Ошибка данных проверки", show_alert=True)
+
+
+@register_callback(prefix=("mus_dl|",))
+async def _route_music_dl(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await process_music_callback(cq)
+
+
+@register_callback(prefix=("mus_page|",))
+async def _route_music_page(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await process_music_page_callback(cq)
+
+
+@register_callback(prefix=("inst_dl|",))
+async def _route_instants_download(cq: types.CallbackQuery, state: FSMContext, data: str):
+    from bot.commands.myinstants_api import process_instants_download_callback
+
+    await process_instants_download_callback(cq)
+
+
+@register_callback(prefix=("inst_pg|",))
+async def _route_instants_page(cq: types.CallbackQuery, state: FSMContext, data: str):
+    from bot.commands.myinstants_api import process_instants_page_callback
+
+    await process_instants_page_callback(cq)
+
+
+@register_callback(prefix=("inst_more|",))
+async def _route_instants_more(cq: types.CallbackQuery, state: FSMContext, data: str):
+    from bot.commands.myinstants_api import process_instants_more_callback
+
+    await process_instants_more_callback(cq)
+
+
+@register_callback(prefix=("sys_set:",))
+async def _route_system_settings(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await system_settings_callback(cq)
+
+
+@register_callback(prefix=("yt_transcribe|",))
+async def _route_yt_transcribe(cq: types.CallbackQuery, state: FSMContext, data: str):
+    await process_yt_transcribe_callback(cq)
+
+
+@register_callback(prefix=("chat_persona|",), exact=("chat_cancel",))
+async def _route_chat_persona(cq: types.CallbackQuery, state: FSMContext, data: str):
+    from bot.commands.ai_api import process_chat_persona_callback
+
+    await process_chat_persona_callback(cq, state)
+
+
+@register_callback(prefix=("twin_fb:",))
+async def _route_twin_feedback(cq: types.CallbackQuery, state: FSMContext, data: str):
+    from bot.twin.feedback import handle_feedback_callback
+
+    await handle_feedback_callback(cq, data)
+
+
+@register_callback(prefix=("twin_menu:",))
+async def _route_twin_menu(cq: types.CallbackQuery, state: FSMContext, data: str):
+    from bot.twin.menu import handle_menu_callback
+
+    await handle_menu_callback(cq, data)
+
+
 @dp.callback_query()
 async def callback_handler(callback_query: types.CallbackQuery, state: FSMContext):
     data = callback_query.data
@@ -103,82 +271,8 @@ async def callback_handler(callback_query: types.CallbackQuery, state: FSMContex
         data = base_data
         callback_query = callback_query.model_copy(update={"data": base_data})
 
-    if data and data.startswith("links_"):
-        await links_callback_handler(callback_query)
-    elif data in ("help_main", "aliases_main", "prices_main"):
-        from bot.handlers.help_menus import process_menu_main_callback
+    await dispatch_callback(callback_query, state, data)
 
-        await process_menu_main_callback(callback_query)
-    elif data and data.startswith(("help_cat_", "aliases_cat_", "prices_cat_")):
-        from bot.handlers.help_menus import process_menu_category_callback
-
-        await process_menu_category_callback(callback_query)
-    elif data == "more_joke":
-        await more_joke_callback(callback_query)
-    elif data == "more_meme":
-        await more_meme_callback(callback_query)
-    elif data and data.startswith("duel_accept:"):
-        await accept_duel_callback(callback_query)
-    elif data and data.startswith("duel_cancel:"):
-        await cancel_duel_callback(callback_query)
-    elif data == "more_cat":
-        await more_cat_callback(callback_query)
-    elif data == "more_fact":
-        await more_fact_callback(callback_query)
-    elif data == "more_forecast":
-        await more_forecast_callback(callback_query)
-    elif data == "more_quote":
-        await more_quote_callback(callback_query)
-    elif data == "more_crypto":
-        await more_crypto_callback(callback_query)
-    elif data and data.startswith("fav_meme"):
-        await add_favorite_callback(callback_query)
-    elif data and data.startswith("dislike_meme|"):
-        await dislike_meme_callback(callback_query)
-    elif data and data.startswith("nsfw_"):
-        await nsfw_callback_handler(callback_query)
-    elif data and data.startswith("yt_dl|"):
-        await process_yt_callback(callback_query)
-    elif data and data.startswith("buy_tokens:"):
-        try:
-            amount = int(data.split(":")[1])
-            await process_buy_tokens_callback(callback_query, amount)
-        except (IndexError, ValueError):
-            await callback_query.answer("❌ Ошибка данных", show_alert=True)
-    elif data and data.startswith("cp|"):
-        try:
-            _, payment_id, amount_str = data.split("|")
-            await process_check_payment_callback(
-                callback_query, payment_id, int(amount_str)
-            )
-        except (IndexError, ValueError) as e:
-            logger.error(f"Ошибка парсинга callback проверки платежа: {e}")
-            await callback_query.answer("❌ Ошибка данных проверки", show_alert=True)
-    elif data and data.startswith("mus_dl|"):
-        await process_music_callback(callback_query)
-    elif data and data.startswith("mus_page|"):
-        await process_music_page_callback(callback_query)
-    elif data and data.startswith("inst_dl|"):
-        from bot.commands.myinstants_api import process_instants_download_callback
-
-        await process_instants_download_callback(callback_query)
-    elif data and data.startswith("inst_pg|"):
-        from bot.commands.myinstants_api import process_instants_page_callback
-
-        await process_instants_page_callback(callback_query)
-    elif data and data.startswith("inst_more|"):
-        from bot.commands.myinstants_api import process_instants_more_callback
-
-        await process_instants_more_callback(callback_query)
-    elif data and data.startswith("sys_set:"):
-        await system_settings_callback(callback_query)
-    elif data and data.startswith("yt_transcribe|"):
-        await process_yt_transcribe_callback(callback_query)
-
-    elif data and data.startswith("chat_persona|") or data == "chat_cancel":
-        from bot.commands.ai_api import process_chat_persona_callback
-
-        await process_chat_persona_callback(callback_query, state)
     try:
         await callback_query.answer()
     except Exception:
@@ -193,6 +287,7 @@ async def on_startup():
     await user_settings_db.init_db()
     await owner_settings_db.init_db()
     await twin_db.init_db()
+    await init_interview_db()
 
     logger.info("🚀 БОТ ЗАПУСКАЕТСЯ...")
 
@@ -213,6 +308,7 @@ async def on_startup():
 
     queue_manager.register_queue("heavyweights", concurrency=1)
     queue_manager.register_queue("lightweights", concurrency=1)
+    queue_manager.register_queue("twin_background", concurrency=1)
 
     asyncio.create_task(download_worker())
     logger.info("📥 Воркер очереди YouTube успешно запущен в фоне.")
@@ -220,10 +316,14 @@ async def on_startup():
     asyncio.create_task(weekly_worker())
     logger.info("🧬 Twin weekly worker успешно запущен в фоне.")
 
+    asyncio.create_task(periodic_flush_worker())
+    logger.info("🧬 Twin collector periodic flush успешно запущен в фоне.")
+
 
 @dp.shutdown()
 async def on_shutdown():
     logger.info("🛑 БОТ ОСТАНАВЛИВАЕТСЯ...")
+    await flush_pending()
 
 
 async def start_web_app(bot_instance: Bot):

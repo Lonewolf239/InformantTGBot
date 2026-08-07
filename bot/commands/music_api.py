@@ -205,14 +205,14 @@ def generate_music_keyboard(request_id: str, page: int, user_id: int):
 @register_command("!трек")
 async def cmd_music(message: types.Message):
     user_id = message.from_user.id
-    if not await freeze_tokens(message, user_id, "!музыка"):
+    if not await freeze_tokens(message, user_id, "!трек"):
         return
 
     raw_text = get_raw_text(message)
     args = raw_text.split(maxsplit=1) if raw_text else []
 
     if len(args) < 2:
-        await refund_tokens(user_id, "!музыка")
+        await refund_tokens(user_id, "!трек")
         error_msg = format_styled_message(
             emoji=API_ICON,
             title=API_NAME,
@@ -232,7 +232,7 @@ async def cmd_music(message: types.Message):
     results = await loop.run_in_executor(None, _sync_search_music, query, 25)
 
     if not results:
-        await refund_tokens(user_id, "!музыка")
+        await refund_tokens(user_id, "!трек")
         await status_msg.edit_text(
             format_styled_message(
                 emoji="❌",
@@ -260,7 +260,7 @@ async def cmd_music(message: types.Message):
     )
 
     await db.increment_commands()
-    await db.log_command("!музыка", user_id)
+    await db.log_command("!трек", user_id)
 
 
 @register_command("!по_тексту")
