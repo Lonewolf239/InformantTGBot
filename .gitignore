@@ -4,7 +4,9 @@ __pycache__/
 *$py.class
 
 *.db
-*.json
+disliked_memes.json
+favorite_memes.json
+docs/*.json
 downloads/
 docker/
 cookies.txt
