@@ -1,7 +1,7 @@
 import os
 import logging
 from aiogram import types
-from aiogram.types import FSInputFile, BufferedInputFile
+from aiogram.types import FSInputFile
 import mutagen
 import random
 from mutagen.id3 import ID3
@@ -54,34 +54,28 @@ async def send_track(
 
     audio_file = FSInputFile(file_path)
 
-    thumbnail = None
-    if metadata.get("cover_bytes"):
-        thumbnail = BufferedInputFile(metadata["cover_bytes"], filename="cover.jpg")
-
     audio_title = metadata.get("title") or title
     audio_performer = metadata.get("artist") or performer
     duration = metadata.get("duration") or 0
 
-    await message.answer_audio(
-        audio=audio_file,
-        title=audio_title,
-        performer=audio_performer,
-        thumbnail=thumbnail,
+    await message.answer_voice(
+        voice=audio_file,
+        caption=f"{audio_performer} — {audio_title}",
         duration=duration,
     )
     return True
 
 
 async def send_party_track(message: types.Message):
-    return await send_track(message, "red_sun.mp3", "Red Sun in the Sky", "Mao Ze Dong")
+    return await send_track(message, "red_sun.ogg", "Red Sun in the Sky", "Mao Ze Dong")
 
 
 async def send_cool_ringtone(message: types.Message):
-    return await send_track(message, "cool_ringtone.mp3", "Cool Ringtone", "Unknown")
+    return await send_track(message, "cool_ringtone.ogg", "Cool Ringtone", "Unknown")
 
 
 async def send_wivd(message: types.Message):
-    return await send_track(message, "WIvD.mp3", "What I've Done", "Linkin Park")
+    return await send_track(message, "WIvD.ogg", "What I've Done", "Linkin Park")
 
 
 async def bad_nickname(message: types.Message):
