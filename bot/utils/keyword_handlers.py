@@ -41,9 +41,7 @@ def extract_audio_metadata(file_path: str) -> dict:
     return metadata
 
 
-async def send_track(
-    message: types.Message, file_name: str, title: str, performer: str
-):
+async def send_track(message: types.Message, file_name: str):
     file_path = os.path.join(ASSETS_DIR, file_name)
 
     if not os.path.exists(file_path):
@@ -54,28 +52,25 @@ async def send_track(
 
     audio_file = FSInputFile(file_path)
 
-    audio_title = metadata.get("title") or title
-    audio_performer = metadata.get("artist") or performer
     duration = metadata.get("duration") or 0
 
     await message.answer_voice(
         voice=audio_file,
-        caption=f"{audio_performer} — {audio_title}",
         duration=duration,
     )
     return True
 
 
 async def send_party_track(message: types.Message):
-    return await send_track(message, "red_sun.ogg", "Red Sun in the Sky", "Mao Ze Dong")
+    return await send_track(message, "red_sun.ogg")
 
 
 async def send_cool_ringtone(message: types.Message):
-    return await send_track(message, "cool_ringtone.ogg", "Cool Ringtone", "Unknown")
+    return await send_track(message, "cool_ringtone.ogg")
 
 
 async def send_wivd(message: types.Message):
-    return await send_track(message, "WIvD.ogg", "What I've Done", "Linkin Park")
+    return await send_track(message, "WIvD.ogg")
 
 
 async def bad_nickname(message: types.Message):
