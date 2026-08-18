@@ -111,7 +111,7 @@ OLLAMA_VISION_MODEL = "qwen2.5vl:3b"
 
 groq_keys_str = os.getenv("GROQ_API_KEYS", "")
 GROQ_API_KEYS = [k.strip() for k in groq_keys_str.split(",") if k.strip()]
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-120b"
 GROQ_VISION_MODEL = "qwen/qwen3.6-27b"
 
 AI_MAX_REPLY_LEN = 3800
