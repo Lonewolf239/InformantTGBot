@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 MAX_SINGLE_MSG_CHARS = 2500
 MAX_HISTORY_TOTAL_CHARS = 16000
-GROQ_MAX_OUTPUT_TOKENS = 1000  # free-tier OTPM ceiling per request
+GROQ_MAX_OUTPUT_TOKENS = 1000
 
 
 def _reasoning_effort_for(model: str) -> Optional[str]:
