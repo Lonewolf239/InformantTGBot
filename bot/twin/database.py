@@ -182,13 +182,18 @@ class TwinDatabase:
             row = await cursor.fetchone()
             return row[0] if row else 0
 
-    async def get_unprocessed_raw_samples(self) -> list[dict]:
+    async def get_unprocessed_raw_samples(self, limit: int | None = None) -> list[dict]:
         async with aiosqlite.connect(self.db_path) as conn:
             conn.row_factory = aiosqlite.Row
-            cursor = await conn.execute(
+            query = (
                 "SELECT id, text, reply_context, reply_author, tag, created_at "
                 "FROM twin_raw_pool WHERE processed_at IS NULL ORDER BY id ASC"
             )
+            params: tuple = ()
+            if limit is not None:
+                query += " LIMIT ?"
+                params = (limit,)
+            cursor = await conn.execute(query, params)
             rows = await cursor.fetchall()
             return [dict(r) for r in rows]
 

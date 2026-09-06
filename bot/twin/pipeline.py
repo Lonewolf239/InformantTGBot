@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 CYCLE_INTERVAL_DAYS = 7
 CHECK_INTERVAL_SECONDS = 6 * 60 * 60
 MIN_SAMPLES_TO_RUN = 12
+MAX_SAMPLES_PER_RUN = 40
 PRIMARY_BLOCK_NAME = "speech_style"
 STATE_TTL_DAYS = 14
 
@@ -168,7 +169,7 @@ async def _run_distiller(samples_text: str) -> list[tuple[str, str, str]]:
 
 
 async def run_weekly_cycle() -> bool:
-    samples = await twin_db.get_unprocessed_raw_samples()
+    samples = await twin_db.get_unprocessed_raw_samples(limit=MAX_SAMPLES_PER_RUN)
 
     if len(samples) < MIN_SAMPLES_TO_RUN:
         logger.info(

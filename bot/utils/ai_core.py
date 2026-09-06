@@ -206,6 +206,12 @@ async def ask_groq_ai(
 
         except Exception as e:
             err_msg = str(e).lower()
+            if "too large" in err_msg or "reduce your message" in err_msg:
+                logger.error(
+                    f"Запрос слишком большой для модели {model_to_use}, ключ не виноват: {e}"
+                )
+                last_error = e
+                break
             if "429" in err_msg or "rate_limit_exceeded" in err_msg:
                 logger.warning(
                     f"Ключ {api_key[:8]}... получил 429 ошибку. Бан на 24 часа."
