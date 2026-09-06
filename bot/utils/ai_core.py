@@ -22,6 +22,16 @@ logger = logging.getLogger(__name__)
 
 MAX_SINGLE_MSG_CHARS = 2500
 MAX_HISTORY_TOTAL_CHARS = 16000
+GROQ_MAX_OUTPUT_TOKENS = 1000  # free-tier OTPM ceiling per request
+
+
+def _reasoning_effort_for(model: str) -> Optional[str]:
+    if model.startswith("qwen/"):
+        return "none"
+    if model.startswith("openai/gpt-oss"):
+        return "low"
+    return None
+
 
 user_chat_histories: dict[int, list] = {}
 
@@ -187,15 +197,20 @@ async def ask_groq_ai(
         )
 
         try:
+            reasoning_effort = _reasoning_effort_for(model_to_use)
+            extra_params = (
+                {"reasoning_effort": reasoning_effort} if reasoning_effort else {}
+            )
             response = await client.chat.completions.create(
                 model=model_to_use,
                 messages=messages,
                 temperature=kwargs.get("temperature", 0.4),
                 top_p=kwargs.get("top_p", 0.75),
-                max_tokens=kwargs.get("max_tokens", 1024),
+                max_tokens=min(kwargs.get("max_tokens", 1024), GROQ_MAX_OUTPUT_TOKENS),
                 presence_penalty=kwargs.get("presence_penalty", 0.0),
                 frequency_penalty=kwargs.get("frequency_penalty", 0.0),
                 timeout=AI_REQUEST_TIMEOUT,
+                **extra_params,
             )
 
             if response.usage:
